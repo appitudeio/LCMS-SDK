@@ -26,8 +26,10 @@ Then composer.json:
 }
 ```
 
-
-Lastly, start Webpack:
-`cd webpack`
-`npm start`
-`nohup npm run dev &`
+Lastly, init webpack: (https://www.valentinog.com/blog/webpack)
+```
+cd webpack
+npm init -y
+npm i webpack webpack-cli webpack-dev-server --save-dev
+npm run dev
+```
