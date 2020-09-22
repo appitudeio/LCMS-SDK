@@ -25,3 +25,8 @@ Then composer.json:
     ]
 }
 ```
+
+
+Lastly, start Webpack:
+`cd webpack`
+`npm start`
