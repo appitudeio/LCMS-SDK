@@ -4,6 +4,7 @@ Add local settings:
 https://docs.github.com/en/developers/overview/managing-deploy-keys#deploy-keys
 
 Then composer.json:
+```javascript
 {
     "autoload": {
         "files": [
@@ -23,3 +24,4 @@ Then composer.json:
 	    }
     ]
 }
+```
