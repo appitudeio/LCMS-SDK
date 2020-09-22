@@ -1,4 +1,27 @@
 {
+    "name": "oakleaf/LCMS-SDK",
+    "description": "Core LCMS SDK",
+    "type": "library",
+    "license": "Appitude.io",
+    "authors": [
+        {
+            "name": "Mathias Eklöf",
+            "email": "mathiaseklof@gmail.com",
+            "homepage": "https://appitude.io",
+            "role": "Inventor"
+        }
+    ],
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://packages.drupal.org/8"
+        }
+    ],
+    "require": {
+        "php": ">=7.0"
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
     "autoload": {
         "psr-4": {
             "LCMS\\" : "lcms"       
