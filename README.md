@@ -11,7 +11,7 @@ Then composer.json:
             "App/Utils.php"
         ],
         "psr-4": {
-            "App\\" : "App",
+            "App\\" : "App"
         }
     },
     "require": {
