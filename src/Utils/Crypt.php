@@ -14,7 +14,7 @@
 
 	class Crypt
 	{
-		protected static $key = "FE43ZBHSQHYKX0M5GS1X4C0PCTGGBJA2";
+		protected static $key = "FE43ZBHSQHYKX0M5GS1X4C0PCTGGBJAE";
 
 		/**
 		 * Encrypt a message
@@ -71,6 +71,10 @@
 		        $nonce,
 		        $key
 		    );
+
+		    pre($string);
+		    pre($key);
+		    pre($plain);
 
 		    if (!is_string($plain)) 
 		    {
