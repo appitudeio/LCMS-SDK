@@ -72,10 +72,6 @@
 		        $key
 		    );
 
-		    pre($string);
-		    pre($key);
-		    pre($plain);
-
 		    if (!is_string($plain)) 
 		    {
 		        throw new Exception('Invalid MAC');
