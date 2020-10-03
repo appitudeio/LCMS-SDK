@@ -91,10 +91,10 @@
 		protected function prepareFromDatabase()
 		{}
 
-		protected function prepareFromArray()
+		protected function prepareFromArray($_array)
 		{}		
 
-		protected function prepareFromFile()
+		protected function prepareFromFile($_file)
 		{
 			throw new Exception(get_class($this) . " cant prepare from File");
 		}
