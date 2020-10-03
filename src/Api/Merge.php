@@ -80,12 +80,19 @@
 			{
 				return $this->prepareFromFile($_source);
 			}
+			elseif(is_array($_source))
+			{
+				return $this->prepareFromArray($_source);
+			}
 
 			throw new Exception("Invalid preparation source: " . $_source);
 		}
 
 		protected function prepareFromDatabase()
 		{}
+
+		protected function prepareFromArray()
+		{}		
 
 		protected function preapreFromFile()
 		{
@@ -1131,6 +1138,13 @@
 		protected function prepareFromFile($_file)
 		{
 			$this->items = require($_file);
+
+			return $this;
+		}
+
+		protected function prepareFromArray($_array)
+		{
+			$this->items = (empty($this->items)) ? $_array : array_merge($this->items, $_array);
 
 			return $this;
 		}

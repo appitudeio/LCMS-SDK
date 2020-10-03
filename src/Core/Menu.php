@@ -65,6 +65,8 @@
 			$_callback($this);
 
 			unset($this->currents[count($this->currents) - 1]);
+
+			$this->currents = array_values($this->currents);
 		}
 
 		private function getCurrentKey()

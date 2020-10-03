@@ -4,37 +4,32 @@
 	 */
 	namespace LCMS\Core;
 
+	use LCMS\Core\Request;
 	use \Exception;
 
 	class Redirect
 	{
-		private static $instance;
+		use \LCMS\Utils\Singleton;
 
-		public static function getInstance()
-		{
-			if(self::$instance == null)
-			{
-				self::$instance = new static();
-			}
-
-			return self::$instance;
-		}
+		private static $to;
 
 		public static function to($_url = null)
 		{
-			if(!empty($_url))
+			/*if(!empty($_url))
 			{
 				return self::send($_url);
-			}
+			}*/
 
-			return self::getInstance();
+			self::$to = $_url;
+
+			return self::getInstance($_url);
 		}
 
 		public static function route($_route_alias)
 		{
-			$route_url = Route::url($_route_alias);
+			self::$to = Route::url($_route_alias);
 
-			return self::send($route_url);
+			return self::getInstance();
 		}
 
 		/**
@@ -42,14 +37,14 @@
 		 */
 		public static function with($key, $value)
 		{
-			Session::flash($key, $value);
+			Request::session()->flash($key, $value);
 
 			return self::getInstance();
 		}
 
-		private static function send($_to_url)
+		public static function dispatch()
 		{
-			Header("Location: " . $_to_url);
+			Header("Location: " . self::$to);
 			exit();
 		}
 

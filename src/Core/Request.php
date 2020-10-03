@@ -86,7 +86,7 @@
 
 			if($instance->cookies === null)
 			{
-				$instance->cookies 	= new InputBag($cookies);
+				$instance->cookies 	= new CookieBag($cookies);
 			}
 
 			if($instance->files === null)
@@ -1733,10 +1733,10 @@
 		{
 			parent::__construct($parameters);
 
-			/*if($this->exists("_flash.new"))
+			if($this->has("_flash.new"))
 			{
-				$this->forget("_flash.new");
-			}*/
+				$this->forget($this->get("_flash.new"));
+			}
 		}
 
 		public function flash(string $key, $value = true)
@@ -1748,7 +1748,7 @@
 
 		public function push($key, $value)
 		{
-			if(!$this->exists($key))
+			if(!$this->has($key))
 			{
 				return $this->put($key, $value);
 			}
@@ -1765,7 +1765,54 @@
 
 		public function forget($key)
 		{
-			unset($_SESSION[$key]);
+			if(is_array($key))
+			{
+				foreach($key AS $k)
+				{
+					unset($_SESSION[$k]);
+				}
+			}
+			else
+			{
+				unset($_SESSION[$key]);
+			}
+		}
+	}
+
+	class CookieBag extends ParameterBag
+	{
+		private $defaults = array(
+			'expires' 	=> "", 
+			'path'		=> "/", 
+			'domain' 	=> "",
+			'secure'	=> true,
+			'samesite'	=> 'Lax'
+		);
+
+		function __construct($parameters)
+		{
+			parent::__construct($parameters);
+
+			$this->defaults = array_merge($this->defaults, array(
+				'expires' 	=> time() + 3600,
+				'domain'	=> ".".Env::get("domain")
+			));
+		}
+
+		public function set($key, $value, $options = array())
+		{
+			setCookie($key, $value, array_merge($this->defaults, $options));
+
+			parent::set($key, $value);
+		}
+
+		public function destroy($key, $options = array())
+		{
+			setCookie($key, "", array_merge($this->defaults, $options, array(
+				'expires' => time() - 3600
+			)));
+
+			$this->remove($key);
 		}
 	}
 
