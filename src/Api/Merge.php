@@ -94,7 +94,7 @@
 		protected function prepareFromArray()
 		{}		
 
-		protected function preapreFromFile()
+		protected function prepareFromFile()
 		{
 			throw new Exception(get_class($this) . " cant prepare from File");
 		}
@@ -494,7 +494,7 @@
 			$this->ini_file = array('filename' => $_file, 'content' => $file_content);
 		}
 
-		private function prepareFromArray($_array)
+		protected function prepareFromArray($_array)
 		{
 			$flattened_array = self::array_flatten($_array);
 
