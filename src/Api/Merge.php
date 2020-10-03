@@ -76,13 +76,13 @@
 			{
 				return $this->prepareFromDatabase();
 			}
-			elseif(is_file($_source))
-			{
-				return $this->prepareFromFile($_source);
-			}
 			elseif(is_array($_source))
 			{
 				return $this->prepareFromArray($_source);
+			}			
+			elseif(is_file($_source))
+			{
+				return $this->prepareFromFile($_source);
 			}
 
 			throw new Exception("Invalid preparation source: " . $_source);
