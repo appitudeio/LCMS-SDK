@@ -39,7 +39,7 @@
 				return self::getInstance()->parameters[$_key];
 			}
 
-			return self::getInstance()->parameters[$_key][0];
+			return (isset(self::getInstance()->parameters[$_key][0]) && is_array(self::getInstance()->parameters[$_key][0])) ? self::getInstance()->parameters[$_key][0] : self::getInstance()->parameters[$_key];
 		}
 
 		public function merge($_params)

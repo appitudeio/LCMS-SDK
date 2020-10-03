@@ -1162,7 +1162,7 @@
 			
 			while($row = DB::fetch_assoc($query))
 			{
-				$this->items[$row['key']] = $row['value'];
+				$this->items[$row['key']] = (empty($row['value'])) ? null : ((\LCMS\Utils\Toolset::isJson($row['value'])) ? json_decode($row['value'], true) : $row['value']);
 			}	
 
 			return $this;
