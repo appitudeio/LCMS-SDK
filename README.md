@@ -25,3 +25,11 @@ Then composer.json:
     ]
 }
 ```
+
+Lastly, init webpack: (https://www.valentinog.com/blog/webpack)
+```
+cd webpack
+npm init -y
+npm i webpack webpack-cli webpack-dev-server --save-dev
+npm run dev
+```
