@@ -1612,7 +1612,15 @@
 
 		function __construct(array $parameters = array())
 		{
-			$this->replace($parameters);
+			if(!empty($parameters))
+			{
+				foreach($parameters AS $k => $v)
+				{
+					$this->set($k, $v);
+				}
+			}
+			
+			//$this->replace($parameters);
 		}
 
 		public function set($key, $value)
@@ -1648,8 +1656,8 @@
 			}
 
 			$file = $this->fixPhpFilesArray($file);
-		
-			if (is_array($file)) 
+
+			if(is_array($file)) 
 			{
 				$keys = array_keys($file);
 				sort($keys);
@@ -1659,10 +1667,11 @@
 					if (UPLOAD_ERR_NO_FILE == $file['error']) 
 					{
 						$file = null;
-					} 
-					else 
+					}
+					else
 					{
-						$file = new UploadedFile($file['tmp_name'], $file['name'], $file['type'], $file['size'], $file['error']);
+
+						$file = new UploadedFile($file['tmp_name'], $file['name'], $file['error']);
 					}
 				} 
 				else 
@@ -1694,7 +1703,7 @@
 		{
 			if (!is_array($data)) 
 			{
-			return $data;
+				return $data;
 			}
 
 			$keys = array_keys($data);
@@ -2097,7 +2106,7 @@
 		 *
 		 * @return string|null
 		 */
-		public function get(string $key, $default = null)
+		public function get($key, $default = null, $deep = false)
 		{
 			$value = parent::get($key, $this);
 
@@ -2144,22 +2153,12 @@
 			{
 				$this->set($input, $value);
 			}
-		}
-
-		/**
-		* Sets an input by name.
-		*
-		* @param string|array $value
-		*/
-		public function set(string $key, $value)
-		{
-			$this->parameters[$key] = $value;
-		}
+		}		
 
 		/**
 		* {@inheritdoc}
 		*/
-		public function filter(string $key, $default = null, int $filter = FILTER_DEFAULT, $options = [])
+		/*public function filter(string $key, $default = null, int $filter = FILTER_DEFAULT, $options = [])
 		{
 			$value = $this->has($key) ? $this->all()[$key] : $default;
 
@@ -2176,11 +2175,453 @@
 			if (!isset($options['flags'])) {
 			$options['flags'] = FILTER_REQUIRE_ARRAY;
 			}
-			}*/
+			}*
 
 			return filter_var($value, $filter, $options);
 		}
+
+		public function filter($key, $default = null, $deep = false, $filter = FILTER_DEFAULT, $options = array())
+		{
+			$value = $this->get($key, $default, $deep);
+
+			// Always turn $options into an array - this allows filter_var option shortcuts.
+			if (!is_array($options) && $options) 
+			{
+				$options = array('flags' => $options);
+			}
+
+			// Add a convenience check for arrays.
+			if (is_array($value) && !isset($options['flags'])) 
+			{
+				$options['flags'] = FILTER_REQUIRE_ARRAY;
+			}
+
+			return filter_var($value, $filter, $options);
+		}		*/
 	}
+
+	class UploadedFile extends File
+	{
+	    /**
+	     * Begin creating a new file fake.
+	     *
+	     * @return \Illuminate\Http\Testing\FileFactory
+	     */
+	    public static function fake()
+	    {
+	        return new FileFactory;
+	    }
+
+	    /**
+	     * Store the uploaded file on a filesystem disk.
+	     *
+	     * @param  string  $path
+	     * @param  array|string  $options
+	     * @return string|false
+	     */
+	    public function store($path, $options = [])
+	    {
+	        return $this->storeAs($path, $this->hashName(), $this->parseOptions($options));
+	    }
+
+	    /**
+	     * Store the uploaded file on a filesystem disk with public visibility.
+	     *
+	     * @param  string  $path
+	     * @param  array|string  $options
+	     * @return string|false
+	     */
+	    public function storePublicly($path, $options = [])
+	    {
+	        $options = $this->parseOptions($options);
+
+	        $options['visibility'] = 'public';
+
+	        return $this->storeAs($path, $this->hashName(), $options);
+	    }
+
+	    /**
+	     * Store the uploaded file on a filesystem disk with public visibility.
+	     *
+	     * @param  string  $path
+	     * @param  string  $name
+	     * @param  array|string  $options
+	     * @return string|false
+	     */
+	    public function storePubliclyAs($path, $name, $options = [])
+	    {
+	        $options = $this->parseOptions($options);
+
+	        $options['visibility'] = 'public';
+
+	        return $this->storeAs($path, $name, $options);
+	    }
+
+	    /**
+	     * Store the uploaded file on a filesystem disk.
+	     *
+	     * @param  string  $path
+	     * @param  string  $name
+	     * @param  array|string  $options
+	     * @return string|false
+	     */
+	    public function storeAs($path, $name, $options = [])
+	    {
+	        $options = $this->parseOptions($options);
+
+	        $disk = Arr::pull($options, 'disk');
+
+	        return Container::getInstance()->make(FilesystemFactory::class)->disk($disk)->putFileAs(
+	            $path, $this, $name, $options
+	        );
+	    }
+
+	    /**
+	     * Get the contents of the uploaded file.
+	     *
+	     * @return bool|string
+	     *
+	     * @throws \Illuminate\Contracts\Filesystem\FileNotFoundException
+	     */
+	    public function get()
+	    {
+	        if (! $this->isValid()) {
+	            throw new FileNotFoundException("File does not exist at path {$this->getPathname()}.");
+	        }
+
+	        return file_get_contents($this->getPathname());
+	    }
+
+	    /**
+	     * Get the file's extension supplied by the client.
+	     *
+	     * @return string
+	     */
+	    public function clientExtension()
+	    {
+	        return $this->guessClientExtension();
+	    }
+
+	    /**
+	     * Create a new file instance from a base instance.
+	     *
+	     * @param  \Symfony\Component\HttpFoundation\File\UploadedFile  $file
+	     * @param  bool  $test
+	     * @return static
+	     */
+	    public static function createFromBase(File $file, $test = false)
+	    {
+	        return $file instanceof static ? $file : new static(
+	            $file->getPathname(),
+	            $file->getClientOriginalName(),
+	            $file->getClientMimeType(),
+	            $file->getError(),
+	            $test
+	        );
+	    }
+
+	    /**
+	     * Parse and format the given options.
+	     *
+	     * @param  array|string  $options
+	     * @return array
+	     */
+	    protected function parseOptions($options)
+	    {
+	        if (is_string($options)) {
+	            $options = ['disk' => $options];
+	        }
+
+	        return $options;
+	    }
+	}
+
+	/**
+	 * A file uploaded through a form.
+	 *
+	 * @author Bernhard Schussek <bschussek@gmail.com>
+	 * @author Florian Eckerstorfer <florian@eckerstorfer.org>
+	 * @author Fabien Potencier <fabien@symfony.com>
+	 */
+	class File extends \SplFileInfo
+	{
+	    private $test;
+	    private $originalName;
+	    private $mimeType = 'application/octet-stream';
+	    private $error;
+	    private $size = 0;
+
+	    /**
+	     * Accepts the information of the uploaded file as provided by the PHP global $_FILES.
+	     *
+	     * The file object is only created when the uploaded file is valid (i.e. when the
+	     * isValid() method returns true). Otherwise the only methods that could be called
+	     * on an UploadedFile instance are:
+	     *
+	     *   * getClientOriginalName,
+	     *   * getClientMimeType,
+	     *   * isValid,
+	     *   * getError.
+	     *
+	     * Calling any other method on an non-valid instance will cause an unpredictable result.
+	     *
+	     * @param string  $path         The full temporary path to the file
+	     * @param string  $originalName The original file name
+	     * @param string  $mimeType     The type of the file as provided by PHP
+	     * @param integer $size         The file size
+	     * @param integer $error        The error constant of the upload (one of PHP's UPLOAD_ERR_XXX constants)
+	     * @param Boolean $test         Whether the test mode is active
+	     *
+	     * @throws FileException         If file_uploads is disabled
+	     * @throws FileNotFoundException If the file does not exist
+	     *
+	     * @api
+	     */
+	    public function __construct($path, $original_name, $error = null, $test = false)
+	    {
+	        $this->originalName = $this->getName($original_name);
+	        $this->error = $error ?: UPLOAD_ERR_OK;
+	        $this->test = (Boolean) $test;
+
+	        if($this->error == UPLOAD_ERR_OK)
+	        {
+				$finfo = new \finfo(FILEINFO_MIME_TYPE);
+				$this->mimeType = $finfo->file($path);
+				$this->size = filesize($path);
+
+				parent::__construct($path);
+	        }
+	    }
+
+	    /**
+	     * Returns the original file name.
+	     *
+	     * It is extracted from the request from which the file has been uploaded.
+	     * Then it should not be considered as a safe value.
+	     *
+	     * @return string The original name
+	     */
+	    public function getClientOriginalName()
+	    {
+	        return $this->originalName;
+	    }
+
+	    /**
+	     * Returns the original file extension.
+	     *
+	     * It is extracted from the original file name that was uploaded.
+	     * Then it should not be considered as a safe value.
+	     *
+	     * @return string The extension
+	     */
+	    public function getClientOriginalExtension()
+	    {
+	        return pathinfo($this->originalName, \PATHINFO_EXTENSION);
+	    }
+
+	    /**
+	     * Returns the file mime type.
+	     *
+	     * The client mime type is extracted from the request from which the file
+	     * was uploaded, so it should not be considered as a safe value.
+	     *
+	     * For a trusted mime type, use getMimeType() instead (which guesses the mime
+	     * type based on the file content).
+	     *
+	     * @return string The mime type
+	     *
+	     * @see getMimeType()
+	     */
+	    public function getClientMimeType()
+	    {
+	        return $this->mimeType;
+	    }
+
+	    /**
+	     * Returns the extension based on the client mime type.
+	     *
+	     * If the mime type is unknown, returns null.
+	     *
+	     * This method uses the mime type as guessed by getClientMimeType()
+	     * to guess the file extension. As such, the extension returned
+	     * by this method cannot be trusted.
+	     *
+	     * For a trusted extension, use guessExtension() instead (which guesses
+	     * the extension based on the guessed mime type for the file).
+	     *
+	     * @return string|null The guessed extension or null if it cannot be guessed
+	     *
+	     * @see guessExtension()
+	     * @see getClientMimeType()
+	     */
+	    public function guessClientExtension()
+	    {
+	        if (!class_exists(MimeTypes::class)) {
+	            throw new \LogicException('You cannot guess the extension as the Mime component is not installed. Try running "composer require symfony/mime".');
+	        }
+
+	        return MimeTypes::getDefault()->getExtensions($this->getClientMimeType())[0] ?? null;
+	    }
+
+	    /**
+	     * Returns the upload error.
+	     *
+	     * If the upload was successful, the constant UPLOAD_ERR_OK is returned.
+	     * Otherwise one of the other UPLOAD_ERR_XXX constants is returned.
+	     *
+	     * @return int The upload error
+	     */
+	    public function getError()
+	    {
+	        return $this->error;
+	    }
+
+	    /**
+	     * Returns whether the file was uploaded successfully.
+	     *
+	     * @return bool True if the file has been uploaded with HTTP and no error occurred
+	     */
+	    public function isValid()
+	    {
+	        $isOk = \UPLOAD_ERR_OK === $this->error;
+
+	        return $this->test ? $isOk : $isOk && is_uploaded_file($this->getPathname());
+	    }
+
+	    /**
+	     * Moves the file to a new location.
+	     *
+	     * @return File A File object representing the new file
+	     *
+	     * @throws FileException if, for any reason, the file could not have been moved
+	     */
+	    public function move(string $directory, string $name = null)
+	    {
+	        if ($this->isValid()) 
+	        {
+	            if ($this->test) 
+	            {
+	                return false; //parent::move($directory, $name);
+	            }
+
+	            $target = $this->getTargetFile($directory, $name);
+
+	            set_error_handler(function ($type, $msg) use (&$error) { $error = $msg; });
+	            $moved = move_uploaded_file($this->getPathname(), $target);
+	            restore_error_handler();
+	            if (!$moved) {
+	                throw new FileException(sprintf('Could not move the file "%s" to "%s" (%s).', $this->getPathname(), $target, strip_tags($error)));
+	            }
+
+	            @chmod($target, 0666 & ~umask());
+
+	            return $target;
+	        }
+
+	        switch ($this->error) {
+	            case \UPLOAD_ERR_INI_SIZE:
+	                throw new IniSizeFileException($this->getErrorMessage());
+	            case \UPLOAD_ERR_FORM_SIZE:
+	                throw new FormSizeFileException($this->getErrorMessage());
+	            case \UPLOAD_ERR_PARTIAL:
+	                throw new PartialFileException($this->getErrorMessage());
+	            case \UPLOAD_ERR_NO_FILE:
+	                throw new NoFileException($this->getErrorMessage());
+	            case \UPLOAD_ERR_CANT_WRITE:
+	                throw new CannotWriteFileException($this->getErrorMessage());
+	            case \UPLOAD_ERR_NO_TMP_DIR:
+	                throw new NoTmpDirFileException($this->getErrorMessage());
+	            case \UPLOAD_ERR_EXTENSION:
+	                throw new ExtensionFileException($this->getErrorMessage());
+	        }
+
+	        throw new FileException($this->getErrorMessage());
+	    }
+
+	    /**
+	     * Returns the maximum size of an uploaded file as configured in php.ini.
+	     *
+	     * @return int The maximum size of an uploaded file in bytes
+	     */
+	    public static function getMaxFilesize()
+	    {
+	        $sizePostMax = self::parseFilesize(ini_get('post_max_size'));
+	        $sizeUploadMax = self::parseFilesize(ini_get('upload_max_filesize'));
+
+	        return min($sizePostMax ?: \PHP_INT_MAX, $sizeUploadMax ?: \PHP_INT_MAX);
+	    }
+
+	    /**
+	     * Returns the given size from an ini value in bytes.
+	     */
+	    private static function parseFilesize($size): int
+	    {
+	        if ('' === $size) {
+	            return 0;
+	        }
+
+	        $size = strtolower($size);
+
+	        $max = ltrim($size, '+');
+	        if (0 === strpos($max, '0x')) {
+	            $max = \intval($max, 16);
+	        } elseif (0 === strpos($max, '0')) {
+	            $max = \intval($max, 8);
+	        } else {
+	            $max = (int) $max;
+	        }
+
+	        switch (substr($size, -1)) {
+	            case 't': $max *= 1024;
+	            // no break
+	            case 'g': $max *= 1024;
+	            // no break
+	            case 'm': $max *= 1024;
+	            // no break
+	            case 'k': $max *= 1024;
+	        }
+
+	        return $max;
+	    }
+
+	    /**
+	     * Returns an informative upload error message.
+	     *
+	     * @return string The error message regarding the specified error code
+	     */
+	    public function getErrorMessage()
+	    {
+	        static $errors = [
+	            \UPLOAD_ERR_INI_SIZE => 'The file "%s" exceeds your upload_max_filesize ini directive (limit is %d KiB).',
+	            \UPLOAD_ERR_FORM_SIZE => 'The file "%s" exceeds the upload limit defined in your form.',
+	            \UPLOAD_ERR_PARTIAL => 'The file "%s" was only partially uploaded.',
+	            \UPLOAD_ERR_NO_FILE => 'No file was uploaded.',
+	            \UPLOAD_ERR_CANT_WRITE => 'The file "%s" could not be written on disk.',
+	            \UPLOAD_ERR_NO_TMP_DIR => 'File could not be uploaded: missing temporary directory.',
+	            \UPLOAD_ERR_EXTENSION => 'File upload was stopped by a PHP extension.',
+	        ];
+
+	        $errorCode = $this->error;
+	        $maxFilesize = \UPLOAD_ERR_INI_SIZE === $errorCode ? self::getMaxFilesize() / 1024 : 0;
+	        $message = isset($errors[$errorCode]) ? $errors[$errorCode] : 'The file "%s" was not uploaded due to an unknown error.';
+
+	        return sprintf($message, $this->getClientOriginalName(), $maxFilesize);
+	    }
+
+	    /**
+	     * Returns locale independent base name of the given path.
+	     *
+	     * @return string
+	     */
+	    protected function getName(string $name)
+	    {
+	        $originalName = str_replace('\\', '/', $name);
+	        $pos = strrpos($originalName, '/');
+	        $originalName = false === $pos ? $originalName : substr($originalName, $pos + 1);
+
+	        return $originalName;
+	    }	    
+	}	
 
 	trait InteractsWithInput
 	{
@@ -2514,8 +2955,10 @@
 	     */
 	    protected function convertUploadedFiles(array $files)
 	    {
-	        return array_map(function ($file) {
-	            if (is_null($file) || (is_array($file) && empty(array_filter($file)))) {
+	        return array_map(function($file) 
+	        {
+	            if (is_null($file) || (is_array($file) && empty(array_filter($file)))) 
+	            {
 	                return $file;
 	            }
 

@@ -237,12 +237,20 @@
 		{
 			$return = array();
 
+			$excludes = array('now', 'uuid', 'point(');
+
 			foreach($_fields AS $column => $value)
 			{
 				// If NOW or UUID, then we've already covered this when we prepared the sql
-				if(!is_array($value) && (strpos(strtolower($value), "now") === 0 || strpos(strtolower($value), "uuid") === 0))
+				if(!is_array($value))
 				{
-					continue;
+					foreach($excludes AS $exclude)
+					{
+						if(strpos(strtolower($value), $exclude) === 0)
+						{
+							continue 2;
+						}
+					}
 				}
 
 				if(is_int($value))

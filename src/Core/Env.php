@@ -38,8 +38,24 @@
 			{
 				return self::getInstance()->parameters[$_key];
 			}
+			elseif(is_array(self::getInstance()->parameters[$_key]))
+			{
+				if(isset(self::getInstance()->parameters[$_key][0]))
+				{
+					if(is_string(self::getInstance()->parameters[$_key][0]))
+					{
+						return self::getInstance()->parameters[$_key][0];
+					}
+					elseif(is_array(self::getInstance()->parameters[$_key][0]))
+					{
+						return self::getInstance()->parameters[$_key][0];
+					}
+				}
+			}
 
-			return (isset(self::getInstance()->parameters[$_key][0]) && is_array(self::getInstance()->parameters[$_key][0])) ? self::getInstance()->parameters[$_key][0] : self::getInstance()->parameters[$_key];
+			return self::getInstance()->parameters[$_key];
+
+			//return (isset(self::getInstance()->parameters[$_key][0]) && is_array(self::getInstance()->parameters[$_key][0])) ? self::getInstance()->parameters[$_key][0] : self::getInstance()->parameters[$_key];
 		}
 
 		public function merge($_params)
