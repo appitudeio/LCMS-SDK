@@ -12,6 +12,7 @@
 	 */
 	namespace LCMS\Core;
 
+	use LCMS\Utils\Uuid;
 	use \PDO;
 	use \Exception;
 
@@ -19,13 +20,14 @@
 	{
 		/* Keeps all current connections-instances-key */
 		private static $connections = array();
-
-		/* Used in debugging */
 		private static $sql;
-
 		private static $time_zone	= "Europe/Stockholm";
-
 		private static $instance;
+
+		public static function __callStatic($method, $args)
+		{
+			return call_user_func_array(array(self::getConnection(), $method), $args);
+		}		
 
 		/**
 		 *	Connects to a DB, and returns the current created DB-instance-key
@@ -81,6 +83,11 @@
 			return self::$instance;
 		}
 
+		public static function instance()
+		{
+			return self::getInstance();
+		}
+
 		/**
 		 *	Smart insertQuery which allows an associative array with columns and values.
 		 *		Also, ofcourse, with Binds and prepared statements
@@ -104,7 +111,7 @@
 				}
 				elseif(!is_array($data) && strpos(strtolower($data), "uuid") === 0)
 				{
-					$column_value = "UUID_TO_BIN(UUID())";
+					$column_value = (in_array(strtolower($data), ["uuid", "uuid()"])) ? "UUID_TO_BIN('".Uuid::generate()."')" : "UUID_TO_BIN('".$match[1]."')";
 				}
 				elseif(!is_array($data) && strpos(strtolower($data), "point(") === 0)
 				{
@@ -176,7 +183,7 @@
 				}
 				elseif(!is_array($data) && strpos(strtolower($data), "uuid") === 0)
 				{
-					$column_value = "UUID_TO_BIN(UUID())";
+					$column_value = (in_array(strtolower($data), ["uuid", "uuid()"])) ? "UUID_TO_BIN('".Uuid::generate()."')" : "UUID_TO_BIN('".$match[1]."')";
 				}
 				elseif(!is_array($data) && strpos(strtolower($data), "point(") === 0)
 				{
@@ -282,24 +289,29 @@
 		}
 
 		/* Actually run a query */
-		public static function query($sql, $connection_key = null)
+		public static function query($sql, $args = array(), $connection_key = null)
 		{
 			$connection = self::getConnection($connection_key);
 
 			self::$sql = $sql;
 
-			$statement 	= $connection->prepare(self::$sql);
+			if(empty($args))
+			{
+				return $connection->query($sql);
+			}
+
+			$args = (is_string($args)) ? array($args) : $args;
 
 			try
 			{
-				$statement->execute();
+				$statement 	= $connection->prepare(self::$sql);
+				$statement->execute($args);
+				return $statement;
 			}
 			catch(PDOException $e)
 			{
 				self::debug($e);
 			}
-
-			return $statement;
 		}
 
 		/**
@@ -432,16 +444,6 @@
 			}
 
 			return $string;
-		}
-
-		public static function UUID()
-		{
-		    if (function_exists('com_create_guid') === true)
-		    {
-		        return trim(com_create_guid(), '{}');
-		    }
-
-		    return sprintf('%04X%04X-%04X-%04X-%04X-%04X%04X%04X', mt_rand(0, 65535), mt_rand(0, 65535), mt_rand(0, 65535), mt_rand(16384, 20479), mt_rand(32768, 49151), mt_rand(0, 65535), mt_rand(0, 65535), mt_rand(0, 65535));			
 		}
 	}
 ?>

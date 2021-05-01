@@ -15,19 +15,21 @@
 
 		public static function to($_url = null)
 		{
-			/*if(!empty($_url))
-			{
-				return self::send($_url);
-			}*/
-
-			self::$to = $_url;
+			self::$to = (isset(parse_url($_url)['scheme'])) ? $_url : "/" . ltrim($_url, "/");
 
 			return self::getInstance($_url);
 		}
 
-		public static function route($_route_alias)
+		public static function route($_route_alias, $_arguments = null)
 		{
-			self::$to = Route::url($_route_alias);
+			self::$to = Route::url($_route_alias, $_arguments);
+
+			return self::getInstance();
+		}
+
+		public static function back()
+		{
+			self::$to = Request::headers()->get('referer') ?? Env::get("app_path");
 
 			return self::getInstance();
 		}

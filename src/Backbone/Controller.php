@@ -9,10 +9,13 @@
 
 	abstract class Controller
 	{
+		protected $route;
 		protected $request;
 
-		function __construct(Request $_request = null)
+		function __construct($_route_array, Request $_request = null)
 		{
+			$this->route = $_route_array;
+
 			if(!empty($_request))
 			{
 				$this->request = $_request;

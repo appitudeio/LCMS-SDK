@@ -78,7 +78,7 @@
 			return self::getInstance();
 		}
 
-		public static function make($_view)
+		public static function make($_view, $_with = null)
 		{
 			//$dir = (defined("ROOT_PATH")) ? ROOT_PATH : dirname(__DIR__);
 
@@ -91,6 +91,14 @@
 			}
 
 			self::getInstance()->view_file = $file;
+
+			if(is_array($_with))
+			{
+				foreach($_with AS $key => $value)
+				{
+					self::getInstance()->with($key, $value);
+				}
+			}
 
 			return self::getInstance();
 		}
@@ -155,12 +163,10 @@
 	    {
 	    	if(!empty($_view))
 	    	{
-	    		self::make($_view);
+	    		self::make($_view, $_data);
 	    	}
 
-	    	$content = self::getInstance()->renderContent($_data);
-
-	    	return $content;
+	    	return self::getInstance()->renderContent($_data);
 	    }
 
 		/**

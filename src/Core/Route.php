@@ -10,14 +10,14 @@
 	use LCMS\Boilerplate\View;
 	use \Exception;
 
-	class Route 
+	class Route
 	{
 		use \LCMS\Utils\Singleton;
 
 		public static $routes = array();
 		public static $map = array();
 		public static $current;
-		
+
 		private static $namespace = "App\Controllers\\";
 		private static $parent;
 		private static $relations = array();
@@ -69,7 +69,7 @@
 			elseif(is_array($_caller))
 			{
 				$route['controller'] 	= $_caller[0];
-				$route['action'] 		= $_caller[1];
+				$route['action'] 		= $_caller[1] ?? "Index";
 			}
 			else
 			{
@@ -80,7 +80,7 @@
 			}
 
 			/**
-			 *	Inherit parent settings	
+			 *	Inherit parent settings
 			 */
 			if(self::$parent)
 			{
@@ -109,7 +109,7 @@
 			if(isset($route['controller']) && !in_array($route['controller'], self::$mapped) && class_exists($route['controller']) && method_exists($route['controller'], "router"))
 			{
 				return self::addControllerRoutes($route['key']);
-			}	
+			}
 
 			return $route['key'];
 		}
@@ -134,7 +134,7 @@
 			});
 
 			// Go back to previous parent
-			//self::$parent = $last_parent; 
+			//self::$parent = $last_parent;
 			self::$current = $last_current;
 
 			return $_parent_key;
@@ -179,7 +179,7 @@
 			if(!isset(self::$map[Request::METHOD_GET]))
 			{
 				self::$map[Request::METHOD_GET] = array();
-			}			
+			}
 
 			self::$map[Request::METHOD_GET][] = $key;
 
@@ -198,6 +198,22 @@
 			}
 
 			self::$map[Request::METHOD_POST][] = $key;
+
+			self::$current = self::$routes[$key];
+
+			return self::getInstance();
+		}
+
+		public static function ajax($_url_pattern, $_caller)
+		{
+			$key = self::add($_url_pattern, $_caller);
+
+			if(!isset(self::$map[Request::METHOD_AJAX]))
+			{
+				self::$map[Request::METHOD_AJAX] = array();
+			}
+
+			self::$map[Request::METHOD_AJAX][] = $key;
 
 			self::$current = self::$routes[$key];
 
@@ -231,7 +247,7 @@
 			self::$parent = $last_current; //self::$routes[self::getLastKey()];
 
 			$_callback(self::getInstance());
-			
+
 			self::$current = $last_current; // go back
 			self::$parent = $last_parent;
 
@@ -243,7 +259,17 @@
 		 */
 		public function require(array $_inputs)
 		{
-			self::$routes[self::getLastKey()]['required_parameters'] = $_inputs;
+			self::$routes[self::getLastKey()]['required_parameters'] = array();
+
+			foreach($_inputs AS $key => $value)
+			{
+				self::$routes[self::getLastKey()]['required_parameters'][] = (is_numeric($key)) ? $value : $key;
+
+				if(!is_numeric($key))
+				{
+					self::$routes[self::getLastKey()]['required_specific_parameters'][$key] = $value;
+				}
+			}
 
 			return self::getInstance();
 		}
@@ -262,12 +288,13 @@
 		{
 	        // Convert the route to a regular expression: escape forward slashes
 	        $_pattern = preg_replace('/\//', '\\/', $_pattern);
-	    
+
 	        // Convert variables e.g. {controller}
 	        $_pattern = preg_replace('/\{([a-z]+)\}/', '(?P<\1>[a-z0-9-]+)', $_pattern);
 
 	        // Convert variables with custom regular expressions e.g. {id:\d+}
-	        $_pattern = preg_replace('/\{([a-z]+):([^\}]+)\}/', '(?P<\1>\2)', $_pattern);
+	      //  $_pattern = preg_replace('/\{([a-z]+):([^\}]+)\}/', '(?P<\1>\2)', $_pattern);
+	        $_pattern = preg_replace('/\{([a-z]+):([^\']+)\}/', '(?P<\1>\2)', $_pattern);
 
 	        // Add start and end delimiters, and case insensitive flag
 	      	return '/^' . $_pattern . '$/i';
@@ -303,7 +330,7 @@
 			/**
 			 *	Create the Controller
 			 */
-			$_route['controller'] = new $_route['controller'](self::getInstance()->request);
+			$_route['controller'] = new $_route['controller']($_route, self::getInstance()->request);
 
 			/**
 			 *	Prepare Nodes to be used
@@ -313,7 +340,7 @@
 			/**
 			 *	Check Middleware
 			 */
-			$middleware = $_route['controller']->middleware();
+			$middleware = $_route['controller']->middleware($_route['action'] ?? null);
 
             if($middleware === false || ($middleware instanceof Response || $middleware instanceof Redirect || $middleware instanceof View))
             {
@@ -346,7 +373,7 @@
 		 */
 		public static function dispatch(Request $_request)
 		{
-			$route = self::match($_request->path(), $_request->getMethod());
+			$route = self::match($_request->path(), $_request->getMethod(), $_request->ajax());
 
 			if(!$route)
 			{
@@ -354,7 +381,7 @@
 			}
 
 			return self::$current = $route;
-		}	
+		}
 
 		/**
 		 * Match the route to the routes in the routing table, setting the $params
@@ -364,42 +391,68 @@
 		 *
 		 * @return boolean  true if a match found, false otherwise
 		 */
-		public static function match($_url, $_method = "GET")
+		public static function match($_url, $_method = "GET", $_is_ajax_request = false, $_init = true)
 		{
-			foreach(self::$routes AS $route_key => $route) 
+			if(!isset(self::$map[$_method]) && ($_is_ajax_request && !isset(self::$map["AJAX"])))
 			{
-				$pattern = self::parsePattern($route['pattern']);
+				return false;
+			}
 
-				if((!isset(self::$map[$_method]) || !in_array($route['key'], self::$map[$_method])) || !preg_match($pattern, $_url, $matches))
+			$maps = (isset(self::$map[$_method])) ? array($_method => self::$map[$_method]) : array();
+			$maps += ($_is_ajax_request && isset(self::$map["AJAX"])) ? array("AJAX" => self::$map["AJAX"]) : array();
+			$maps = array_reverse($maps);
+
+			foreach($maps AS $map_group => $map_keys)
+			{
+				foreach($map_keys AS $route_key)
 				{
-					continue;
-				}
+					$route = self::$routes[$route_key];
 
-				// Check if valid inputs
-				if(isset($route['required_parameters']) && array_diff($route['required_parameters'], array_keys(self::getInstance()->request->all())))
-				{
-					continue;
-				}
+					$pattern = self::parsePattern($route['pattern']);
 
-				// Get named capture group values
-				$params = array();
-
-				foreach($matches AS $key => $match) 
-				{
-					if(is_string($key)) 
+					if(!in_array($route['key'], $map_keys) || !preg_match($pattern, $_url, $matches))
 					{
-						$params[$key] = $match;
+						continue;
 					}
+					elseif(isset($route['required_parameters']) && array_diff($route['required_parameters'], array_keys(self::getInstance()->request->all())))
+					{
+						continue;
+					}
+					elseif(isset($route['required_specific_parameters']))
+					{
+						$findings = array_filter($route['required_specific_parameters'], fn($v, $k) => (self::getInstance()->request->all()[$k] == $v), ARRAY_FILTER_USE_BOTH);
+
+						if(count($findings) < count($route['required_specific_parameters']))
+						{
+							continue;
+						}
+					}
+
+					if(!$_init)
+					{
+						return $route;
+					}
+
+					// Get named capture group values
+					$params = array();
+
+					foreach($matches AS $key => $match)
+					{
+						if(is_string($key))
+						{
+							$params[$key] = $match;
+						}
+					}
+
+					if(!empty($params))
+					{
+						self::$routes[$route_key]['parameters'] = (isset(self::$routes[$route_key]['parameters'])) ? array_merge(self::$routes[$route_key]['parameters'], $params) : $params;
+					}
+
+					self::$current = self::$routes[$route_key];
+
+					return self::$current;
 				}
-
-				if(!empty($params))
-				{
-					self::$routes[$route_key]['parameters'] = (isset(self::$routes[$route_key]['parameters'])) ? array_merge(self::$routes[$route_key]['parameters'], $params) : $params;
-				}
-
-				self::$current = self::$routes[$route_key];
-
-				return self::$routes[$route_key];
 			}
 
 			return false;
@@ -416,7 +469,7 @@
 		}
 
 		/**
-		 *	
+		 *
 		 */
 		public static function url($_to_alias, $_arguments = null, $_absolute = true)
 		{
@@ -452,11 +505,21 @@
 					}
 
 					$url = str_replace("{".$pattern."}", $_arguments[$match], $url);
+
+					unset($_arguments[$match]);
 				}
 			}
 
 			$url = (!empty($url)) ? trim(strtolower($url)) : "/";
 			$url = "/" . ltrim($url, "/");
+
+			if(!empty($_arguments) && $_arguments = array_filter($_arguments, fn($value) => !is_null($value) && $value !== ""))
+			{
+				if(!empty($_arguments))
+				{
+					$url .= "?" . http_build_query($_arguments);
+				}
+			}
 
 			if(!$_absolute)
 			{
@@ -464,6 +527,14 @@
 			}
 
 			return self::getInstance()->request->root() . $url;
+		}
+
+		/**
+		 *	Try to rewerse engineer the Route from the URL
+		 */
+		public static function getRouteFromUrl($_url)
+		{
+			return self::match(ltrim(parse_url($_url)['path'], "/"), "GET", false, false);
 		}
 
 		public static function asItem($_alias)
@@ -549,7 +620,7 @@
 				}
 
 				self::$routes[$k] = (isset(self::$routes[$k])) ? array_merge(self::$routes[$k], $r) : $r;
-				
+
 				if(!isset(self::$routes[$k]['key']))
 				{
 					self::$routes[$k]['key'] = $k;

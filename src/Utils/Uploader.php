@@ -16,9 +16,9 @@
 
 	class Uploader
 	{
+		const TMP_PATH 				= "/tmp";
 		private static $initialized = false;
 		private static $config 		= array();
-		private static $tmp_path	= TMP_PATH;
 
 		private static $validators 	= array(
 			'max_file_size'	=> 25000, // in kb
@@ -167,12 +167,17 @@
 		/* Upload image to S3 Bucket */
 		public static function uploadToS3($local_file, $s3_path = null, $new_filename = null)
 		{
+			if(!self::$initialized)
+			{
+				throw new Exception("Uploader not initialized");
+			}
+
 			$new_filename = (empty($new_filename)) ? self::generateFileName($local_file) : $new_filename;
 
 			$finfo = finfo_open(FILEINFO_MIME_TYPE);
 			$mime = finfo_file($finfo, $local_file['tmp_name']);
 
-			$s3_root_path = (!empty($s3_path)) ? $s3_path : self::$config['bucket_images_root_path'];
+			$s3_root_path = (!empty($s3_path)) ? self::$config['bucket_images_root_path'] . "/". $s3_path : self::$config['bucket_images_root_path'];
 			$s3_root_path .= ($s3_root_path[strlen($s3_root_path) - 1] == "/") ? "" : "/"; // Append slash
 
 			// Is this an SVG image?
@@ -189,7 +194,7 @@
 					'secret'	=> self::$config['access_secret']
 			    )
 			));
-
+			
 			$s3->putObject(array(
 				'Bucket' 		=> self::$config['bucket'], 
 				'Key' 			=> $s3_root_path . $new_filename, 
@@ -233,7 +238,7 @@
 
 			$new_filename = (!empty($prepend_filename)) ? $prepend_filename . $new_filename : $new_filename;
 
-			if (!copy($download_url, self::$tmp_path . "/" . $new_filename))
+			if (!copy($download_url, self::TMP_PATH . "/" . $new_filename))
 			{
 				throw new Exception("Could not download image to tmp path");
 			}
