@@ -1811,8 +1811,10 @@
 					unset($_SESSION[$k]);
 				}
 			}
-
-			unset($_SESSION[$key]);
+			else
+			{
+				unset($_SESSION[$key]);
+			}
 		}
 	}
 
