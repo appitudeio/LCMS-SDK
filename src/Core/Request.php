@@ -1778,7 +1778,7 @@
 
 		public function flash(string $key, $value = true)
 		{
-			$this->add($key, $value);
+			$this->set($key, $value);
 
 			$this->push("_flash.new", $key);
 		}
@@ -1787,12 +1787,12 @@
 		{
 			if(!$this->has($key))
 			{
-				return $this->put($key, $value);
+				return $this->set($key, $value);
 			}
 
 			$keys = (array) $this->get($key);
 
-			$this->add($key, array_merge($keys, array($key)));
+			$this->set($key, array_merge($keys, array($key)));
 		}
 
 		public function set($key, $value)
@@ -1811,10 +1811,8 @@
 					unset($_SESSION[$k]);
 				}
 			}
-			else
-			{
-				unset($_SESSION[$key]);
-			}
+
+			unset($_SESSION[$key]);
 		}
 	}
 
