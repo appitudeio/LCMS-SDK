@@ -64,13 +64,26 @@
 		 * @param  mixed  $value
 		 * @return $this
 		 */
-		public static function with($key, $value = null)
+		public static function with($key, $value = null, $extend = false)
 		{
-			if(is_array($key)) 
+			if(is_array($key))
 			{
 				self::getInstance()->data = array_merge(self::getInstance()->data, $key);
 			} 
-			else 
+			elseif(is_array($value))
+			{
+				if(isset(self::getInstance()->data[$key]) && !is_array(self::getInstance()->data[$key]))
+				{
+					self::getInstance()->data[$key] = array(self::getInstance()->data[$key]);
+				}
+				elseif(!isset(self::getInstance()->data[$key]))
+				{
+					self::getInstance()->data[$key] = array();
+				}
+
+				self::getInstance()->data[$key] += $value;
+			}
+			else
 			{
 				self::getInstance()->data[$key] = $value;
 			}
