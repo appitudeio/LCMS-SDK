@@ -20,19 +20,29 @@
 			$this->params = array('identifier' => $_identifier);
 		}
 
-		public function add($_title, $_route, $_params = null)
+		public function add($_title = null, $_route = null, $_params = null)
 		{
-			$this->items[] = array(
+			$item = array(
 				'key'	=> $this->getCurrentKey() + 1,
-				'title'	=> $_title,
-				'route'	=> $_route,
 				'order'	=> count($this->items)
 			);
 
+			if(!empty($_title))
+			{
+				$item['title'] = $_title;
+			}
+
+			if(!empty($_route))
+			{
+				$item['route'] = $_route;
+			}
+
 			if(!empty($_params))
 			{
-				$this->items[$this->getCurrentKey()]['parameters'] = $_params;
-			}
+				$item['parameters'] = $_params;
+			}			
+
+			$this->items[] = $item;
 
 			/**
 			 *	Chain this added item into it's parent
