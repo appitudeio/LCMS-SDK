@@ -9,6 +9,8 @@
 	 *		2019-11-20: Added `getColumns` which returns an array of columns for given database and table
 	 *		2019-11-21: Added support for UUID and NOW in  statement bindings
 	 *		2020-01-06: Added SSL certificate support
+	 *		2021-05-06: Added query->statement->fetchAs
+	 *			- DB::query("SELECT...")->as(Model::class); returns array with Models
 	 */
 	namespace LCMS\Core;
 
@@ -51,7 +53,9 @@
 
 			try
 			{
-			    self::$connections[$key] = new PDO($driver, $username, $password, $options);
+				$pdo = new PDO($driver, $username, $password, $options);
+				$pdo->setAttribute(PDO::ATTR_STATEMENT_CLASS, [PDOStatement::class]);
+			    self::$connections[$key] = $pdo;
 			} 
 			catch(PDOException $e) 
 			{
@@ -397,7 +401,7 @@
 		/**
 		 *	Find out which connection we should use. Could be from a Key
 		 */
-		private static function getConnection($connection_key = null)
+		public static function getConnection($connection_key = null)
 		{
 			if(empty(self::$connections))
 			{
@@ -444,6 +448,31 @@
 			}
 
 			return $string;
+		}
+	}
+
+	class PDOStatement extends \PDOStatement
+	{
+		public function as(String $obj) : Array
+		{
+			$rows = $this->fetchAll(PDO::FETCH_ASSOC|PDO::FETCH_UNIQUE);
+
+			if(empty($rows))
+			{
+				return array();
+			}
+
+			return array_combine(array_keys($rows), array_map(fn($row, $id) => (new $obj(['id' => $id] + $row)), $rows, array_keys($rows)));
+		}
+
+		public function asArray() : Array
+		{
+			return $this->fetchAll(PDO::FETCH_ASSOC);
+		}
+
+		public function asKeyValue() : Array
+		{
+			return $this->fetchAll(PDO::FETCH_KEY_PAIR);
 		}
 	}
 ?>

@@ -22,22 +22,22 @@ namespace LCMS\Utils;
 
 use \Exception;
 
-define('HDOM_TYPE_ELEMENT', HtmlNode::HDOM_TYPE_ELEMENT);
-define('HDOM_TYPE_COMMENT', HtmlNode::HDOM_TYPE_COMMENT);
-define('HDOM_TYPE_TEXT',    HtmlNode::HDOM_TYPE_TEXT);
-define('HDOM_TYPE_ROOT',    HtmlNode::HDOM_TYPE_ROOT);
-define('HDOM_TYPE_UNKNOWN', HtmlNode::HDOM_TYPE_UNKNOWN);
-define('HDOM_QUOTE_DOUBLE', HtmlNode::HDOM_QUOTE_DOUBLE);
-define('HDOM_QUOTE_SINGLE', HtmlNode::HDOM_QUOTE_SINGLE);
-define('HDOM_QUOTE_NO',     HtmlNode::HDOM_QUOTE_NO);
-define('HDOM_INFO_BEGIN',   HtmlNode::HDOM_INFO_BEGIN);
-define('HDOM_INFO_END',     HtmlNode::HDOM_INFO_END);
-define('HDOM_INFO_QUOTE',   HtmlNode::HDOM_INFO_QUOTE);
-define('HDOM_INFO_SPACE',   HtmlNode::HDOM_INFO_SPACE);
-define('HDOM_INFO_TEXT',    HtmlNode::HDOM_INFO_TEXT);
-define('HDOM_INFO_INNER',   HtmlNode::HDOM_INFO_INNER);
-define('HDOM_INFO_OUTER',   HtmlNode::HDOM_INFO_OUTER);
-define('HDOM_INFO_ENDSPACE', HtmlNode::HDOM_INFO_ENDSPACE);
+/*define('HDOM_TYPE_ELEMENT',     HtmlNode::HDOM_TYPE_ELEMENT);
+define('HDOM_TYPE_COMMENT',     HtmlNode::HDOM_TYPE_COMMENT);
+define('HDOM_TYPE_TEXT',        HtmlNode::HDOM_TYPE_TEXT);
+define('HDOM_TYPE_ROOT',        HtmlNode::HDOM_TYPE_ROOT);
+define('HDOM_TYPE_UNKNOWN',     HtmlNode::HDOM_TYPE_UNKNOWN);
+define('HDOM_QUOTE_DOUBLE',     HtmlNode::HDOM_QUOTE_DOUBLE);
+define('HDOM_QUOTE_SINGLE',     HtmlNode::HDOM_QUOTE_SINGLE);
+define('HDOM_QUOTE_NO',         HtmlNode::HDOM_QUOTE_NO);
+define('HDOM_INFO_BEGIN',       HtmlNode::HDOM_INFO_BEGIN);
+define('HDOM_INFO_END',         HtmlNode::HDOM_INFO_END);
+define('HDOM_INFO_QUOTE',       HtmlNode::HDOM_INFO_QUOTE);
+define('HDOM_INFO_SPACE',       HtmlNode::HDOM_INFO_SPACE);
+define('HDOM_INFO_TEXT',        HtmlNode::HDOM_INFO_TEXT);
+define('HDOM_INFO_INNER',       HtmlNode::HDOM_INFO_INNER);
+define('HDOM_INFO_OUTER',       HtmlNode::HDOM_INFO_OUTER);
+define('HDOM_INFO_ENDSPACE',    HtmlNode::HDOM_INFO_ENDSPACE);*/
 
 define('HDOM_SMARTY_AS_TEXT', 1);
 
