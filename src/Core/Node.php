@@ -534,7 +534,7 @@
 
 		}
 
-		private function to($_extension = null, $_basename)
+		private function to($_extension, $_basename)
 		{
 
 		}

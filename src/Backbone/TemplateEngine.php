@@ -252,7 +252,7 @@
             }
 		}
 
-		private function handle($identifier, $properties = null, $fallback)
+		private function handle($identifier, $properties, $fallback)
 		{
 			$node = Node::get($identifier);
 
