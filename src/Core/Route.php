@@ -220,7 +220,7 @@
 			return self::getInstance();
 		}
 
-		public static function any($_methods = null, $_url_pattern, $_caller)
+		public static function any($_methods, $_url_pattern, $_caller)
 		{
 			$key = self::add($_url_pattern, $_caller);
 
