@@ -39,17 +39,7 @@
 			}
 		}
 
-		/*public static function getInstance()
-		{
-			if(self::$instance == null)
-			{
-				self::$instance = new static();
-			}
-
-			return self::$instance;
-		}*/
-
-		private static function add($_url_pattern, $_caller)
+		private static function add($_url_pattern, $_caller): String
 		{
 			/**
 			 *	Determine what to do when this Route is in use
@@ -106,11 +96,6 @@
 			// Add to queue
 			self::$routes[] = $route;
 
-			if(isset($route['controller']) && !in_array($route['controller'], self::$mapped) && class_exists($route['controller']) && method_exists($route['controller'], "router"))
-			{
-				return self::addControllerRoutes($route['key']);
-			}
-
 			return $route['key'];
 		}
 
@@ -119,6 +104,13 @@
 		 */
 		private static function addControllerRoutes($_parent_key)
 		{
+			$route = self::$routes[$_parent_key];
+
+			if(!isset($route['controller']) || !class_exists($route['controller']) || !method_exists($route['controller'], "router") || (isset($route['parent']) && in_array($route['controller'], self::$mapped)))
+			{
+				return;
+			}
+
 			$class = self::$routes[$_parent_key]['controller'];
 
 			self::$mapped[] = $class;
@@ -128,10 +120,7 @@
 
 			self::$current = self::$routes[$_parent_key];
 
-			self::getInstance()->group(function($self) use($class)
-			{
-				$class::router($self);
-			});
+			self::getInstance()->group(fn($self) => $class::router($self));
 
 			// Go back to previous parent
 			//self::$parent = $last_parent;
@@ -140,12 +129,12 @@
 			return $_parent_key;
 		}
 
-		private static function getCurrent()
+		private static function getCurrent(): Array
 		{
 			return self::$routes[self::getCurrentKey()];
 		}
 
-		private static function getCurrentKey()
+		private static function getCurrentKey(): Int
 		{
 			if(self::$current)
 			{
@@ -155,7 +144,7 @@
 			return self::getLastKey();
 		}
 
-		private static function getLastKey()
+		private static function getLastKey(): Int
 		{
 			return count(self::$routes) - 1;
 		}
@@ -163,7 +152,7 @@
 		/**
 		 *
 		 */
-		public function alias($_alias)
+		public function alias($_alias): Self
 		{
 			self::$routes[self::$current['key']]['alias'] = $_alias;
 
@@ -172,55 +161,22 @@
 			return $this->getInstance();
 		}
 
-		public static function get($_url_pattern, $_caller)
+		public static function get($_url_pattern, $_caller): Self
 		{
-			$key = self::add($_url_pattern, $_caller);
-
-			if(!isset(self::$map[Request::METHOD_GET]))
-			{
-				self::$map[Request::METHOD_GET] = array();
-			}
-
-			self::$map[Request::METHOD_GET][] = $key;
-
-			self::$current = self::$routes[$key];
-
-			return self::getInstance();
+			return self::map($_url_pattern, $_caller, Request::METHOD_GET);
 		}
 
-		public static function post($_url_pattern, $_caller)
+		public static function post($_url_pattern, $_caller): Self
 		{
-			$key = self::add($_url_pattern, $_caller);
-
-			if(!isset(self::$map[Request::METHOD_POST]))
-			{
-				self::$map[Request::METHOD_POST] = array();
-			}
-
-			self::$map[Request::METHOD_POST][] = $key;
-
-			self::$current = self::$routes[$key];
-
-			return self::getInstance();
+			return self::map($_url_pattern, $_caller, Request::METHOD_POST);
 		}
 
-		public static function ajax($_url_pattern, $_caller)
+		public static function ajax($_url_pattern, $_caller): Self
 		{
-			$key = self::add($_url_pattern, $_caller);
-
-			if(!isset(self::$map[Request::METHOD_AJAX]))
-			{
-				self::$map[Request::METHOD_AJAX] = array();
-			}
-
-			self::$map[Request::METHOD_AJAX][] = $key;
-
-			self::$current = self::$routes[$key];
-
-			return self::getInstance();
+			return self::map($_url_pattern, $_caller, Request::METHOD_AJAX);
 		}
 
-		public static function any($_methods, $_url_pattern, $_caller)
+		public static function any($_methods, $_url_pattern, $_caller): Self
 		{
 			$key = self::add($_url_pattern, $_caller);
 
@@ -239,7 +195,23 @@
 			return self::getInstance();
 		}
 
-		public function group($_callback)
+		private static function map($_url_pattern, $_caller, $_method): Self
+		{
+			$key = self::add($_url_pattern, $_caller);
+
+			if(!isset(self::$map[$_method]))
+			{
+				self::$map[$_method] = array();
+			}
+
+			self::$map[$_method][] = $key;
+
+			self::$current = self::$routes[$key];
+
+			return self::getInstance();
+		}
+
+		public function group($_callback): Self
 		{
 			$last_current = self::$current;
 			$last_parent = self::$parent;
@@ -257,7 +229,7 @@
 		/**
 		 *
 		 */
-		public function require(array $_inputs)
+		public function require(array $_inputs): Self
 		{
 			self::$routes[self::getLastKey()]['required_parameters'] = array();
 
@@ -274,17 +246,17 @@
 			return self::getInstance();
 		}
 
-		public function getPattern()
+		public function getPattern(): String
 		{
 			return $this->params['pattern'];
 		}
 
-		public function getAlias()
+		public function getAlias(): String
 		{
 			return $this->alias;
 		}
 
-		private static function parsePattern($_pattern) : string
+		private static function parsePattern($_pattern): string
 		{
 	        // Convert the route to a regular expression: escape forward slashes
 	        $_pattern = preg_replace('/\//', '\\/', $_pattern);
@@ -391,15 +363,23 @@
 		 *
 		 * @return boolean  true if a match found, false otherwise
 		 */
-		public static function match($_url, $_method = "GET", $_is_ajax_request = false, $_init = true)
+		public static function match($_url, $_method = "GET", $_is_ajax_request = false, $_init = true): Bool|Array
 		{
-			if(!isset(self::$map[$_method]) && ($_is_ajax_request && !isset(self::$map["AJAX"])))
+			/**
+			 *	Map all children routes, now when the rest is done
+			 */
+			foreach(self::$map AS $method => $map_keys)
+			{
+				array_walk($map_keys, fn($key) => self::addControllerRoutes(self::$routes[$key]['key']));
+			}
+
+			if(!isset(self::$map[$_method]) && ($_is_ajax_request && !isset(self::$map[Request::METHOD_AJAX])))
 			{
 				return false;
 			}
 
 			$maps = (isset(self::$map[$_method])) ? array($_method => self::$map[$_method]) : array();
-			$maps += ($_is_ajax_request && isset(self::$map["AJAX"])) ? array("AJAX" => self::$map["AJAX"]) : array();
+			$maps += ($_is_ajax_request && isset(self::$map[Request::METHOD_AJAX])) ? array(Request::METHOD_AJAX => self::$map[Request::METHOD_AJAX]) : array();
 			$maps = array_reverse($maps);
 
 			foreach($maps AS $map_group => $map_keys)
@@ -434,15 +414,7 @@
 					}
 
 					// Get named capture group values
-					$params = array();
-
-					foreach($matches AS $key => $match)
-					{
-						if(is_string($key))
-						{
-							$params[$key] = $match;
-						}
-					}
+					$params = array_map(fn($m) => $m, array_filter($matches, fn($key) => is_string($key), ARRAY_FILTER_USE_KEY));
 
 					if(!empty($params))
 					{
@@ -458,12 +430,12 @@
 			return false;
 		}
 
-		private static function getNamespace()
+		private static function getNamespace(): String
 		{
 			return self::$namespace;
 		}
 
-		public function setNamespace($_namespace)
+		public function setNamespace($_namespace): String
 		{
 			return self::$namespace = self::getNamespace() . $_namespace . "\\";
 		}
@@ -471,7 +443,7 @@
 		/**
 		 *
 		 */
-		public static function url($_to_alias, $_arguments = null, $_absolute = true)
+		public static function url($_to_alias, $_arguments = null, $_absolute = true): String
 		{
 			// Search Database-routes
 			if(is_numeric($_to_alias) && !isset(self::$db_relations[$_to_alias]))
@@ -605,12 +577,12 @@
 			return $self;
 		}
 
-		public function asArray()
+		public function asArray(): Array
 		{
 			return self::$routes;
 		}
 
-		public function merge($_routes)
+		public function merge($_routes): Self
 		{
 			foreach($_routes AS $k => $r)
 			{
