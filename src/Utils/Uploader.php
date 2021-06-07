@@ -27,7 +27,7 @@
 		);
 
 		private static $allowed_mimes = array(
-			'image'	=> array("image/gif", "image/jpeg", "image/jpg", "image/png", "image/svg"),
+			'image'	=> array("image/gif", "image/jpeg", "image/jpg", "image/png", "image/svg", "image/webp"),
 			'file'	=> array(
 				// Basic
 				'text/plain',
@@ -209,11 +209,11 @@
 		/* Rewritten DownloadMethod */
 	    public static function downloadImage($download_url, $prepend_filename = null)
 	    {
-			$image_data = getimagesize($download_url);
+	    	$mime = self::getMimeFromUrl($download_url);
 
-			if(!is_array($image_data) || !in_array($image_data['mime'], self::$allowed_mimes['image']))
+			if(empty($mime) || !in_array($mime, self::$allowed_mimes['image']))
 			{
-				throw new Exception("Mime &quot;" . $file_mime . "&quot; is not allowed to be uploaded to the server. (File: " . $download_url.")");
+				throw new Exception("Mime '" . $mime . "' is not allowed to be uploaded to the server. (File: " . $download_url.")");
 			}
 
 			/*if($image_data[0] < self::$sizes['min_width'] || $image_data[0] > self::$sizes['max_width'] || $image_data[1] < self::$sizes['min_height'] || $image_data[1] > self::$sizes['max_height'])
@@ -224,11 +224,19 @@
 	    	/* Since this is a remote file, let's put an extension */
 	    	$extension = "png";
 
-			if($image_data['mime'] == "image/gif")
+	    	if($mime == "image/webp")
+	    	{
+	    		$extension = "webp";
+	    	}
+			elseif($mime == "image/gif")
 			{
 				$extension = "gif";
 			}
-			elseif($image_data['mime'] == "image/jpeg" || $image_data['mime'] == "image/jpg")
+			elseif($mime == "image/svt")
+			{
+				$extension = "svg";
+			}
+			elseif(in_array($mime, ["image/jpeg", "image/jpg"]))
 			{
 				$extension = "jpg";
 			}
@@ -244,6 +252,19 @@
 			}
 
 	    	return $new_filename;
+	    }
+
+	    private static function getMimeFromUrl($_url)
+	    {
+			$ch = curl_init($_url);
+			curl_setopt_array($ch, array(
+				CURLOPT_NOBODY => 1,
+				CURLOPT_HEADER => 1,
+				CURLOPT_FOLLOWLOCATION => true,
+				CURLOPT_RETURNTRANSFER => true
+			));
+			curl_exec($ch);
+			return trim(explode(";", curl_getinfo($ch, CURLINFO_CONTENT_TYPE))[0]);   	
 	    }
 
 	    public static function getFileEndingFromMime($mime)
