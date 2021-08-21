@@ -87,7 +87,7 @@
 
 			if($instance->cookies === null)
 			{
-				$instance->cookies 	= new CookieBag($cookies);
+				$instance->cookies = new CookieBag($cookies);
 			}
 
 			if($instance->files === null)
@@ -124,6 +124,8 @@
 		    }
 
 			self::$instance = $instance;
+
+			$instance->cookies->setDomain(self::$instance->getHost());
 		}
 
 		public function __call($method, $args)
@@ -1816,6 +1818,11 @@
 				unset($_SESSION[$key]);
 			}
 		}
+
+		public function destroy()
+		{
+			session_write_close();
+		}
 	}
 
 	class CookieBag extends ParameterBag
@@ -1833,9 +1840,14 @@
 			parent::__construct($parameters);
 
 			$this->defaults = array_merge($this->defaults, array(
-				'expires' 	=> time() + 3600,
-				'domain'	=> ".".Env::get("domain")
+				'expires' 	=> time() + 3600/*,
+				'domain'	=> ".".Env::get("domain")*/
 			));
+		}
+
+		public function setDomain($_domain)
+		{
+			$this->defaults['domain'] = $_domain;
 		}
 
 		public function set($key, $value, $options = array())
