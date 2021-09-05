@@ -129,6 +129,14 @@
 			return $_parent_key;
 		}
 
+		public static function bindControllerRoutes()
+		{
+			foreach(self::$map AS $method => $map_keys)
+			{
+				array_walk($map_keys, fn($key) => self::addControllerRoutes(self::$routes[$key]['key']));
+			}
+		}		
+
 		private static function getCurrent(): Array
 		{
 			return self::$routes[self::getCurrentKey()];
@@ -261,8 +269,8 @@
 	        // Convert the route to a regular expression: escape forward slashes
 	        $_pattern = preg_replace('/\//', '\\/', $_pattern);
 
-	        // Convert variables e.g. {controller}
-	        $_pattern = preg_replace('/\{([a-z]+)\}/', '(?P<\1>[a-z0-9-]+)', $_pattern);
+	        // Convert variables e.g. {controller} (Allows % for urlencoded strings)
+	        $_pattern = preg_replace('/\{([%a-z]+)\}/', '(?P<\1>[%a-z0-9-]+)', $_pattern);
 
 	        // Convert variables with custom regular expressions e.g. {id:\d+}
 	      //  $_pattern = preg_replace('/\{([a-z]+):([^\}]+)\}/', '(?P<\1>\2)', $_pattern);
@@ -368,10 +376,7 @@
 			/**
 			 *	Map all children routes, now when the rest is done
 			 */
-			foreach(self::$map AS $method => $map_keys)
-			{
-				array_walk($map_keys, fn($key) => self::addControllerRoutes(self::$routes[$key]['key']));
-			}
+			self::bindControllerRoutes();
 
 			if(!isset(self::$map[$_method]) && ($_is_ajax_request && !isset(self::$map[Request::METHOD_AJAX])))
 			{
@@ -380,14 +385,21 @@
 
 			$maps = (isset(self::$map[$_method])) ? array($_method => self::$map[$_method]) : array();
 			$maps += ($_is_ajax_request && isset(self::$map[Request::METHOD_AJAX])) ? array(Request::METHOD_AJAX => self::$map[Request::METHOD_AJAX]) : array();
-			$maps = array_reverse($maps);
+			$maps = array_reverse($maps); // Ajax first
 
 			foreach($maps AS $map_group => $map_keys)
 			{
-				foreach($map_keys AS $route_key)
-				{
-					$route = self::$routes[$route_key];
+				// Prioritizes routes from Controllers (Based on if having requirements)
+				$routes = array_combine($map_keys, array_map(fn($route_key) => self::$routes[$route_key], $map_keys));
+				$routes_w_requirements = array_filter($routes, fn($r) => isset($r['required_parameters']));
 
+				if(!empty($routes_w_requirements))
+				{
+					$routes = $routes_w_requirements + array_filter($routes, fn($r) => !isset($r['required_parameters']));
+				}
+
+				foreach($routes AS $route_key => $route)
+				{
 					$pattern = self::parsePattern($route['pattern']);
 
 					if(!in_array($route['key'], $map_keys) || !preg_match($pattern, $_url, $matches))

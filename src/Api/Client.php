@@ -43,7 +43,7 @@
 			self::$instance->instances[$reflection->getShortName()] = $_object;
 		}
 
-		public function __callStatic($_method, $_arguments)
+		public static function __callStatic($_method, $_arguments)
 		{
 			if(!isset(self::$instance->instances[$_method]))
 			{

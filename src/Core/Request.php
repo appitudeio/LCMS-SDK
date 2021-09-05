@@ -105,7 +105,7 @@
 				$instance->headers = new HeaderBag($instance->server->getHeaders());
 			}
 
-			if($instance->session === null)
+			if($instance->session === null && isset($_SESSION))
 			{
 				$instance->session = new SessionBag($_SESSION);
 			}
@@ -1319,6 +1319,11 @@
 
 			return $default;
 		}
+
+		public function set(string $key, $value)
+		{
+			return $this->attributes->set($key, $value);
+		}		
 
 		/**
 		 * Clones a request and overrides some of its parameters.

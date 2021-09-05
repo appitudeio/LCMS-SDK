@@ -474,5 +474,10 @@
 		{
 			return $this->fetchAll(PDO::FETCH_KEY_PAIR);
 		}
+
+		public function asColumn()
+		{
+			return $this->fetchColumn();
+		}		
 	}
 ?>
