@@ -1,146 +1,126 @@
 <?php
     namespace LCMS\Backbone;
 
+    use LCMS\Utils\Singleton;
     use \Exception;
 
     class SEO
     {
-    	private $handlers = array();
+        use Singleton;
 
-        public function metatags()
+    	private static $handlers = array();
+        private static $methods = array(
+            "metatags", "opengraph", "twitter", "jsonld", "jsonldmulti"
+        ); 
+
+        public static function __callStatic(string $method, array $parameters)
         {
-        	if(!isset($this->handlers['metatags']))
-        	{
-        		$this->handlers['metatags'] = new SEOMeta();
-        	}
+            $method = strtolower($method);
 
-        	return $this->handlers['metatags'];
-        }
+            if (!in_array($method, self::$methods)) 
+            {
+                throw new Exception('The ' . $method . ' is not supported.');
+            }
 
-        public function opengraph()
-        {
-        	if(!isset($this->handlers['opengraph']))
-        	{
-        		$this->handlers['opengraph'] = new OpenGraph();
-        	}
+            if(!isset(self::$handlers[$method]))
+            {
+                self::$handlers[$method] = match($method)
+                {
+                    "metatags"  => new SEOMeta(),
+                    "opengraph" => new OpenGraph(),
+                    "twitter"   => new TwitterCards(),
+                    "jsonld"    => new JsonLd(),
+                    "jsonldmulti" => new JsonLdMulti()
+                };
+            }
 
-        	return $this->handlers['opengraph'];
-        }
-
-        public function twitter()
-        {
-        	if(!isset($this->handlers['twitter']))
-        	{
-        		$this->handlers['twitter'] = new TwitterCards();
-        	}
-
-        	return $this->handlers['twitter'];
-        }
-
-        public function jsonLd()
-        {
-        	if(!isset($this->handlers['jsonld']))
-        	{
-        		$this->handlers['jsonld'] = new JsonLd();
-        	}
-
-        	return $this->handlers['jsonld'];
-        }
-
-        public function jsonLdMulti()
-        {
-        	if(!isset($this->handlers['jsonldmulti']))
-        	{
-        		$this->handlers['jsonldmulti'] = new JsonLdMulti();
-        	}
-
-        	return $this->handlers['jsonldmulti'];
+            return self::$handlers[$method];
         }
 
         /**
          * {@inheritdoc}
          */
-        public function setTitle($title, $appendDefault = false)
+        public static function setTitle($title, $appendDefault = false)
         {
-            $this->metatags()->setTitle($title, $appendDefault);
-            $this->opengraph()->setTitle($title);
-            $this->twitter()->setTitle($title);
-            $this->jsonLd()->setTitle($title);
+            self::metatags()->setTitle($title, $appendDefault);
+            self::opengraph()->setTitle($title);
+            self::twitter()->setTitle($title);
+            self::jsonLd()->setTitle($title);
 
-            return $this;
+            return self::getInstance();
         }
 
         /**
          * {@inheritdoc}
          */
-        public function setDescription($description)
+        public static function setDescription($description)
         {
-            $this->metatags()->setDescription($description);
-            $this->opengraph()->setDescription($description);
-            $this->twitter()->setDescription($description);
-            $this->jsonLd()->setDescription($description);
+            self::metatags()->setDescription($description);
+            self::opengraph()->setDescription($description);
+            self::twitter()->setDescription($description);
+            self::jsonLd()->setDescription($description);
 
-            return $this;
+            return self::getInstance();
         }
 
         /**
          * {@inheritdoc}
          */
-        public function setCanonical($url)
+        public static function setCanonical($url)
         {
-            $this->metatags()->setCanonical($url);
+            self::metatags()->setCanonical($url);
 
-            return $this;
+            return self::getInstance();
         }
 
         /**
          * {@inheritdoc}
          */
-        public function addImages($urls)
+        public static function addImages($urls)
         {
             if (is_array($urls)) 
             {
-                $this->opengraph()->addImages($urls);
+                self::pengraph()->addImages($urls);
             } 
             else 
             {
-                $this->opengraph()->addImage($urls);
+                self::opengraph()->addImage($urls);
             }
 
-            $this->twitter()->setImage($urls);
+            self::twitter()->setImage($urls);
 
-            $this->jsonLd()->addImage($urls);
+            self::jsonLd()->addImage($urls);
 
-            return $this;
+            return self::getInstance();
         }
 
         /**
          * {@inheritdoc}
          */
-        public function getTitle($session = false)
+        public static function getTitle($session = false)
         {
             if ($session) 
             {
-                return $this->metatags()->getTitleSession();
+                return self::metatags()->getTitleSession();
             }
 
-            return $this->metatags()->getTitle();
+            return self::metatags()->getTitle();
         }
 
         /**
          * {@inheritdoc}
          */
-        public function generate($minify = false)
+        public static function generate($minify = false)
         {
-            $html = $this->metatags()->generate();
+            $html = self::metatags()->generate();
             $html .= PHP_EOL;
-            $html .= $this->opengraph()->generate();
+            $html .= self::opengraph()->generate();
             $html .= PHP_EOL;
-            $html .= $this->twitter()->generate();
+            $html .= self::twitter()->generate();
             $html .= PHP_EOL;
 
             // if json ld multi is use don't show simple json ld
-            $html .= $this->jsonLdMulti()->generate() ?? $this->jsonLd()->generate();
+            $html .= self::jsonLdMulti()->generate() ?? self::jsonLd()->generate();
 
             return ($minify) ? str_replace(PHP_EOL, '', $html) : $html;
         }

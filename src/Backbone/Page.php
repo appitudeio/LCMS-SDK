@@ -79,7 +79,7 @@
 
 		public function __get($_key)
 		{
-			return $this->route[$_key];
+			return $this->route[$_key] ?? null;
 		}
 
 		public function __isset($_key)
