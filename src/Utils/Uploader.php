@@ -17,7 +17,7 @@
 	class Uploader
 	{
 		const TMP_PATH 				= "/tmp";
-		private static $initialized = false;
+		public static $initialized = false;
 		private static $config 		= array();
 
 		private static $validators 	= array(

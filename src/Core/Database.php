@@ -15,16 +15,20 @@
 	namespace LCMS\Core;
 
 	use LCMS\Utils\Uuid;
+	use LCMS\Utils\Singleton;
+
 	use \PDO;
 	use \Exception;
 
 	class Database
 	{
+		use Singleton;
+
 		/* Keeps all current connections-instances-key */
 		private static $connections = array();
 		private static $sql;
 		private static $time_zone	= "Europe/Stockholm";
-		private static $instance;
+		//private static $instance;
 
 		public static function __callStatic($method, $args)
 		{
@@ -77,7 +81,7 @@
 			return self::$connections[$key];
 		}
 
-		public static function getInstance()
+		/*public static function getInstance()
 		{
 			if(self::$instance == null)
 			{
@@ -90,7 +94,7 @@
 		public static function instance()
 		{
 			return self::getInstance();
-		}
+		}*/
 
 		/**
 		 *	Smart insertQuery which allows an associative array with columns and values.

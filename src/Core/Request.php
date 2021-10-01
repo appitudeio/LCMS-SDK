@@ -192,13 +192,15 @@
 		 *
 		 * @return string
 		 */
-		public function fullUrl()
+		public static function fullUrl()
 		{
-			$query = $this->getQueryString();
+			$query = self::getInstance()->getQueryString();
 
-			$question = $this->getBaseUrl() . $this->getPathInfo() === "/" ? "/?" : "?";
+			//$question = $this->getBaseUrl() . $this->getPathInfo() === "/" ? "/?" : "?";
 
-			return $query ? $this->url() . $question . $query : $this->url();
+			return self::getInstance()->root() . $query;
+
+			//return $query ? $this->url() . $question . $query : $this->url();
 		}
 
 		/**
@@ -471,9 +473,11 @@
 		 */
 		public function getQueryString()
 		{
+			return $this->server->get("REQUEST_URI", null);
+			/*
 			$qs = static::normalizeQueryString($this->server->get('QUERY_STRING'));
 
-			return '' === $qs ? null : $qs;
+			return '' === $qs ? null : $qs;*/
 		}
 
 		/**
@@ -1852,7 +1856,10 @@
 
 		public function setDomain($_domain)
 		{
-			$this->defaults['domain'] = $_domain;
+			// Remove subdomain
+			$_domain = implode('.', array_slice(explode('.', parse_url($_domain)['path']), -2));
+
+			$this->defaults['domain'] = "." . $_domain;
 		}
 
 		public function set($key, $value, $options = array())

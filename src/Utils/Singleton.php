@@ -13,12 +13,17 @@
 	    	self::$instance = $this;
 	    }
 
-	    public static function getInstance() 
+	    public static function getInstance()
 	    {
-			if(self::$instance == null)
+			if(!(self::$instance instanceof self)) 
+			{
+				self::$instance = new self;
+			}
+
+			/*if(self::$instance == null)
 			{
 				self::$instance = new static();
-			}
+			}*/
 
 			return self::$instance;
 	    }
