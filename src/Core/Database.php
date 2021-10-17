@@ -305,7 +305,18 @@
 
 			if(empty($args))
 			{
-				return $connection->query($sql);
+				try
+				{
+					return $connection->query($sql);
+				}
+				catch(PDOException $e)
+				{
+					self::debug($e);
+				}
+				catch(Exception $e)
+				{
+					self::debug($e);
+				}
 			}
 
 			$args = (is_string($args)) ? array($args) : $args;
@@ -317,6 +328,10 @@
 				return $statement;
 			}
 			catch(PDOException $e)
+			{
+				self::debug($e);
+			}
+			catch(Exception $e)
 			{
 				self::debug($e);
 			}
@@ -399,7 +414,7 @@
 
 			$string = "file: " . $trace['file'] . ", line: " . $trace['line'] . ", function: " . $trace['function'] . ", class: " . $trace['class'];
 
-			throw new Exception("SQL-error: " . $e->getMessage() . " (" . self::$sql .") - (" . $string . ")");
+			throw new PDOException("SQL-error: " . $e->getMessage() . " (" . self::$sql .") - (" . $string . ")");
 		}
 
 		/**
@@ -483,5 +498,10 @@
 		{
 			return $this->fetchColumn();
 		}		
+	}
+
+	class PDOException extends Exception
+	{
+		
 	}
 ?>

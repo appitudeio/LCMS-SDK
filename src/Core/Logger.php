@@ -208,11 +208,18 @@
 				self::getInstance()->validateLogLocation();
 			}
 
+			$endpoint = [Request::fullUrl()];
+
+			if(Request::getInstance()->headers->get("referer") && !in_array(Request::getInstance()->headers->get("referer"), $endpoint))
+			{
+				$endpoint[] = Request::getInstance()->headers->get("referer");
+			}
+
         	$params = array(
         		'uuid'				=> "UUID()",
         		'context'			=> self::getInstance()->context ?? null,
         		'level'				=> $level,
-        		'endpoint'			=> Request::fullUrl(),
+        		'endpoint'			=> $endpoint,
 				'created'			=> gmdate("Y-m-d H:i:s"),
 				'data'				=> (!empty($context)) ? $context : null,
 				'user_identifier'	=> self::getInstance()->user ?? null,
