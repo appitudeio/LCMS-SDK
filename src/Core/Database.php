@@ -60,11 +60,15 @@
 				$pdo = new PDO($driver, $username, $password, $options);
 				$pdo->setAttribute(PDO::ATTR_STATEMENT_CLASS, [PDOStatement::class]);
 			    self::$connections[$key] = $pdo;
-			} 
+			}
 			catch(PDOException $e) 
 			{
 			    self::debug($e);
 			}
+			catch(Exception $e)
+			{
+				throw new PDOException($e->getMessage());
+			}			
 
 			if(is_null($db_name))
 			{
