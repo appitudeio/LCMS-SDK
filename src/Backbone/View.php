@@ -4,24 +4,18 @@
 	 */
 	namespace LCMS\Backbone;
 
+	use LCMS\Utils\Singleton;
 	use \Exception;
 
-	class View
+	class View implements \Iterator
 	{
+		use Singleton;
+
 		private $data = array();
 		private $view_file;
 		private $page;
-		private static $instance;
-
-		public static function getInstance()
-		{
-			if(self::$instance == null)
-			{
-				self::$instance = new static();
-			}
-
-			return self::$instance;
-		}		
+		private $keys;
+		private $index = 0;
 
 		/**
 		 * Get a piece of data from the view.
@@ -64,7 +58,7 @@
 		 * @param  mixed  $value
 		 * @return $this
 		 */
-		public static function with($key, $value = null, $extend = false)
+		public static function with($key, $value = null)
 		{
 			if(is_array($key))
 			{
@@ -93,14 +87,12 @@
 
 		public static function make($_view, $_with = null)
 		{
-			//$dir = (defined("ROOT_PATH")) ? ROOT_PATH : dirname(__DIR__);
-
 			$file = str_replace(".", "/", $_view);
 			$file = getcwd() . "/App/Views/" . $file . ".php";  // relative to Core directory
 
 			if(!is_readable($file)) 
 			{
-				throw new \Exception($file . " not found");
+				throw new Exception($file . " not found");
 			}
 
 			self::getInstance()->view_file = $file;
@@ -193,5 +185,31 @@
 	    {
 	    	return (string) $this->render();
 	    }
+	
+		public function rewind() 
+		{
+			$this->keys = array_keys($this->data);
+			$this->index = 0;
+		}
+	
+		public function current() 
+		{
+			return $this->data[$this->key()];
+		}
+	
+		public function key() 
+		{
+			return $this->keys[$this->index];
+		}
+	
+		public function next() 
+		{
+			++$this->index;
+		}
+	
+		public function valid() 
+		{
+			return isset($this->keys[$this->index]);
+		}
 	}
 ?>

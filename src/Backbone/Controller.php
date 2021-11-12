@@ -11,6 +11,7 @@
 	{
 		protected $route;
 		protected $request;
+		protected $page;
 
 		function __construct($_route_array, Request $_request = null)
 		{
@@ -65,5 +66,10 @@
 	    protected function first()
 	    {	
 	    }
+
+		public function setPage(Page $_page): Void
+		{
+			$this->page = $_page;
+		}
 	}
 ?>

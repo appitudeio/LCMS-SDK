@@ -321,9 +321,19 @@
 
 			$args = (is_string($args)) ? array($args) : $args;
 
+			foreach($args AS $k => $v)
+			{
+				if(!is_array($v))
+				{
+					continue;
+				}
+
+				$args[$k] = json_encode($v);
+			}
+
 			try
 			{
-				$statement 	= $connection->prepare(self::$sql);
+				$statement = $connection->prepare(self::$sql);
 				$statement->execute($args);
 				return $statement;
 			}

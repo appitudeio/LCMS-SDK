@@ -260,15 +260,15 @@
 
             $html = array();
 
-            if ($title) 
-            {
+            /*if ($title) 
+            {*/
                 $html[] = "<title>$title</title>"; //Arr::get($this->config, 'add_notranslate_class', false) ? "<title class=\"notranslate\">$title</title>" : "<title>$title</title>";
-            }
+            //}
 
-            if ($description) 
-            {
+            /*if ($description) 
+            {*/
                 $html[] = "<meta name=\"description\" content=\"{$description}\">";
-            }
+            //}
 
             if (!empty($keywords)) 
             {
@@ -533,7 +533,7 @@
          */
         public function getTitle()
         {
-            return $this->title ?: $this->getDefaultTitle();
+            return $this->title; // ?: $this->getDefaultTitle();
         }
 
         /**
@@ -591,7 +591,7 @@
                 return;
             }
 
-            return $this->description ?: $this->config->get('defaults.description', null);
+            return $this->description; // ?: $this->config->get('defaults.description', null);
         }
 
         /**
@@ -601,7 +601,7 @@
         {
             $canonical_config = null; //$this->config->get('defaults.canonical', false);
 
-            return $this->canonical ?: (($canonical_config === null) ? app('url')->full() : $canonical_config);
+            return $this->canonical; // ?: (($canonical_config === null) ? app('url')->full() : $canonical_config);
         }
 
         /**

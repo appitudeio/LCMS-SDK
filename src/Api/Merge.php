@@ -12,6 +12,7 @@
 	use LCMS\Core\Node;
 	use LCMS\Core\Request;
 	use LCMS\Core\Locale;
+	use LCMS\Utils\Arr;
 	use \Exception;
 
 	class Merge
@@ -24,8 +25,13 @@
 			$this->object = $_obj;
 		}
 
-		public function with($_source)
+		public function with($_storage)
 		{
+			if($this->merger)
+			{
+				return $this->merger->merge($_storage);
+			}
+
 			if($this->object instanceof Node)
 			{
 				$this->merger = new NodeMerge($this->object);
@@ -46,15 +52,23 @@
 			{
 				$this->merger = new EnvMerge($this->object);
 			}
+			else
+			{
+				throw new Exception("No merger available from Object");
+			}
 
-			return $this->merger->merge($_source);
+			return $this->with($_storage);
 		}
 
-		public function store($_what, $_into = null)
+		public function store($_what = null, $_into = null)
 		{
-			if(!$this->object instanceof Node)
+			if(empty($_what))
 			{
-				throw new Exception("Cant store data if not Node");
+				return;
+			}
+			elseif(!$this->object instanceof Node && !$this->object instanceof Route)
+			{
+				throw new Exception("Cant store data if not Node nor Route");
 			}
 
 			return $this->merger->store($_what, $_into);
@@ -70,22 +84,22 @@
 			$this->instance = $_instance;		
 		}
 
-		protected function prepare($_source)
+		protected function prepare($_storage)
 		{
-			if($_source instanceof DB)
+			if($_storage instanceof DB)
 			{
 				return $this->prepareFromDatabase();
 			}
-			elseif(is_array($_source))
+			elseif(is_array($_storage))
 			{
-				return $this->prepareFromArray($_source);
+				return $this->prepareFromArray($_storage);
 			}			
-			elseif(is_file($_source))
+			elseif(is_file($_storage))
 			{
-				return $this->prepareFromFile($_source);
+				return $this->prepareFromFile($_storage);
 			}
 
-			throw new Exception("Invalid preparation source: " . $_source);
+			throw new Exception("Invalid preparation storage: " . $_storage);
 		}
 
 		protected function prepareFromDatabase()
@@ -104,74 +118,21 @@
 			throw new Exception(get_class($this) . " does not support storage");
 		}
 
-		public function merge($_source = null)
+		public function merge($_storage)
 		{
-			return $this->prepare($_source)->execute();
+			return $this->prepare($_storage)->execute();
 		}
 
 		protected function execute()
 		{
 			return $this->instance;
-		}
-
-		protected static function array_unflatten(&$array, $key, $value)
-		{
-	        if (is_null($key)) 
-	        {
-	            return $array = $value;
-	        }
-
-	        $keys = explode('.', $key);
-
-	        foreach ($keys AS $i => $key) 
-	        {
-	            if (count($keys) === 1) 
-	            {
-	                break;
-	            }
-
-	            unset($keys[$i]);
-
-	            // If the key doesn't exist at this depth, we will just create an empty array
-	            // to hold the next value, allowing us to create the arrays to hold final
-	            // values at the correct depth. Then we'll keep digging into the array.
-	            if (! isset($array[$key]) || ! is_array($array[$key])) 
-	            {
-	                $array[$key] = [];
-	            }
-
-	            $array = &$array[$key];
-	        }
-
-	        $array[array_shift($keys)] = $value;
-
-	        return $array;
-		}
-
-		protected static function array_flatten($array, $prepend = '')
-		{
-			$results = array();
-
-			foreach ($array AS $key => $value) 
-			{
-				if (is_array($value) && ! empty($value)) 
-				{
-					$results = array_merge($results, self::array_flatten($value, $prepend.$key.'.'));
-				}
-				else
-				{
-					$results[$prepend.$key] = $value;
-				}
-			}
-
-			return $results;
-		}		
+		}	
 	}
 
 	class NodeMerge extends BaseMerge
 	{
-		public $ini_file;
 		public $nodes = array();
+		private $storage;
 		
 		protected function prepareFromFile($_file)
 		{
@@ -182,7 +143,7 @@
 
 		protected function prepareFromDatabase()
 		{
-			$condition = ($this->instance::$namespace != null) ? " OR `route_id`=".$this->instance::$namespace[0] : null;
+			$condition = ($this->instance::$namespace != null && $this->instance::$namespace[1] != null) ? " OR `route_id`=".$this->instance::$namespace[1] : null;
 
 			$query = DB::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_nodes` WHERE (`route_id` IS NULL " . $condition . ") AND `deleted_at` IS NULL AND `hidden_at` IS NULL ORDER BY `order` ASC, `id` ASC");
 
@@ -281,12 +242,12 @@
 			{
 				return $this->storeToDatabase($_what);
 			}
-			elseif($this->ini_file != null)
+			elseif($this->storage != null)
 			{
 				return $this->storeToIni($_what);
 			}
-
-			throw new Exception("Unexpected storage: " . $_into);
+			
+			throw new Exception("Unexpected storage: " . ($_into ?? "No storage-file defined"));
 		}
 
 		private function storeToDatabase($_nodes) : bool
@@ -339,14 +300,19 @@
 						}
 					}
 				}
+				elseif(str_starts_with($node['identifier'], "meta."))
+				{
+					// Meta-data
+					DB::query("UPDATE ".Env::get("db")['database'].".`lcms_routes` SET `meta` = JSON_MERGE_PATCH(`meta`, ?) WHERE `id`=?", [ array(Locale::getLanguage() => [explode(".", $node['identifier'], 2)[1] => $node['content']]), $this->instance::$namespace[1] ]);
+				}
 				else
 				{
 					// Default node
 					DB::insert(Env::get("db")['database'].".`lcms_nodes`", array(
-						'route_id' 		=> ((!isset($node['global']) || !$node['global']) && $this->instance::$namespace != null) ? $this->instance::$namespace[0] : null,
+						'route_id' 		=> ((!isset($node['global']) || !$node['global']) && $this->instance::$namespace != null) ? $this->instance::$namespace[1] : null,
 						'identifier'	=> $node['identifier'],
 						'type'			=> $node['type'],
-						'parameters'	=> (isset($node['parameters'])) ? $node['parameters'] : null,
+						'parameters'	=> $node['parameters'] ?? null,
 						'properties'	=> (isset($node['properties'])) ? array(Locale::getLanguage() => $node['properties']) : null,
 						'content'		=> array(Locale::getLanguage() => $node['content'])
 					));
@@ -358,12 +324,12 @@
 
 		private function storeToIni($_nodes) : void
 		{
-			if(!is_writable($this->ini_file['filename']))
+			if(!is_writable($this->storage['filename']))
 			{
-				throw new Exception("Cant store nodes in " . $_file . " (Unwriteable, needs 0666 permission)");
+				throw new Exception("Cant store nodes in " . $this->storage['filename'] . " (Unwriteable, needs 0666 permission)");
 			}
 
-			$existing_file_array = $this->ini_file['content'];
+			$existing_file_array = $this->storage['content'];
 			$loops = array();
 			$new_entrys = 0;
 
@@ -372,10 +338,11 @@
 			{
 				if((!isset($node['global']) || !$node['global']) && $this->instance::$namespace == null)
 				{
+					die("damn");
 					continue;
 				}
 
-				$alias = (isset($node['global']) && $node['global']) ? "global" : $this->instance::$namespace[1];
+				$alias = (isset($node['global']) && $node['global']) ? "global" : $this->instance::$namespace[0];
 
 				if(!isset($existing_file_array[$alias]))
 				{
@@ -450,7 +417,7 @@
 
 		private function writeToIniFile($_content)
 		{
-			$fp = fopen($this->ini_file['filename'], 'w');
+			$fp = fopen($this->storage['filename'], 'w');
 
 			$start_time = microtime(true);
 
@@ -487,16 +454,16 @@
 			{
 				foreach($value AS $k => $v)
 				{
-				 	$this->array_unflatten($this->nodes[$key], $k, $v);
+					Arr::unflatten($this->nodes[$key], $k, $v);
 				}
 			}
 
-			$this->ini_file = array('filename' => $_file, 'content' => $file_content);
+			$this->storage = array('filename' => $_file, 'content' => $file_content);
 		}
 
 		protected function prepareFromArray($_array)
 		{
-			$flattened_array = self::array_flatten($_array);
+			$flattened_array = Arr::flatten($_array);
 
 			foreach($flattened_array AS $identifier => $node)
 			{
@@ -553,6 +520,8 @@
 		 */
 		protected function prepareFromDatabase()
 		{
+			$this->instance::bindControllerRoutes();
+
 			$this->system_routes = $this->instance::$routes;
 
 			$query = DB::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_routes`");
@@ -589,7 +558,7 @@
 		private function createRoute($_route)
 		{
 			$snapshot = array(
-				'pattern'		=> $_route['org_pattern'] ?? $_route['pattern']
+				'pattern' => $_route['org_pattern'] ?? $_route['pattern']
 			);
 
 			if(isset($_route['controller'], $_route['action']))
@@ -612,8 +581,8 @@
 				'controller'	=> $_route['controller'] ?? null,
 				'action'		=> $_route['action'] ?? null,
 				'external_url'	=> $_route['external_url'] ?? null,
-				'settings'		=> $_route['settings'] ?? null,
-				'meta'			=> $_route['meta'] ?? null,
+				'settings'		=> $_route['settings'] ?? array(),
+				'meta'			=> $_route['meta'] ?? array(),
 				'snapshot'		=> $snapshot
 			));
 
@@ -670,7 +639,7 @@
 					 */
 					if(substr($route['pattern'], 0, strlen($this->system_routes[$route['parent']]['pattern'])) !== $this->system_routes[$route['parent']]['pattern'])
 					{
-						$this->system_routes[$key]['pattern'] = str_replace($route['pattern'], $this->system_routes[$route['parent']]['pattern']);
+						$this->system_routes[$key]['pattern'] = str_replace($route['pattern'], $this->system_routes[$route['parent']]['pattern'], $this->system_routes[$key]['pattern']);
 					}
 				}
 				else
@@ -682,6 +651,38 @@
 
 					if(!isset($this->system_routes[$key]['id']))
 					{
+						$class = $route['controller'];
+						$c = new \ReflectionClass($class);
+
+						try
+						{
+							if((!$method = $c->getMethod($route['action'])) || empty($method) || empty($method->getReturnType()))
+							{
+								continue;
+							}
+						}
+						catch(Exception $e)
+						{
+							continue;
+						}
+
+						$returnType = $method->getReturnType();
+
+						if($returnType instanceof \ReflectionUnionType)
+						{
+							$parts = array_unique(array_merge(...array_map(fn($type) => explode("\\", $type->getName()), $returnType->getTypes())));
+						}
+						else
+						{
+							$parts = explode("\\", $returnType->getName());
+						}
+						
+						// Only store method with View returned
+						if(!in_array("View", $parts))
+						{
+							continue;
+						}
+
 						$route['org_pattern'] 	= $route['pattern'];
 						$route['parent_id'] 	= (isset($route['parent'])) ? $this->system_routes[$route['parent']]['id'] : null;
 						$route['pattern'] 		= (isset($route['parent'])) ? str_replace($this->system_routes[$route['parent']]['pattern'] . "/", "", $route['pattern']) : $route['pattern'];
@@ -724,7 +725,37 @@
 			}
 
 			return $this->instance->merge($this->system_routes);
-		}	
+		}
+
+		private function storeToDatabase($_settings)
+		{
+			$settings = array(Locale::getLanguage() => array());
+
+			foreach($_settings AS $key => $value)
+			{
+				$settings[Locale::getLanguage()][$key] = array(
+					'value' => $value,
+					'type' => match(gettype($value))
+					{
+						"boolean" 	=> Node::TYPE_BOOLEAN,
+						"array" 	=> Node::TYPE_ARRAY,
+						default 	=> Node::TYPE_TEXT
+					}
+				);
+			}
+
+			DB::query("UPDATE ".Env::get("db")['database'].".`lcms_routes` SET `settings` = JSON_MERGE_PATCH(`settings`, ?) WHERE `id`=?", [ $settings, $this->instance::$current['id'] ]);
+		}
+
+		public function store($_what, $_into = null)
+		{
+			if(!$_into instanceof DB)
+			{
+				throw new Exception("Cant merge Page Settings w/o DB instance");
+			}
+
+			return $this->storeToDatabase($_what);
+		}
 	}
 
 	class MenusMerger extends BaseMerge

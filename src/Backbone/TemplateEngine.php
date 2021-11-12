@@ -20,8 +20,27 @@
 
 		public function parse($_string, $_unidentfied_nodes_collector = null)
 		{
+            if(!$this->document = SimpleHtmlDom::string($_string))
+            {
+                return $_string;
+            }
+
             $has_parsed_loops = false;
-			$this->document = SimpleHtmlDom::string($_string);
+
+            /**
+             *  Meta (SEO)
+             */
+            $meta = Node::get("meta") ?: array('title' => null, 'description' => null);
+
+            foreach($meta AS $tag => $data)
+            {
+                $element = ($tag == "title") ? $tag : "meta[name='".$tag."']";
+
+                if($element = $this->document->find($element, 0) ?? $this->document->find("meta[property='".$tag."']"))
+                {
+                    $this->parseElement($element);
+                }
+            }
 
             /**
              *  Try to find Loops
@@ -67,10 +86,10 @@
 
                     foreach($element AS $e)
                     {                        
-                        $nodes[$key][$e->attr['name']] = array(
+                        $nodes[$key][$key] = array(
                             'type'         => $this->identifyNodeType($e->attr['type'] ?? null),
                             'properties'   => $this->getPropertiesFromNodeType($e->attr),
-                            'identifier'   => $e->attr['name'],
+                            'identifier'   => $key,
                             'content'      => $e->attr['href'] ?? ($e->innertext ?? null), // Fallback text from document
                             'global'       => $e->attr['global'] ?? false
                         );
@@ -78,10 +97,10 @@
                 }
                 else
                 {
-                    $nodes[$element->attr['name']] = array(
+                    $nodes[$key] = array(
                         'type'         => $this->identifyNodeType($element->attr['type'] ?? null),
                         'properties'   => $this->getPropertiesFromNodeType($element->attr),
-                        'identifier'   => $element->attr['name'],
+                        'identifier'   => $key,
                         'content'      => $element->attr['href'] ?? ($element->innertext ?? null), // Fallback text from document
                         'global'       => $element->attr['global'] ?? false
                     );
@@ -152,9 +171,31 @@
 
         private function parseElement($element, $parent = null, $key = null)
         {
-            $identifier = (!empty($parent)) ? $parent . "." . $key . "." . $element->attr['name'] : $element->attr['name'];
+            $is_meta = (in_array($element->tag, ["meta", "title"]) || str_starts_with($element->attr['name'], "meta.")) ? true : false;
 
-            if(isset($element->attr['type']) && $element->attr['type'] == "route")
+            if($is_meta)
+            {
+                $name = (isset($element->attr['name']) && str_starts_with($element->attr['name'], "meta.")) ? $element->attr['name'] : "meta." . ($element->attr['name'] ?? $element->tag);
+            }
+            else
+            {
+                $name = $element->attr['alias'] ?? $element->attr['name'];
+            }
+
+            $identifier = (!empty($parent)) ? $parent . "." . $key . "." . $name : $name;
+
+            if($is_meta)
+            {
+                if($element->tag == "title")
+                {
+                    list($element->innertext, $stored) = $this->handle($identifier, $element->attr, $element->innertext);
+                }
+                else
+                {
+                    list($element->content, $stored) = $this->handle($identifier, $element->attr, $element->innertext);
+                }
+            }
+            elseif(isset($element->attr['type']) && $element->attr['type'] == "route")
             {
                 list($element->href, $stored) = $this->handle($identifier, $element->attr, "#");
 
@@ -174,7 +215,7 @@
             {
                 $element->attr['type'] = null;
             }
-            else
+            else //if(!in_array($element->tag, ["meta", "title"]) || !str_starts_with($name, "meta."))
             {
                 if(!empty($parent))
                 {
@@ -183,11 +224,11 @@
                         $this->elements[self::ELEMENT_UNIDENTIFIED][$parent] = array();
                     }
 
-                    $this->elements[self::ELEMENT_UNIDENTIFIED][$parent][$element->attr['name']] = $element;
+                    $this->elements[self::ELEMENT_UNIDENTIFIED][$parent][$name] = $element;
                 }
                 else
                 {
-                    $this->elements[self::ELEMENT_UNIDENTIFIED][$element->attr['name']] = $element;
+                    $this->elements[self::ELEMENT_UNIDENTIFIED][$name] = $element;
                 }
             }
         }        
@@ -213,43 +254,16 @@
 
 		private function identifyNodeType($_type = null)
 		{
-            if(empty($_type))
+            return match($_type)
             {
-                return Node::TYPE_TEXT;
-            }
-
-            switch($_type)
-            {
-                case "image":
-                case "picture":
-                    return Node::TYPE_IMAGE;
-                break;
-
-                case "loop":
-                    return Node::TYPE_LOOP;
-                break;
-
-                case "wysiwyg":
-                case "html":
-                    return Node::TYPE_HTML;
-                break;
-
-                case "bool":
-                case "boolean":
-                    return Node::TYPE_BOOLEAN;
-                break;
-
-                case "route":
-                    return Node::TYPE_ROUTE;
-                break;
-
-                case "textarea":
-                    return Node::TYPE_TEXTAREA;
-                break;
-
-                default:
-                    return Node::TYPE_TEXT;
-            }
+                "image", "picture"  => Node::TYPE_IMAGE,
+                "loop"              => Node::TYPE_LOOP,
+                "wysiwyg", "html"   => Node::TYPE_HTML,
+                "bool", "boolean"   => Node::TYPE_BOOLEAN,
+                "route"             => Node::TYPE_ROUTE,
+                "textarea"          => Node::TYPE_TEXTAREA,
+                default             => Node::TYPE_TEXT
+            };
 		}
 
 		private function handle($identifier, $properties, $fallback)
@@ -262,7 +276,7 @@
             }
 
             $properties = $properties ?? array();
-
+            
 			if(isset($node->asArray()['properties']) && !empty($node->asArray()['properties']))
 			{
 				$properties = array_merge($properties, $node->asArray()['properties']);
@@ -273,29 +287,14 @@
                 return array($node->text($properties), true);
             }
 
-			switch($properties['type'])
-			{
-				case "text":
-                case "html":
-                case "textarea":
-					return array($node->text($properties), true);
-				break;
-
-				case "image":
-					return array($node->image($properties['width'] ?? null, $properties['height']?? null), true);
-				break;
-
-				case "picture":
-					return array($node->picture($properties['width'] ?? null, $properties['height']?? null), true);
-				break;
-
-                case "route":
-                    return array($node->route(), true);
-                break;
-
-                default:
-                    return array($fallback, false);
-			}
+            return match($properties['type'])
+            {
+                "text", "html", "textarea", "meta" => array($node->text($properties), true),
+                "image"     => array($node->image($properties['width'] ?? null, $properties['height'] ?? null), true),
+                "picture"   => array($node->picture($properties['width'] ?? null, $properties['height'] ?? null), true),
+                "route"     => array($node->route(), true),
+                default     => array($fallback, false)
+            };
 		}
 	}
 ?>

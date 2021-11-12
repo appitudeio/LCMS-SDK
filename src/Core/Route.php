@@ -23,6 +23,7 @@
 		private static $relations = array();
 		private static $db_relations = array();
 		private static $mapped = array();
+		private static $has_mapped = false;
 		private $request;
 
 		function __construct(Request $_request = null)
@@ -106,7 +107,7 @@
 		{
 			$route = self::$routes[$_parent_key];
 
-			if(!isset($route['controller']) || !class_exists($route['controller']) || !method_exists($route['controller'], "router") || (isset($route['parent']) && in_array($route['controller'], self::$mapped)))
+			if(!isset($route['controller']) || !class_exists($route['controller']) || !method_exists($route['controller'], "router") || /*(isset($route['parent']) &&*/ in_array($route['controller'], self::$mapped))
 			{
 				return;
 			}
@@ -131,10 +132,14 @@
 
 		public static function bindControllerRoutes()
 		{
-			foreach(self::$map AS $method => $map_keys)
+			if(self::$has_mapped)
 			{
-				array_walk($map_keys, fn($key) => self::addControllerRoutes(self::$routes[$key]['key']));
+				return;
 			}
+
+			array_walk_recursive(self::$map, fn($key) => self::addControllerRoutes(self::$routes[$key]['key']));
+
+			self::$has_mapped = true;
 		}		
 
 		private static function getCurrent(): Array
@@ -376,7 +381,7 @@
 			/**
 			 *	Map all children routes, now when the rest is done
 			 */
-			self::bindControllerRoutes();
+			//self::bindControllerRoutes();
 
 			if(!isset(self::$map[$_method]) && ($_is_ajax_request && !isset(self::$map[Request::METHOD_AJAX])))
 			{

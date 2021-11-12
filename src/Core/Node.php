@@ -10,6 +10,7 @@
 	use LCMS\Core\Route;
 	use LCMS\Core\Locale;
 	use LCMS\Core\Database AS DB;
+	use LCMS\Utils\Arr;
 	use \Exception;
 	
 	class Node
@@ -21,6 +22,7 @@
 		public const TYPE_TEXTAREA 	= 3;
 		public const TYPE_BOOL 		= 4;
 		public const TYPE_BOOLEAN 	= 4;
+		public const TYPE_ARRAY 	= 6;
 		public const TYPE_IMAGE 	= 10;
 		public const TYPE_FILE 		= 15;
 		public const TYPE_ROUTE 	= 20;
@@ -60,12 +62,12 @@
 			return self::$instance;
 		}
 
-		public static function setNamespace($_route_id, $_namespace)
+		public static function setNamespace($_namespace, $_route_id = null)
 		{
-			self::$namespace = array($_route_id, $_namespace); // namespace == route_alias
+			self::$namespace = array($_namespace, $_route_id); // namespace == route_alias
 		}
 
-		public function create($_params)
+		/*public function create($_params)
 		{
 			DB::insert(Env::get("db")['database'].".`lcms_nodes`", $_params);
 
@@ -78,7 +80,7 @@
 			DB::update(WEB_DATABASE.".`core_nodes`", $_params, array('id' => $_node_id));
 
 			return true;
-		}
+		}*/
 
 		/**
 		 *	Actually loads all nodes, based on preparations
@@ -174,32 +176,38 @@
 			 */
 			if(self::$namespace != null)
 			{
-				$node = self::array_get(self::$nodes, self::$namespace[1] . "." . $_identifier, false);
+				$node = Arr::get(self::$nodes, self::$namespace[0] . "." . $_identifier, false);
 
 				if(is_bool($node) && !$node)
 				{
-					$node = self::array_get(self::$nodes, "global." . $_identifier, false);
+					$node = Arr::get(self::$nodes, "global." . $_identifier, false);
 				}
 			}
 			else
 			{
-				$node = self::array_get(self::$nodes, "global." . $_identifier, false);
+				$node = Arr::get(self::$nodes, "global." . $_identifier, false);
 			}
 
 			if(is_bool($node) && !$node)
 			{
 				return false;
 			}
-			elseif(is_array($node) && empty($node))
+			elseif(is_array($node))
 			{
 				// Loop
-				return new NodeObject(array());
+				if(empty($node))
+				{
+					return new NodeObject(array());			
+				}
+				
+				return $node;
 			}
-
+			
 			$node = (is_string($node)) ? array('content' => $node) : $node;
-
-			$node['image_endpoint'] = self::$image_endpoint;
-			$node['properties'] 	= (isset($node['properties'], $node['properties'][Locale::getLanguage()])) ? $node['properties'][Locale::getLanguage()] : null;
+			$node += array(
+				'image_endpoint' => self::$image_endpoint,
+				'properties' => $node['properties'][Locale::getLanguage()] ?? null
+			);
 
 			if(empty($node['content']) || (!is_string($node['content']) && !isset($node['content'][Locale::getLanguage()])))
 			{
@@ -209,8 +217,25 @@
 			{
 				$node['content'] = htmlspecialchars_decode($node['content'][Locale::getLanguage()]);
 			}
-
+			
 			return new NodeObject($node);
+		}
+
+		/**
+		 *	Check local namespace, with global as fallback
+		 */
+		public static function set($_identifier, $_value)
+		{
+			if(self::$namespace != null)
+			{
+				$_identifier = self::$namespace[0] . "." . $_identifier;
+			}
+			else
+			{
+				$_identifier = "global." . $_identifier;
+			}
+			
+			Arr::unflatten(self::$nodes, $_identifier, $_value);
 		}
 
 		public static function has($_identifier)
@@ -218,16 +243,16 @@
 			return self::exists($_identifier);
 		}
 
-		// Check Global namespace first, then as fallback the "local"
+		// Check Local namespace first, then as fallback Global"
 		public static function exists($_identifier)
 		{
 			// Check from namespaced node
-			if(self::$namespace != null && !$node = self::array_get(self::$namespace[1] . "." . $_identifier))
+			if(self::$namespace != null && !$node = Arr::get(self::$namespace[0] . "." . $_identifier))
 			{
 				return;
 			}
 
-			if(self::array_has(self::$nodes, $_identifier))
+			if(Arr::has(self::$nodes, $_identifier))
 			{
 				return true;
 			}
@@ -236,83 +261,8 @@
 				return false;
 			}
 
-			return self::array_has(self::$nodes, self::$namespace[1] . "." . $_identifier);
-		}
-
-		public static function array_has($array, $keys)
-		{
-			$keys = (array) $keys;
-
-			if (! $array || $keys === []) 
-			{
-				return false;
-			}
-
-			foreach ($keys AS $key) 
-			{
-				$subKeyArray = $array;
-
-				if (array_key_exists($key, $array)) 
-				{
-					continue;
-				}
-
-				foreach (explode('.', $key) AS $segment) 
-				{
-					if (is_array($subKeyArray) && array_key_exists($segment, $subKeyArray))
-					{
-						$subKeyArray = $subKeyArray[$segment];
-					} 
-					else 
-					{
-						return false;
-					}
-				}
-			}
-
-			return true;
-		}
-
-		private static function array_get($array, $key, $default = null)
-		{
-			if(!is_array($array))
-			{
-				return $default;
-			}
-			elseif(is_null($key)) 
-			{
-				return $array;
-			}
-			elseif(isset($array[$key])) 
-			{
-				return $array[$key];
-			}
-			elseif(strpos($key, '.') === false) 
-			{
-				return $array[$key] ?? $default;
-			}
-
-			foreach(explode('.', $key) AS $segment) 
-			{
-				if (is_array($array)) 
-				{
-					if(isset($array[$segment]))
-					{
-						$array = $array[$segment];
-					}
-					else
-					{
-						return false;
-					}
-				}
-				else 
-				{
-					return $default;
-				}
-			}
-
-			return $array;
-		}		
+			return Arr::has(self::$nodes, self::$namespace[0] . "." . $_identifier);
+		}	
 
 		/**
 		 *	Prepares all Nodes we want to load before we use them in the document or wherever
