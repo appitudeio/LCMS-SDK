@@ -50,6 +50,16 @@
             {
                 $this->settings['env'] = $_settings['env'];
             }
+
+            if(isset($_settings['i18n_path']))
+            {
+                if(!is_dir($_settings['i18n_path']))
+                {
+                    throw new Exception("i18n-path does not exist (".$_settings['i18n_path'].")");
+                }
+
+                $this->settings['i18n_path'] = $_settings['i18n_path'];
+            }
 		}
 
         public function on($_event, $_callback): Self
@@ -164,10 +174,10 @@
                         $this->settings['node']->setNamespace($route_array['alias'], $route_array['id'] ?? null);
                     }
 
-                    if(isset($this->settings['locale']))
+                    if(isset($this->settings['locale'], $this->settings['i18n_path']))
                     {
                         $nodeMerger = new Merge($this->settings['node']);
-                        $nodeMerger->with(__DIR__ . "/../i18n/" . $this->settings['locale']->getLanguage() . ".ini");
+                        $nodeMerger->with($this->settings['i18n_path'] . "/" . $this->settings['locale']->getLanguage() . ".ini");
 
                         if(isset($this->settings['database']) && isset($route_array['meta'], $route_array['meta'][$this->settings['locale']->getLanguage()]) && !empty($route_array['meta'][$this->settings['locale']->getLanguage()]))
                         {
