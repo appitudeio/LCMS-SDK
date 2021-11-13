@@ -38,7 +38,7 @@
 		/**
 		 *	Connects to a DB, and returns the current created DB-instance-key
 		 */
-		public static function connect($host, $username, $password, $db_name = null, $ssl_certificate_path = "/core/certificates/rds-ca-2019-root.pem")
+		public static function connect($host, $username, $password, $db_name = null, $ssl_certificate_path = null) //"/core/certificates/rds-ca-2019-root.pem")
 		{
 			$options = array(
 				PDO::ATTR_PERSISTENT 	=> false, 
@@ -47,6 +47,11 @@
 
 			if(!empty($ssl_certificate_path))
 			{
+				if(!is_file($ssl_certificate_path))
+				{
+					throw new Exception("Database ssl_certificate (".$ssl_certificate_path.") does not exist");
+				}
+
 				$options[PDO::MYSQL_ATTR_SSL_CA] = $ssl_certificate_path;
 			}			
 
