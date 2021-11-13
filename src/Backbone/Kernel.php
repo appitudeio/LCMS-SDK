@@ -8,7 +8,9 @@
 	use LCMS\Core\Request;
 	use LCMS\Core\Response;
 	use LCMS\Core\Node;
+    use LCMS\Core\Route;
 	use LCMS\Core\Locale;
+    use LCMS\Core\Env;
 	use LCMS\Backbone\View;
 	use \Exception;
 
@@ -47,20 +49,25 @@
             if(isset($_settings['env']) && $_settings['env'] instanceof Env)
             {
                 $this->settings['env'] = $_settings['env'];
-            }             
+            }
 		}
 
-        public function on($_event, $_callback)
+        public function on($_event, $_callback): Self
         {
-            $this->events[$_event] = $_callback;
+            $this->events[strtolower($_event)] = $_callback;
+
+            return $this;
         }
 
         public function trigger($_event, $_data = null)
         {
             if(!isset($this->events[strtolower($_event)]))
             {
+                die("false");
                 return false;
             }
+
+            die("YE");
 
             return $this->events[strtolower($_event)]($_data);
         }
@@ -72,7 +79,7 @@
                 $routeMerger = new Merge($this->settings['route']);
                 $this->settings['route'] = $routeMerger->with($this->settings['database']);
             }
-
+            
             if(isset($this->settings['node'], $this->settings['database']))
             {
                 $nodeMerger = new Merge($this->settings['node']);
@@ -84,7 +91,7 @@
                 $envMerger = new Merge($this->settings['env']);
                 $this->settings['env'] = $envMerger->with($this->settings['database']);
             }
-
+            
             if(isset($this->settings['request'], $this->settings['route']))
             {
                 $response = $this->settings['route']->dispatch($this->settings['request']);
@@ -171,6 +178,8 @@
 
                 return $this->trigger("page", $page);
             }
+
+            throw new Exception("Nothing returned from Kernel");
         }
 	}
 ?>
