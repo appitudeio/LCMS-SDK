@@ -73,11 +73,8 @@
         {
             if(!isset($this->events[strtolower($_event)]))
             {
-                die("false");
                 return false;
             }
-
-            die("YE");
 
             return $this->events[strtolower($_event)]($_data);
         }
