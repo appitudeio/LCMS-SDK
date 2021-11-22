@@ -40,7 +40,6 @@
 		private static $parameters;
 		private static $nodes;
 		private static $instance;
-		private static $ini_file;
 
 		public static function init($_image_endpoint)
 		{
@@ -341,22 +340,11 @@
 				return $this;
 			}
 
-			foreach(self::$nodes AS $identifier => $node)
+			foreach(array_filter(self::$parameters, fn($v) => !is_array($v)) AS $key => $value)
 			{
-				if(empty($node['content']) || !isset($node['content'][Locale::getLanguage()]))
-				{
-					continue;
-				}
+				array_walk_recursive(self::$nodes, fn(&$item) => (!empty($item)) ? $item = str_replace("{{".$key."}}", $value, $item) : $item);
 
-				foreach(self::$parameters AS $key => $value)
-				{
-					if(is_array($value))
-					{
-						continue;
-					}
-
-					self::$nodes[$identifier]['content'][Locale::getLanguage()] = str_replace('{{'.$key.'}}', $value, $node['content'][Locale::getLanguage()]);
-				}
+				// self::$nodes[$identifier]['content'][Locale::getLanguage()] = str_replace('{{'.$key.'}}', $value, $node['content'][Locale::getLanguage()]);
 			}
 
 			return $this;
@@ -367,9 +355,19 @@
 			return self::$parameters[$_key] ?? null;
 		}
 
-		public static function with($_key, $_string)
+		public static function with(String | Array $_key, $_value = null)
 		{
-			self::$parameters[$_key] = $_string;
+			if(is_array($_key))
+			{
+				foreach($_key AS $k => $v)
+				{
+					self::$parameters[$k] = $v;
+				}
+			}
+			else
+			{
+				self::$parameters[$_key] = $_value;
+			}
 
 			return self::getInstance();
 		}
@@ -384,20 +382,14 @@
 			$this->node = $_node;
 		}
 
-		public function text($params = null)
+		public function text($_params = array())
 		{
 			// Any params we should replace 
-			if(!empty($this->node['parameters']))
-			{
-				foreach($this->node['parameters'] AS $key => $value)
-				{
-					$this->node['content'] = str_replace('{{'.$key.'}}', $value, $this->node['content']);
-				}
-			}
+			$_params = array_replace_recursive($this->node['parameters'] ?? array(), $_params);
 
-			if(!empty($params))
+			if(!empty($_params))
 			{
-				foreach($params AS $key => $value)
+				foreach($_params AS $key => $value)
 				{
 					$this->node['content'] = str_replace('{{'.$key.'}}', $value, $this->node['content']);
 				}

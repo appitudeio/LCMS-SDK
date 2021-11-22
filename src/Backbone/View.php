@@ -77,6 +77,10 @@
 
 				self::getInstance()->data[$key] += $value;
 			}
+			elseif($value instanceof \Closure)
+			{
+				self::getInstance()->data[$key] = $value();
+			}
 			else
 			{
 				self::getInstance()->data[$key] = $value;
@@ -88,7 +92,7 @@
 		public static function make($_view, $_with = null)
 		{
 			$file = str_replace(".", "/", $_view);
-			$file = getcwd() . "/App/Views/" . $file . ".php";  // relative to Core directory
+			$file = getcwd() . "/App/Views/" . $file . ".php";  // relative to Root
 
 			if(!is_readable($file)) 
 			{

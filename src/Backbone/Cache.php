@@ -2,11 +2,12 @@
 	namespace LCMS\Backbone;
 
 	use LCMS\Core\Request;
+	use \LCMS\Utils\Singleton;
 	use \Exception;
 
 	class Cache
 	{
-		use \LCMS\Utils\Singleton;
+		use Singleton;
 
 		private static $cache_file_ext = ".html";
 		private static $file_storage = false;
@@ -108,6 +109,7 @@
 	        '/[“”«»„]/u'    =>   ' ', // Double quote
 	        '/ /'           =>   ' ', // nonbreaking space (equiv. to 0x160)
 	    );
+		
 	    return preg_replace(array_keys($utf8), array_values($utf8), $text);
 	}	
 ?>

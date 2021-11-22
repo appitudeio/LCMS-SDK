@@ -7,10 +7,12 @@
     use LCMS\Api\Merge;
 	use LCMS\Core\Request;
 	use LCMS\Core\Response;
+    use LCMS\Core\Redirect;
 	use LCMS\Core\Node;
     use LCMS\Core\Route;
 	use LCMS\Core\Locale;
     use LCMS\Core\Env;
+    use LCMS\Core\Database;
 	use LCMS\Backbone\View;
 	use \Exception;
 
@@ -18,9 +20,18 @@
 	{
         private $settings;
         private $events;
+        private $mergers = array();
 
 		function __construct($_settings)
 		{
+            if(isset($_settings['mergers']) && is_array($_settings['mergers']))
+            {
+                foreach($_settings['mergers'] AS $mergeObj)
+                {
+                    $this->mergers[strtolower($mergeObj->getFamily())] = $mergeObj;
+                }
+            }
+
             if(isset($_settings['request']) && $_settings['request'] instanceof Request)
             {
                 $this->settings['request'] = $_settings['request'];
@@ -51,14 +62,19 @@
                 $this->settings['env'] = $_settings['env'];
             }
 
-            if(isset($_settings['i18n_path']))
+            if(isset($_settings['paths']) && is_array($_settings['paths']))
             {
-                if(!is_dir($_settings['i18n_path']))
-                {
-                    throw new Exception("i18n-path does not exist (".$_settings['i18n_path'].")");
-                }
+                $this->settings['paths'] = array();
 
-                $this->settings['i18n_path'] = $_settings['i18n_path'];
+                foreach($_settings['paths'] AS $key => $path)
+                {
+                    if(!is_dir($path))
+                    {
+                        throw new Exception($key."-path does not exist (".$path.")");
+                    }
+
+                    $this->settings['paths'][$key] = $path;
+                }
             }
 		}
 
@@ -83,20 +99,42 @@
         {
             if(isset($this->settings['route'], $this->settings['database']))
             {
-                $routeMerger = new Merge($this->settings['route']);
-                $this->settings['route'] = $routeMerger->with($this->settings['database']);
+                if(!isset($this->mergers['route']))
+                {
+                    $this->mergers['route'] = new Merge($this->settings['route']);
+                }
+
+                $this->settings['route'] = $this->mergers['route']->with($this->settings['database']);
             }
             
-            if(isset($this->settings['node'], $this->settings['database']))
+            if(isset($this->settings['node']))
             {
-                $nodeMerger = new Merge($this->settings['node']);
-                $this->settings['node'] = $nodeMerger->with($this->settings['database']);
+                $this->settings['node']->init(Env::get("domain") . "/images/"); // Initialize the ImageFactory
+               
+                if(!isset($this->mergers['node']))
+                {
+                    $this->mergers['node'] = new Merge($this->settings['node']);
+                }                
+               
+                if(isset($this->settings['locale'], $this->settings['paths'], $this->settings['paths']['i18n']))
+                {
+                    $this->mergers['node']->with($this->settings['paths']['i18n'] . "/" . $this->settings['locale']->getLanguage() . ".ini");
+                }
+
+                if(isset($this->settings['database']))
+                {
+                    $this->mergers['node']->with($this->settings['database']);
+                }
             }
             
             if(isset($this->settings['env'], $this->settings['database']))
             {
-                $envMerger = new Merge($this->settings['env']);
-                $this->settings['env'] = $envMerger->with($this->settings['database']);
+                if(!isset($this->mergers['env']))
+                {
+                    $this->mergers['env'] = new Merge($this->settings['env']);
+                }
+
+                $this->settings['env'] = $this->mergers['env']->with($this->settings['database']);
             }
             
             if(isset($this->settings['request'], $this->settings['route']))
@@ -163,25 +201,52 @@
 
                 if(isset($this->settings['node']))
                 {
-                    $this->settings['node']->init(Env::get("domain") . "/images/"); // Initialize the ImageFactory	
-
                     if(isset($route_array['alias']) && !empty($route_array['alias']))
                     {
                         // Only Routes with Alias may use the Node "locally"
                         $this->settings['node']->setNamespace($route_array['alias'], $route_array['id'] ?? null);
                     }
 
-                    if(isset($this->settings['locale'], $this->settings['i18n_path']))
+                    if(isset($route_array['meta'], $route_array['meta'][$this->settings['locale']->getLanguage()]) && !empty($route_array['meta'][$this->settings['locale']->getLanguage()]))
                     {
-                        $nodeMerger = new Merge($this->settings['node']);
-                        $nodeMerger->with($this->settings['i18n_path'] . "/" . $this->settings['locale']->getLanguage() . ".ini");
-
-                        if(isset($this->settings['database']) && isset($route_array['meta'], $route_array['meta'][$this->settings['locale']->getLanguage()]) && !empty($route_array['meta'][$this->settings['locale']->getLanguage()]))
-                        {
-                            $page->meta(array_filter($route_array['meta'][$this->settings['locale']->getLanguage()]));
-                        }
+                        $page->meta($route_array['meta'][$this->settings['locale']->getLanguage()]);
                     }
                 }
+
+                /** 
+                 *  Find out if we should block this page with 'noindex' or 'nofollow'
+                 */
+                if($this->settings['env']->get("is_dev"))
+                {
+                    $page->meta(['robots' => array('noindex', 'nofollow')]);
+                    header("X-Robots-Tag: noindex, nofollow");
+                }
+                elseif($robots_text = $this->settings['node']->get("robots")->text())
+                {
+                    $robots = array();
+
+                    if((list($row, $noindex_content) = get_string_between($robots_text, "Noindex: ", "\\n")) 
+                        && ($noindex_content = str_replace($this->settings['env']->get("web_path"), "", $noindex_content))
+                        && (in_array($page->pattern, $noindex_content) || count(array_filter(explode("/", $page->pattern), fn($part) => in_array($part . "/", $noindex_content)))
+                    ))
+                    {
+                        $robots[] = "noindex";
+                    }
+
+                    if((list($row, $disallow_content) = get_string_between($robots_text, "Disallow: ", "\\n")) 
+                        && ($disallow_content = str_replace($this->settings['env']->get("web_path"), "", $disallow_content))
+                        && (in_array($page->pattern, $disallow_content) || count(array_filter(explode("/", $page->pattern), fn($part) => in_array($part . "/", $disallow_content)))
+                    ))
+                    {
+                        $robots[] = "nofollow";
+                    }
+
+                    if(!empty($robots))
+                    {
+                        $page->meta(['robots' => $robots]);
+                        header("X-Robots-Tag: " . implode(", ", $robots));
+                    }
+                }                
 
                 return $this->trigger("page", $page);
             }

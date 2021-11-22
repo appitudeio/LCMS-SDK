@@ -40,16 +40,12 @@
 			}
 			elseif(is_array(self::getInstance()->parameters[$_key]))
 			{
-				if(isset(self::getInstance()->parameters[$_key][0]))
+				/**
+				 * 	Return first item if string, array or bool
+				 */
+				if(isset(self::getInstance()->parameters[$_key][0]) && in_array(gettype(self::getInstance()->parameters[$_key][0]), ["string", "boolean", "array"]))
 				{
-					if(is_string(self::getInstance()->parameters[$_key][0]))
-					{
-						return self::getInstance()->parameters[$_key][0];
-					}
-					elseif(is_array(self::getInstance()->parameters[$_key][0]))
-					{
-						return self::getInstance()->parameters[$_key][0];
-					}
+					return self::getInstance()->parameters[$_key][0];
 				}
 			}
 

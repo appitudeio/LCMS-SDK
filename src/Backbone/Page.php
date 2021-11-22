@@ -82,6 +82,12 @@
 			$meta = $this->meta[Locale::getLanguage()] ?? Node::get("meta") ?: $this->meta;
 			$meta = array_replace(array_filter($this->meta, fn($v) => is_string($v)), $meta);
 
+			if(isset($meta['robots']))
+			{
+				SEO::metatags()->setRobots((is_array($meta['robots'])) ? implode(", ", $meta['robots']) : $meta['robots']);
+				unset($meta['robots']);
+			}
+
 			// Iterate all 'meta' to extract tags
 			array_walk($meta, fn($v, $k) => Node::set("meta." . $k, ((isset($search, $replace) && !empty($v) && str_contains($v, "{{")) ? str_replace($search, $replace, $v) : $v)));
 			
@@ -186,6 +192,7 @@
 
 			// Returns HTML from View
 			$this->controller->setPage($this);
+			
            	$this->compilation = $this->controller->$action(...array_values($this->parameters));
 
            	if(empty($this->compilation))
@@ -229,7 +236,10 @@
 				throw new Exception("Must run Compile first");
 			}
 
-			$this->initMeta($this->compilation); // After Local, then Page and lastly DB
+			if($this->compilation instanceof View)
+			{
+				$this->initMeta($this->compilation); // After Local, then Page and lastly DB	
+			}
 
 			// If any meta-data to take care about (Before the Controller may overwrite it)
 			return (string) $this->render();

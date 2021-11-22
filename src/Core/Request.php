@@ -2493,6 +2493,11 @@
 	        return $this->mimeType;
 	    }
 
+		public function getMimeType()
+		{
+			return $this->mimeType;
+		}		
+
 	    /**
 	     * Returns the extension based on the client mime type.
 	     *

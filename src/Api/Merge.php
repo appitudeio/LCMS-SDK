@@ -25,6 +25,11 @@
 			$this->object = $_obj;
 		}
 
+		public function getFamily()
+		{
+			return (new \ReflectionClass($this->object))->getShortName();
+		}
+
 		public function with($_storage)
 		{
 			if($this->merger)
@@ -62,6 +67,15 @@
 
 		public function store($_what = null, $_into = null)
 		{
+			if(!$this->merger && empty($_into))
+			{
+				throw new Exception("Merger requires a storage");
+			}
+			elseif(!$this->merger)
+			{
+				$this->with($_into);
+			}
+
 			if(empty($_what))
 			{
 				return;
@@ -88,7 +102,7 @@
 		{
 			if($_storage instanceof DB)
 			{
-				return $this->prepareFromDatabase();
+				return $this->prepareFromDatabase($_storage);
 			}
 			elseif(is_array($_storage))
 			{
@@ -102,7 +116,7 @@
 			throw new Exception("Invalid preparation storage: " . $_storage);
 		}
 
-		protected function prepareFromDatabase()
+		protected function prepareFromDatabase(DB $db)
 		{}
 
 		protected function prepareFromArray($_array)
@@ -120,10 +134,10 @@
 
 		public function merge($_storage)
 		{
-			return $this->prepare($_storage)->execute();
+			return $this->prepare($_storage)->execute($_storage);
 		}
 
-		protected function execute()
+		protected function execute($_storage)
 		{
 			return $this->instance;
 		}	
@@ -141,13 +155,13 @@
 			return $this;
 		}
 
-		protected function prepareFromDatabase()
+		protected function prepareFromDatabase(DB $db)
 		{
 			$condition = ($this->instance::$namespace != null && $this->instance::$namespace[1] != null) ? " OR `route_id`=".$this->instance::$namespace[1] : null;
 
-			$query = DB::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_nodes` WHERE (`route_id` IS NULL " . $condition . ") AND `deleted_at` IS NULL AND `hidden_at` IS NULL ORDER BY `order` ASC, `id` ASC");
+			$query = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_nodes` WHERE (`route_id` IS NULL " . $condition . ") AND `deleted_at` IS NULL AND `hidden_at` IS NULL ORDER BY `order` ASC, `id` ASC");
 
-			if(DB::num_rows($query) == 0)
+			if($db::num_rows($query) == 0)
 			{
 				return $this;
 			}
@@ -155,19 +169,22 @@
 			$loops = array();
 			$loops_relations = array();
 
-			while($row = DB::fetch_assoc($query))
+			while($row = $db::fetch_assoc($query))
 			{
 				$node = $this->buildNode($row);
 
 				$identifier = $node['identifier'];
+				$value = $node['content'][Locale::getLanguage()] ?? "";
 
 				if(empty($node['route_id']))
 				{
-					$identifier = "global." . $identifier;
+					$identifier = array("global" => array($identifier => $value));
+					//$identifier = "global." . $identifier;
 				}
 				elseif($this->instance::$namespace != null)
 				{
-					$identifier = $this->instance::$namespace[1] . "." . $identifier;
+					$identifier = array($this->instance::$namespace[1] => array($identifier => $value));
+					//$identifier = $this->instance::$namespace[1] . "." . $identifier;
 				}				
 
 				if(!empty($node['loop_id']))
@@ -191,7 +208,7 @@
 				}
 				else
 				{
-					$this->nodes[$identifier] = $node;
+					$this->nodes = array_replace_recursive($this->nodes, $identifier);
 				}
 			}
 
@@ -221,26 +238,26 @@
 			return $this;
 		}
 
-		private function getLoop($loop_identifier)
+		private function getLoop(DB $db, $loop_identifier)
 		{
 			// Fetch existing loops (Extend if any exists)
 			$condition = ($this->instance::$namespace != null) ? " OR `route_id`=".$this->instance::$namespace[0] : null;
 
-			$query = DB::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_nodes` WHERE `identifier`='".$loop_identifier."' AND (`route_id` IS NULL " . $condition . ") AND `type`=".Node::TYPE_LOOP." AND `deleted_at` IS NULL AND `hidden_at` IS NULL");
+			$query = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_nodes` WHERE `identifier`='".$loop_identifier."' AND (`route_id` IS NULL " . $condition . ") AND `type`=".Node::TYPE_LOOP." AND `deleted_at` IS NULL AND `hidden_at` IS NULL");
 
-			if(DB::num_rows($query) == 0)
+			if($db::num_rows($query) == 0)
 			{
 				return array();
 			}
 
-			return DB::fetch_assoc($query);
+			return $db::fetch_assoc($query);
 		}		
 
 		public function store($_what, $_into = null)
 		{
 			if($_into instanceof DB)
 			{
-				return $this->storeToDatabase($_what);
+				return $this->storeToDatabase($_into, $_what);
 			}
 			elseif($this->storage != null)
 			{
@@ -250,7 +267,7 @@
 			throw new Exception("Unexpected storage: " . ($_into ?? "No storage-file defined"));
 		}
 
-		private function storeToDatabase($_nodes) : bool
+		private function storeToDatabase(DB $db, $_nodes) : bool
 		{
 			/**
 			 *	Find out if a loop
@@ -260,11 +277,11 @@
 				// If a loop
 				if(!isset($node['identifier']))
 				{
-					$loop_array = $this->getLoop($key);
+					$loop_array = $this->getLoop($db, $key);
 
 					if(!$loop_array)
 					{
-						DB::insert(Env::get("db")['database'].".`lcms_nodes`", array(
+						$db::insert(Env::get("db")['database'].".`lcms_nodes`", array(
 							'route_id' 		=> ((!isset($n['global']) || !$n['global']) && $this->instance::$namespace != null) ? $this->instance::$namespace[0] : null,
 							'identifier'	=> $key,
 							'type'			=> Node::TYPE_LOOP,
@@ -296,19 +313,19 @@
 
 						if(count($new_params) != count($params))
 						{
-							DB::update(Env::get("db")['database'].".`lcms_nodes`", array('parameters' => $new_params), array('id' => $loop_array['id']));
+							$db::update(Env::get("db")['database'].".`lcms_nodes`", array('parameters' => $new_params), array('id' => $loop_array['id']));
 						}
 					}
 				}
 				elseif(str_starts_with($node['identifier'], "meta."))
 				{
 					// Meta-data
-					DB::query("UPDATE ".Env::get("db")['database'].".`lcms_routes` SET `meta` = JSON_MERGE_PATCH(`meta`, ?) WHERE `id`=?", [ array(Locale::getLanguage() => [explode(".", $node['identifier'], 2)[1] => $node['content']]), $this->instance::$namespace[1] ]);
+					$db::query("UPDATE ".Env::get("db")['database'].".`lcms_routes` SET `meta` = JSON_MERGE_PATCH(`meta`, ?) WHERE `id`=?", [ array(Locale::getLanguage() => [explode(".", $node['identifier'], 2)[1] => $node['content']]), $this->instance::$namespace[1] ]);
 				}
 				else
 				{
 					// Default node
-					DB::insert(Env::get("db")['database'].".`lcms_nodes`", array(
+					$db::insert(Env::get("db")['database'].".`lcms_nodes`", array(
 						'route_id' 		=> ((!isset($node['global']) || !$node['global']) && $this->instance::$namespace != null) ? $this->instance::$namespace[1] : null,
 						'identifier'	=> $node['identifier'],
 						'type'			=> $node['type'],
@@ -474,7 +491,7 @@
 		/**
 		 *	Construct the new routes as the format they came as
 		 */
-		public function execute() : Node
+		public function execute($_storage) : Node
 		{
 			if(empty($this->nodes))
 			{
@@ -518,20 +535,20 @@
 		/**
 		 *	Only GET-routes
 		 */
-		protected function prepareFromDatabase()
+		protected function prepareFromDatabase(DB $db)
 		{
 			$this->instance::bindControllerRoutes();
 
 			$this->system_routes = $this->instance::$routes;
 
-			$query = DB::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_routes`");
+			$query = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_routes`");
 
-			if(DB::num_rows($query) == 0)
+			if($db::num_rows($query) == 0)
 			{
 				return $this;
 			}
 
-			while($row = DB::fetch_assoc($query))
+			while($row = $db::fetch_assoc($query))
 			{
 				$this->database_routes[$row['id']] = $this->buildRoute($row);
 			}
@@ -555,7 +572,7 @@
 			return $system_route;
 		}
 
-		private function createRoute($_route)
+		private function createRoute(DB $db, $_route)
 		{
 			$snapshot = array(
 				'pattern' => $_route['org_pattern'] ?? $_route['pattern']
@@ -574,7 +591,7 @@
 
 			$locale = (in_array(strtolower($_route['pattern']), $this->system_routes_patterns)) ? "*" : Locale::getLanguage();
 
-			DB::insert(Env::get("db")['database'].".`lcms_routes`", array(
+			$db::insert(Env::get("db")['database'].".`lcms_routes`", array(
 				'parent_id'		=> $_route['parent_id'] ?? null,
 				'alias'			=> (isset($_route['alias']) && !empty($_route['alias'])) ? strtolower($_route['alias']) : null,
 				'pattern'		=> array($locale => strtolower($_route['pattern'])),
@@ -586,7 +603,7 @@
 				'snapshot'		=> $snapshot
 			));
 
-			return DB::last_insert_id();
+			return $db::last_insert_id();
 		}
 
 		private function buildRoute($row)
@@ -626,7 +643,7 @@
 			return $row;
 		}
 
-		public function execute() : Route
+		public function execute($_storage) : Route
 		{
 			$relations = array();
 
@@ -687,7 +704,7 @@
 						$route['parent_id'] 	= (isset($route['parent'])) ? $this->system_routes[$route['parent']]['id'] : null;
 						$route['pattern'] 		= (isset($route['parent'])) ? str_replace($this->system_routes[$route['parent']]['pattern'] . "/", "", $route['pattern']) : $route['pattern'];
 
-						$this->system_routes[$key]['id'] = $this->createRoute($route);
+						$this->system_routes[$key]['id'] = $this->createRoute($_storage, $route);
 					}
 
 					$relations[$this->system_routes[$key]['id']] = $key;
@@ -727,7 +744,7 @@
 			return $this->instance->merge($this->system_routes);
 		}
 
-		private function storeToDatabase($_settings)
+		private function storeToDatabase(DB $db, $_settings)
 		{
 			$settings = array(Locale::getLanguage() => array());
 
@@ -744,7 +761,7 @@
 				);
 			}
 
-			DB::query("UPDATE ".Env::get("db")['database'].".`lcms_routes` SET `settings` = JSON_MERGE_PATCH(`settings`, ?) WHERE `id`=?", [ $settings, $this->instance::$current['id'] ]);
+			$db::query("UPDATE ".Env::get("db")['database'].".`lcms_routes` SET `settings` = JSON_MERGE_PATCH(`settings`, ?) WHERE `id`=?", [ $settings, $this->instance::$current['id'] ]);
 		}
 
 		public function store($_what, $_into = null)
@@ -763,18 +780,18 @@
 		private $database_menus = array();
 		private $system_menus = array();
 
-		protected function prepareFromDatabase()
+		protected function prepareFromDatabase(DB $db)
 		{
 			$this->system_menus = $this->instance->getAll();
 
-			$query = DB::query("SELECT `mi`.*, `r`.`alias` AS `route` FROM ".Env::get("db")['database'].".`lcms_menus` AS `mi` JOIN ".Env::get("db")['database'].".`lcms_routes` AS `r` ON(`r`.`id` = `mi`.`route_id`) WHERE `mi`.`deleted_at` IS NULL ORDER BY `mi`.`parent_id` ASC, `mi`.`id` ASC");
+			$query = $db::query("SELECT `mi`.*, `r`.`alias` AS `route` FROM ".Env::get("db")['database'].".`lcms_menus` AS `mi` JOIN ".Env::get("db")['database'].".`lcms_routes` AS `r` ON(`r`.`id` = `mi`.`route_id`) WHERE `mi`.`deleted_at` IS NULL ORDER BY `mi`.`parent_id` ASC, `mi`.`id` ASC");
 
-			if(DB::num_rows($query) == 0)
+			if($db::num_rows($query) == 0)
 			{
 				return $this;
 			}
 
-			while($row = DB::fetch_assoc($query))
+			while($row = $db::fetch_assoc($query))
 			{
 				if(!isset($this->database_menus[$row['menu']]))
 				{
@@ -826,7 +843,7 @@
 			return $system_menu_item;
 		}
 
-		private function prepareMenuItem($_menu_item)
+		private function prepareMenuItem(DB $db, $_menu_item)
 		{
 			$route = Route::asItem($_menu_item['route']);
 
@@ -848,14 +865,14 @@
 
 			
 
-			$item['id'] = DB::last_insert_id();
+			$item['id'] = $db::last_insert_id();
 
 			return $item;
 		}
 
-		private function createMenuItem($_menu_identifier, $_menu_item, $_parent_id = null)
+		private function createMenuItem(DB $db, $_menu_identifier, $_menu_item, $_parent_id = null)
 		{
-			DB::insert(Env::get("db")['database'].".`lcms_menus`", array(
+			$db::insert(Env::get("db")['database'].".`lcms_menus`", array(
 				'menu' 			=> $_menu_identifier,
 				'parent_id'		=> $_menu_item['parent_id'] ?? null,
 				'title'			=> array(Locale::getLanguage() => $_menu_item['title']),
@@ -865,12 +882,12 @@
 				'order'			=> $_menu_item['order'] ?? 99
 			));
 
-			$_menu_item['id'] = DB::last_insert_id();
+			$_menu_item['id'] = $db::last_insert_id();
 
 			return $_menu_item;
 		}
 
-		private function createMenu($_menu_object)
+		private function createMenu(DB $db, $_menu_object)
 		{
 			$items = array();
 
@@ -909,7 +926,7 @@
 
 			foreach($items AS $key => $menu_item)
 			{
-				$menu_item = array_merge($menu_item, $this->createMenuItem($_menu_object->asArray()['identifier'], $menu_item));
+				$menu_item = array_merge($menu_item, $this->createMenuItem($db, $_menu_object->asArray()['identifier'], $menu_item));
 				
 				$database_items[$menu_item['id']] = $menu_item;
 
@@ -922,7 +939,7 @@
 							$database_items['children'] = array();
 						}
 
-						$child = array_merge($child, $this->createMenuItem($_menu_object->asArray()['identifier'], $child, $menu_item['id']));	
+						$child = array_merge($child, $this->createMenuItem($db, $_menu_object->asArray()['identifier'], $child, $menu_item['id']));	
 
 						$database_items['children'][] = $child['id'];
 					}
@@ -935,7 +952,7 @@
 		/**
 		 *	Merge everything together
 		 */
-		protected function execute() : Menus
+		protected function execute($_storage): Menus
 		{
 			if(empty($this->system_menus))
 			{
@@ -1026,7 +1043,7 @@
 		private $database_items = array();
 		private $system_items = array();
 
-		protected function prepareFromDatabase()
+		protected function prepareFromDatabase(DB $db)
 		{
 			$data = $this->instance->asArray();
 
@@ -1035,14 +1052,14 @@
 
 			unset($data);
 
-			$query = DB::query("SELECT `mi`.*, `r`.`alias` AS `route` FROM ".Env::get("db")['database'].".`lcms_menus` AS `mi` JOIN ".Env::get("db")['database'].".`lcms_routes` AS `r` ON(`r`.`id` = `mi`.`route_id`) WHERE `mi`.`deleted_at` IS NULL AND `menu`='".$this->menu."' ORDER BY `mi`.`parent_id` ASC, `mi`.`id` ASC");
+			$query = $db::query("SELECT `mi`.*, `r`.`alias` AS `route` FROM ".Env::get("db")['database'].".`lcms_menus` AS `mi` JOIN ".Env::get("db")['database'].".`lcms_routes` AS `r` ON(`r`.`id` = `mi`.`route_id`) WHERE `mi`.`deleted_at` IS NULL AND `menu`='".$this->menu."' ORDER BY `mi`.`parent_id` ASC, `mi`.`id` ASC");
 
-			if(DB::num_rows($query) == 0)
+			if($db::num_rows($query) == 0)
 			{
 				return $this;
 			}
 
-			while($row = DB::fetch_assoc($query))
+			while($row = $db::fetch_assoc($query))
 			{
 				$this->database_items[$row['id']] = $this->buildMenuItem($row);
 			}
@@ -1069,7 +1086,7 @@
 			return $system_menu_item;
 		}
 
-		private function createMenuItem($_menu_item)
+		private function createMenuItem(DB $db, $_menu_item)
 		{
 			$item = array(
 				'menu' 			=> $this->menu,
@@ -1081,14 +1098,14 @@
 				'order'			=> $_menu_item['order'] ?? 99
 			);
 
-			DB::insert(Env::get("db")['database'].".`lcms_menus`", $item);
+			$db::insert(Env::get("db")['database'].".`lcms_menus`", $item);
 
 			$item['id'] = DB::last_insert_id();
 
 			return $item;
 		}
 
-		protected function execute() : Menu
+		protected function execute($_storage) : Menu
 		{	
 			if(empty($this->system_items))
 			{
@@ -1166,32 +1183,32 @@
 	{
 		private $items;
 
-		protected function prepareFromFile($_file)
+		protected function prepareFromFile($_file): Self
 		{
 			$this->items = require($_file);
 
 			return $this;
 		}
 
-		protected function prepareFromArray($_array)
+		protected function prepareFromArray($_array): Self
 		{
 			$this->items = (empty($this->items)) ? $_array : array_merge($this->items, $_array);
 
 			return $this;
 		}
 
-		protected function prepareFromDatabase()
+		protected function prepareFromDatabase(DB $db): Self
 		{
-			$query = DB::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_settings`");
+			$query = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_settings`");
 
-			if(DB::num_rows($query) == 0)
+			if($db::num_rows($query) == 0)
 			{
 				return $this;
 			}
 
-			$this->items = array();
-			
-			while($row = DB::fetch_assoc($query))
+			// $this->items = array();
+
+			while($row = $db::fetch_assoc($query))
 			{
 				$this->items[$row['key']] = (empty($row['value'])) ? null : ((\LCMS\Utils\Toolset::isJson($row['value'])) ? json_decode($row['value'], true) : $row['value']);
 			}
@@ -1199,7 +1216,7 @@
 			return $this;
 		}
 
-		protected function execute() : Env
+		protected function execute($_storage): Env
 		{
 			if(empty($this->items))
 			{

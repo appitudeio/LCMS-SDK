@@ -381,7 +381,7 @@
 			/**
 			 *	Map all children routes, now when the rest is done
 			 */
-			//self::bindControllerRoutes();
+			self::bindControllerRoutes();
 
 			if(!isset(self::$map[$_method]) && ($_is_ajax_request && !isset(self::$map[Request::METHOD_AJAX])))
 			{
@@ -463,7 +463,7 @@
 		public static function url($_to_alias, $_arguments = null, $_absolute = true): String
 		{
 			// Search Database-routes
-			if(is_numeric($_to_alias) && !isset(self::$db_relations[$_to_alias]))
+			if(is_numeric($_to_alias) && !isset(self::$db_relations[$_to_alias]) && !isset(self::$relations[$_to_alias]))
 			{
 				throw new Exception("No RouteAliasId found: " . $_to_alias);
 			}
@@ -472,7 +472,7 @@
 				throw new Exception("No RouteAlias found: " . $_to_alias);
 			}
 
-			$url = (is_numeric($_to_alias)) ? self::$routes[self::$db_relations[$_to_alias]]['pattern'] : self::$routes[self::$relations[$_to_alias]]['pattern'];
+			$url = (is_numeric($_to_alias) && isset(self::$db_relations[$_to_alias], self::$routes[self::$db_relations[$_to_alias]])) ? self::$routes[self::$db_relations[$_to_alias]]['pattern'] : self::$routes[self::$relations[$_to_alias]]['pattern'];
 
 			/**
 			 *	If found pattern to replace from $_arguments
