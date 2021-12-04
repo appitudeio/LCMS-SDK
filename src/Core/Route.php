@@ -7,6 +7,7 @@
 	use LCMS\Core\Request;
 	use LCMS\Core\Response;
 	use LCMS\Core\Redirect;
+	use LCMS\Core\Locale;
 	use LCMS\Boilerplate\View;
 	use \Exception;
 
@@ -465,11 +466,11 @@
 			// Search Database-routes
 			if(is_numeric($_to_alias) && !isset(self::$db_relations[$_to_alias]) && !isset(self::$relations[$_to_alias]))
 			{
-				throw new Exception("No RouteAliasId found: " . $_to_alias);
+				throw new Exception("No RouteAliasId found (" . $_to_alias . ")");
 			}
 			elseif(!is_numeric($_to_alias) && !isset(self::$relations[$_to_alias]))
 			{
-				throw new Exception("No RouteAlias found: " . $_to_alias);
+				throw new Exception("No RouteAlias found (" . $_to_alias . ")");
 			}
 
 			$url = (is_numeric($_to_alias) && isset(self::$db_relations[$_to_alias], self::$routes[self::$db_relations[$_to_alias]])) ? self::$routes[self::$db_relations[$_to_alias]]['pattern'] : self::$routes[self::$relations[$_to_alias]]['pattern'];
@@ -500,6 +501,7 @@
 			}
 
 			$url = (!empty($url)) ? trim(strtolower($url)) : "/";
+			$url = (!Locale::isDefault()) ? Locale::getLanguage() . "/" . $url : $url;
 			$url = "/" . ltrim($url, "/");
 
 			if(!empty($_arguments) && $_arguments = array_filter($_arguments, fn($value) => !is_null($value) && $value !== ""))

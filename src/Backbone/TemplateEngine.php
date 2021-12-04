@@ -203,19 +203,23 @@
             }
             else
             {
-                list($element->outertext, $stored) = $this->handle($identifier, $element->attr, $element->innertext);
+                // ->outertext
+                list($element->innertext, $stored) = $this->handle($identifier, $element->attr, $element->innertext);
             }
 
             if(isset($element->attr['as']))
             {
                 $element->tag = $element->attr['as'];
+                unset($element->attr['as']);
             }
+
+            $element->attr['name'] = null;
 
             if($stored)
             {
                 $element->attr['type'] = null;
             }
-            else //if(!in_array($element->tag, ["meta", "title"]) || !str_starts_with($name, "meta."))
+            else
             {
                 if(!empty($parent))
                 {
@@ -268,9 +272,7 @@
 
 		private function handle($identifier, $properties, $fallback)
 		{
-			$node = Node::get($identifier);
-
-            if(!$node)
+            if(!$node = Node::get($identifier))
             {
                 return array($fallback, false);
             }

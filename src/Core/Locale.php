@@ -8,22 +8,15 @@
 
 	class Locale
 	{
-		private static $language = "en";
-		private static $instance;
-
-		public static function getInstance()
+		use \LCMS\Utils\Singleton;
+		
+		private $language = "en";
+		private $is_default = false;
+		
+		public static function setLanguage($_language, $_is_default = false)
 		{
-			if(self::$instance == null)
-			{
-				self::$instance = new static();
-			}
-
-			return self::$instance;
-		}
-
-		public static function setLanguage($_language)
-		{
-			self::$language = $_language;
+			self::getInstance()->language = $_language;
+			self::getInstance()->is_default = $_is_default;
 		}
 
 		/**
@@ -35,18 +28,23 @@
 
 			if(!empty($segments) && strlen($segments[0]) == 2 && is_file(ROOT_PATH . "/i18n/" . strtolower($segments[0]).".ini"))
 			{
-				self::$language = strtolower($segments[0]);
+				self::getInstance()->language = strtolower($segments[0]);
 
 				if(gettype($_callback) == "object")
 				{
-					return $_callback(self::$language);
+					return $_callback(self::getInstance()->language);
 				}
 			}
 		}
 
-		public static function getLanguage()
+		public static function getLanguage(): String
 		{
-			return self::$language;
+			return self::getInstance()->language;
+		}
+
+		public static function isDefault(): Bool
+		{
+			return self::getInstance()->is_default;
 		}
 	}
 ?>

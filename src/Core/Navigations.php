@@ -4,16 +4,16 @@
 	 */
 	namespace LCMS\Core;
 
-	use LCMS\Core\Menu;
+	use LCMS\Core\Navigation;
 	use \Exception;
 
-	class Menus
+	class Navigations
 	{
 		use \LCMS\Utils\Singleton;
 
 		private $collection = array();
 
-		public function add($_identifier, Menu $_menu)
+		public function add($_identifier, Navigation $_menu)
 		{
 			$this->getInstance()->collection[$_identifier] = $_menu;			
 

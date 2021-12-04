@@ -6,7 +6,7 @@
 
 	use \Exception;
 
-	class Menu implements \Iterator
+	class Navigation implements \Iterator
 	{
 		private $index = 0;
 		private $currents;
@@ -116,7 +116,10 @@
 
 		public function children($_key = null)
 		{
-			$_key = (empty($_key)) ? $this->root[$this->index] : $_key;
+			/*pre($this->root);
+			pre($this->item($this->index));
+			$_key = (empty($_key)) ? $this->root[$this->index] ?? $_key : $_key;*/
+			$_key = (empty($_key)) ? $this->item($this->index)['key'] : $_key;
 
 			if(empty($this->item($_key)['children']))
 			{
@@ -141,7 +144,7 @@
 
 		public function item($_key)
 		{
-			return $this->items[$_key];
+			return $this->items[$_key] ?? null;
 		}
 
 		private function sort()
@@ -190,10 +193,7 @@
 				return $this->items[$key];
 			}, $keys);
 
-			usort($items, function($a, $b)
-			{
-				return $a['order'] <=> $b['order'];
-			});
+			usort($items, fn($a, $b) => $a['order'] <=> $b['order']);
 
 			return array_column($items, "key");
 		}

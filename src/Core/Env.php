@@ -54,11 +54,16 @@
 			//return (isset(self::getInstance()->parameters[$_key][0]) && is_array(self::getInstance()->parameters[$_key][0])) ? self::getInstance()->parameters[$_key][0] : self::getInstance()->parameters[$_key];
 		}
 
+		public static function set($_key, $_value)
+		{
+			self::getInstance()->parameters[strtolower($_key)] = $_value;
+		}
+
 		public function merge($_params)
 		{
 			foreach($_params AS $k => $v)
 			{
-				self::getInstance()->parameters[strtolower($k)] = $v;
+				self::set($k, $v);
 			}
 			
 			return self::getInstance();

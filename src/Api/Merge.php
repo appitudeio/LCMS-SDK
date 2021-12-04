@@ -7,8 +7,8 @@
 	use LCMS\Core\Env;
 	use LCMS\Core\Database as DB;
 	use LCMS\Core\Route;
-	use LCMS\Core\Menus;
-	use LCMS\Core\Menu;
+	use LCMS\Core\Navigations;
+	use LCMS\Core\Navigation;
 	use LCMS\Core\Node;
 	use LCMS\Core\Request;
 	use LCMS\Core\Locale;
@@ -45,9 +45,9 @@
 			{
 				$this->merger = new RouteMerge($this->object);
 			}
-			elseif($this->object instanceof Menus)
+			elseif($this->object instanceof Navigations)
 			{
-				$this->merger = new MenusMerger($this->object);
+				$this->merger = new NavigationsMerger($this->object);
 			}
 			/*elseif($this->object instanceof Menu)
 			{
@@ -183,7 +183,7 @@
 				}
 				elseif($this->instance::$namespace != null)
 				{
-					$identifier = array($this->instance::$namespace[1] => array($identifier => $value));
+					$identifier = array($this->instance::$namespace[0] => array($identifier => $value));
 					//$identifier = $this->instance::$namespace[1] . "." . $identifier;
 				}				
 
@@ -211,6 +211,7 @@
 					$this->nodes = array_replace_recursive($this->nodes, $identifier);
 				}
 			}
+
 
 			/**
 			 *	Pair the loops with the nodes
@@ -567,7 +568,7 @@
 
 					return array_merge($system_route, $lcms_route);
 				}
-			}		
+			}
 
 			return $system_route;
 		}
@@ -593,8 +594,8 @@
 
 			$db::insert(Env::get("db")['database'].".`lcms_routes`", array(
 				'parent_id'		=> $_route['parent_id'] ?? null,
-				'alias'			=> (isset($_route['alias']) && !empty($_route['alias'])) ? strtolower($_route['alias']) : null,
-				'pattern'		=> array($locale => strtolower($_route['pattern'])),
+				'alias'			=> (isset($_route['alias']) && !empty($_route['alias'])) ? $_route['alias'] : null,
+				'pattern'		=> array($locale => $_route['pattern']),
 				'controller'	=> $_route['controller'] ?? null,
 				'action'		=> $_route['action'] ?? null,
 				'external_url'	=> $_route['external_url'] ?? null,
@@ -775,16 +776,16 @@
 		}
 	}
 
-	class MenusMerger extends BaseMerge
+	class NavigationsMerger extends BaseMerge
 	{
-		private $database_menus = array();
-		private $system_menus = array();
+		private $database_navs = array();
+		private $system_navs = array();
 
-		protected function prepareFromDatabase(DB $db)
+		protected function prepareFromDatabase(DB $db): Self
 		{
-			$this->system_menus = $this->instance->getAll();
+			$this->system_navs = $this->instance->getAll();
 
-			$query = $db::query("SELECT `mi`.*, `r`.`alias` AS `route` FROM ".Env::get("db")['database'].".`lcms_menus` AS `mi` JOIN ".Env::get("db")['database'].".`lcms_routes` AS `r` ON(`r`.`id` = `mi`.`route_id`) WHERE `mi`.`deleted_at` IS NULL ORDER BY `mi`.`parent_id` ASC, `mi`.`id` ASC");
+			$query = $db::query("SELECT `mi`.*, `r`.`alias` AS `route` FROM ".Env::get("db")['database'].".`lcms_navigations` AS `mi` LEFT JOIN ".Env::get("db")['database'].".`lcms_routes` AS `r` ON(`r`.`id` = `mi`.`route_id`) WHERE `mi`.`deleted_at` IS NULL ORDER BY `mi`.`parent_id` ASC, `mi`.`id` ASC");
 
 			if($db::num_rows($query) == 0)
 			{
@@ -793,191 +794,99 @@
 
 			while($row = $db::fetch_assoc($query))
 			{
-				if(!isset($this->database_menus[$row['menu']]))
+				if(!isset($this->database_navs[$row['navigation']]))
 				{
-					$this->database_menus[$row['menu']] = array();
+					$this->database_navs[$row['navigation']] = array();
 				}
 
-				if(!empty($row['route_id']))
-				{
-					$this->database_menus[$row['menu']][$row['id']] = $this->buildMenuItem($row);
-				}
+				$this->database_navs[$row['navigation']][$row['id']] = $this->buildNavItem($row);
 			}
 
 			return $this;
 		}
 
-		private function pair($menu_identifier, $system_menu_item)
+		private function pair($nav_identifier, $system_nav_item)
 		{
-			$snapshot = array('title' => $system_menu_item['title'], 'route' => $system_menu_item['route']);
+			$snapshot = array('title' => $system_nav_item['title'] ?? null, 'route' => $system_nav_item['route'] ?? null, 'parameters' => $system_nav_item['parameters'] ?? null);
 
-			foreach($this->database_menus[$menu_identifier] AS $k => $lcms_menu_item)
+			foreach($this->database_navs[$nav_identifier] AS $k => $lcms_nav_item)
 			{
-				if(empty($lcms_menu_item['snapshot']) || $lcms_menu_item['snapshot'] != $snapshot)
+				if(empty($lcms_nav_item['snapshot']) || $lcms_nav_item['snapshot'] != $snapshot)
 				{
 					continue;
 				}
 
-				unset($this->database_menus[$menu_identifier][$k]); // Remove this entry from LCMS
+				unset($this->database_navs[$nav_identifier][$k]); // Remove this entry from LCMS
 
-				if(empty($this->database_menus[$menu_identifier]))
+				if(empty($this->database_navs[$nav_identifier]))
 				{
-					unset($this->database_menus[$menu_identifier]);
+					unset($this->database_navs[$nav_identifier]);
 				}
-
-				$item = array_merge($system_menu_item, $lcms_menu_item);	
-
-				// Any children?
-				/*if(!empty($item['parent_id']))
-				{
-					pre($item);
-
-					pre($this->system_menus[$menu_identifier]->item($item['key']));
-
-					die("PARENT");
-				}*/
-
-				return $item;
+				
+				return array_merge($system_nav_item, $lcms_nav_item);
 			}
 
-			return $system_menu_item;
+			return $system_nav_item;
 		}
 
-		private function prepareMenuItem(DB $db, $_menu_item)
+		private function createNavItem(DB $db, $_nav_identifier, $_nav_item, $_parent_id = null)
 		{
-			$route = Route::asItem($_menu_item['route']);
-
-			if(!isset($route['id']))
-			{
-				throw new Exception("Cant create menu item without database connection to a route");
-			}
-
-			return array(
-				//'parent_id'		=> $_menu_item['parent_id'] ?? null, //(isset($_menu_item['parent'])) ? $this->system_items[$_menu_item['parent']]['id'] : null,
-				'title'			=> array(Locale::getLanguage() => $_menu_item['title']),
-				'route_id'		=> $route['id'],
-				'parameters'	=> (isset($_menu_item['parameters']) && !empty($_menu_item['parameters'])) ? $_menu_item['parameters'] : null,
-				'snapshot'		=> array('title' => $_menu_item['title'], 'route' => $_menu_item['route']),
-				'order'			=> $_menu_item['order'] ?? 99
-			);
-
-			pre($item);
-
-			
-
-			$item['id'] = $db::last_insert_id();
-
-			return $item;
-		}
-
-		private function createMenuItem(DB $db, $_menu_identifier, $_menu_item, $_parent_id = null)
-		{
-			$db::insert(Env::get("db")['database'].".`lcms_menus`", array(
-				'menu' 			=> $_menu_identifier,
-				'parent_id'		=> $_menu_item['parent_id'] ?? null,
-				'title'			=> array(Locale::getLanguage() => $_menu_item['title']),
-				'route_id'		=> Route::asItem($_menu_item['route'])['id'] ?? null,
-				'parameters'	=> (isset($_menu_item['parameters']) && !empty($_menu_item['parameters'])) ? $_menu_item['parameters'] : null,
-				'snapshot'		=> array('title' => $_menu_item['title'], 'route' => $_menu_item['route']),
-				'order'			=> $_menu_item['order'] ?? 99
+			$db::insert(Env::get("db")['database'].".`lcms_navigations`", array(
+				'navigation' 	=> $_nav_identifier,
+				'parent_id'		=> $_parent_id, //_nav_item['parent_id'] ?? null,
+				'title'			=> (isset($_nav_item['title']) && !empty($_nav_item['title'])) ? array(Locale::getLanguage() => $_nav_item['title']) : null,
+				'route_id'		=> (isset($_nav_item['route']) && !empty($_nav_item['route'])) ? Route::asItem($_nav_item['route'])['id'] ?? null : null,
+				'parameters'	=> (isset($_nav_item['parameters']) && !empty($_nav_item['parameters'])) ? $_nav_item['parameters'] : null,
+				'snapshot'		=> array('title' => $_nav_item['title'] ?? null, 'route' => $_nav_item['route'] ?? null, 'parameters' => $_nav_item['parameters'] ?? null),
+				'order'			=> $_nav_item['order'] ?? 99
 			));
 
-			$_menu_item['id'] = $db::last_insert_id();
+			$_nav_item['id'] = $db::last_insert_id();
 
-			return $_menu_item;
+			return $_nav_item;
 		}
 
-		private function createMenu(DB $db, $_menu_object)
+		private function updateNavItem(DB $db, $nav_item_id, $params): Void
 		{
-			$items = array();
-
-			if(!$_menu_object->valid() && empty($this->database_menus[$_menu_object->asArray()['identifier']]))
-			{
-				DB::insert(Env::get("db")['database'].".`lcms_menus`", array('menu' => $_menu_object->asArray()['identifier']));
-
-				return $_menu_object;
-			}
-
-			foreach($_menu_object AS $key => $menu_item)
-			{
-				if(!empty($_parent_id))
-				{
-					$menu_item['parent_id'] = $_parent_id;
-				}
-
-				$items[$key] = $this->prepareMenuItem($menu_item);
-
-				if(isset($menu_item['children']))
-				{
-					foreach($menu_item['children'] AS $child_key)
-					{
-						if(!isset($items[$key]['children']))
-						{
-							$items[$key]['children'] = array();
-						}
-
-						$items[$key]['children'][$child_key] = $this->prepareMenuItem($_menu_object->item($child_key));
-					}
-				}
-			}
-
-			// Without any errors, let's create all items
-			$database_items = array();
-
-			foreach($items AS $key => $menu_item)
-			{
-				$menu_item = array_merge($menu_item, $this->createMenuItem($db, $_menu_object->asArray()['identifier'], $menu_item));
-				
-				$database_items[$menu_item['id']] = $menu_item;
-
-				if(isset($menu_item['children']))
-				{
-					foreach($menu_item['children'] AS $child_key => $child)
-					{
-						if(!isset($database_items['children']))
-						{
-							$database_items['children'] = array();
-						}
-
-						$child = array_merge($child, $this->createMenuItem($db, $_menu_object->asArray()['identifier'], $child, $menu_item['id']));	
-
-						$database_items['children'][] = $child['id'];
-					}
-				}
-			}
-
-			return $_menu_object->merge($database_items);
+			DB::update(Env::get("db")['database'].".`lcms_navigations`", $params, array('id' => $nav_item_id));
 		}
 
 		/**
 		 *	Merge everything together
 		 */
-		protected function execute($_storage): Menus
+		protected function execute($_storage): Navigations
 		{
-			if(empty($this->system_menus))
+			if(empty($this->system_navs))
 			{
 				return $this->instance;
 			}
 
 			$relations = $system_items = array();
 
-			foreach($this->system_menus AS $key => $menu_object)
+			foreach($this->system_navs AS $navigation => $nav_object)
 			{
-				$system_items[$key] = $menu_object->items();
+				$system_items[$navigation] = $nav_object->items();
 
-				foreach($menu_object->items() AS $menu_item_key => $menu_item)
+				foreach($nav_object->items() AS $nav_item_key => $nav_item)
 				{
-					if(isset($this->database_menus[$key]) && !empty($this->database_menus[$key]))
+					if(isset($this->database_navs[$navigation]) && !empty($this->database_navs[$navigation]))
 					{
-						$system_items[$key][$menu_item_key] = $this->pair($key, $menu_item);
+						$system_items[$navigation][$nav_item_key] = $this->pair($navigation, $nav_item);
 					}
 
-					if(!isset($system_items[$key][$menu_item_key]['id']))
+					if(!isset($system_items[$navigation][$nav_item_key]['id']))
 					{
-						$system_items[$key][$menu_item_key] = array_merge($system_items[$key][$menu_item_key], $this->createMenuItem($key, $menu_item));
+						$system_items[$navigation][$nav_item_key] = array_merge($system_items[$navigation][$nav_item_key], $this->createNavItem($_storage, $navigation, $nav_item));
 					}
 
-					$relations[$key][$system_items[$key][$menu_item_key]['id']] = $menu_item_key;
+					$relations[$navigation][$system_items[$navigation][$nav_item_key]['id']] = $nav_item_key;
+				}
+
+				// Pair with parents
+				foreach(array_filter($system_items[$navigation], fn($i) => isset($i['parent'])) AS $nav_item_key => $nav_object)
+				{
+					$system_items[$navigation][$nav_item_key]['parent_id'] = $system_items[$navigation][$nav_object['parent']]['id'];
+					$this->updateNavItem($_storage, $nav_object['id'], array('parent_id' => $system_items[$navigation][$nav_item_key]['parent_id']));
 				}
 			}
 
@@ -986,7 +895,7 @@
 				return $this->instance;
 			}
 
-			if(empty($this->database_menus))
+			if(empty($this->database_navs))
 			{
 				return $this->instance->merge($system_items);
 			}
@@ -994,52 +903,64 @@
 			/**
 			 *	Items found in Database, add them too (+ pair with children)
 			 */
-			foreach($this->database_menus AS $menu_identifier => $menu_items)
+			foreach($this->database_navs AS $nav_identifier => $nav_items)
 			{
-				foreach($menu_items AS $key => $menu_item)
+				foreach($nav_items AS $key => $nav_item)
 				{
-					$re_key = count($system_items[$menu_identifier]);
+					$re_key = count($system_items[$nav_identifier]);
+					$nav_item['key'] = $re_key;
 
-					$menu_items[$key]['key'] = $re_key;
-
-					if(!empty($menu_items[$key]['parent_id']))
+					if(!empty($nav_item['parent_id']))
 					{
-						$find_key = (isset($relations[$menu_identifier][$menu_items[$key]['parent_id']])) ? $relations[$menu_identifier][$menu_items[$key]['parent_id']] : $menu_items[$menu_items[$key]['parent_id']]['key'];
+						// Find parent
+						$find_key = $relations[$nav_identifier][$nav_item['parent_id']] ?? $nav_items[$nav_item['parent_id']]['key'];
 		
-						if(!isset($system_items[$menu_identifier][$find_key]['children']))
+						if(!isset($system_items[$nav_identifier][$find_key]['children']))
 						{
-							$system_items[$menu_identifier][$find_key]['children'] = array();
+							$system_items[$nav_identifier][$find_key]['children'] = array();
 						}
 
-						$system_items[$menu_identifier][$find_key]['children'][] = $re_key;
+						$system_items[$nav_identifier][$find_key]['children'][] = $re_key;
 					}
 
-					$system_items[$menu_identifier][$re_key] = $menu_items[$key];
+					$system_items[$nav_identifier][$re_key] = $nav_item; //[$key];
 				}
 			}
 
 			return $this->instance->merge($system_items);
 		}
 
-		private function buildMenuItem($row)
+		private function buildNavItem($row)
 		{
 			if(isset($row['title']) && !empty($row['title']) && !is_array($row['title']))
 			{
-				$row['title'] = json_decode($row['title'], true)[Locale::getLanguage()] ?? null;
+				$row['title'] = json_decode($row['title'], true)[Locale::getLanguage()] ?? "";
 			}
+
+			if(isset($row['parameters']) && !empty($row['parameters']) && !is_array($row['parameters']))
+			{
+				$row['parameters'] = json_decode($row['parameters'], true);
+			}			
 
 			if(isset($row['snapshot']) && !empty($row['snapshot']) && !is_array($row['snapshot']))
 			{
 				$row['snapshot'] = json_decode($row['snapshot'], true);
-			}			
+			}
+
+			if(empty($row['route_id']) && isset($row['snapshot'], $row['snapshot']['route']) && !empty($row['snapshot']['route']))
+			{
+				$row['route'] = $row['snapshot']['route'];
+			}
+
+			$row['order'] = (int) $row['order'];
 
 			return $row;
 		}
 	}
 
-	class MenuMerge extends BaseMerge
+	/*class NavMerge extends BaseMerge
 	{
-		private $menu;
+		private $navigation;
 		private $database_items = array();
 		private $system_items = array();
 
@@ -1047,12 +968,12 @@
 		{
 			$data = $this->instance->asArray();
 
-			$this->menu = $data['id'];
+			$this->navigation = $data['id'];
 			$this->system_items = $data['items'];
 
 			unset($data);
 
-			$query = $db::query("SELECT `mi`.*, `r`.`alias` AS `route` FROM ".Env::get("db")['database'].".`lcms_menus` AS `mi` JOIN ".Env::get("db")['database'].".`lcms_routes` AS `r` ON(`r`.`id` = `mi`.`route_id`) WHERE `mi`.`deleted_at` IS NULL AND `menu`='".$this->menu."' ORDER BY `mi`.`parent_id` ASC, `mi`.`id` ASC");
+			$query = $db::query("SELECT `mi`.*, `r`.`alias` AS `route` FROM ".Env::get("db")['database'].".`lcms_navigations` AS `mi` JOIN ".Env::get("db")['database'].".`lcms_routes` AS `r` ON(`r`.`id` = `mi`.`route_id`) WHERE `mi`.`deleted_at` IS NULL AND `nav`='".$this->navigation."' ORDER BY `mi`.`parent_id` ASC, `mi`.`id` ASC");
 
 			if($db::num_rows($query) == 0)
 			{
@@ -1061,51 +982,52 @@
 
 			while($row = $db::fetch_assoc($query))
 			{
-				$this->database_items[$row['id']] = $this->buildMenuItem($row);
+				$this->database_items[$row['id']] = $this->buildNavItem($row);
 			}
 
 			return $this;
 		}
 
-		private function pair($system_menu_item)
+		private function pair($system_nav_item)
 		{
-			$snapshot = array('title' => $system_menu_item['title'], 'route' => $system_menu_item['route']);
+			$snapshot = array('title' => $system_nav_item['title'], 'route' => $system_nav_item['route']);
 
-			foreach($this->database_items AS $k => $lcms_menu_item)
+			foreach($this->database_items AS $k => $lcms_nav_item)
 			{
-				if(empty($lcms_menu_item['snapshot']) || $lcms_menu_item['snapshot'] != $snapshot)
+				if(empty($lcms_nav_item['snapshot']) || $lcms_nav_item['snapshot'] != $snapshot)
 				{
 					continue;
 				}
 
 				unset($this->database_items[$k]); // Remove this entry from LCMS
 
-				return array_merge($system_menu_item, $lcms_menu_item);
+				return array_merge($system_nav_item, $lcms_nav_item);
 			}
 
-			return $system_menu_item;
+			return $system_nav_item;
 		}
 
-		private function createMenuItem(DB $db, $_menu_item)
+		private function createNavItem(DB $db, $_nav_item)
 		{
+			pre($_nav_item); die("nav item");
 			$item = array(
-				'menu' 			=> $this->menu,
-				'parent_id'		=> (isset($_menu_item['parent'])) ? $this->system_items[$_menu_item['parent']]['id'] : null,
-				'title'			=> array(Locale::getLanguage() => $_menu_item['title']),
-				'route_id'		=> Route::asItem($_menu_item['route'])['id'] ?? null,
-				'parameters'	=> (isset($_menu_item['parameters']) && !empty($_menu_item['parameters'])) ? $_menu_item['parameters'] : null,
-				'snapshot'		=> array('title' => $_menu_item['title'], 'route' => $_menu_item['route']),
-				'order'			=> $_menu_item['order'] ?? 99
+				'navigation' 	=> $this->navigation,
+				'parent_id'		=> (isset($_nav_item['parent'])) ? $this->system_items[$_nav_item['parent']]['id'] : null,
+				'title'			=> array(Locale::getLanguage() => $_nav_item['title']),
+				'route_id'		=> Route::asItem($_nav_item['route'])['id'] ?? null,
+				'parameters'	=> (isset($_nav_item['parameters']) && !empty($_nav_item['parameters'])) ? $_nav_item['parameters'] : null,
+				'snapshot'		=> array('title' => $_nav_item['title'], 'route' => $_nav_item['route']),
+				'order'			=> $_nav_item['order'] ?? 99
 			);
 
-			$db::insert(Env::get("db")['database'].".`lcms_menus`", $item);
+			$db::insert(Env::get("db")['database'].".`lcms_navigations`", $item);
 
 			$item['id'] = DB::last_insert_id();
 
 			return $item;
 		}
 
-		protected function execute($_storage) : Menu
+		protected function execute($_storage) : Navigation
 		{	
 			if(empty($this->system_items))
 			{
@@ -1114,19 +1036,19 @@
 
 			$relations = array();
 
-			foreach($this->system_items AS $key => $menu_item)
+			foreach($this->system_items AS $navigation => $nav_item)
 			{
 				if(!empty($this->database_items))
 				{
-					$this->system_items[$key] = $this->pair($menu_item);
+					$this->system_items[$navigation] = $this->pair($nav_item);
 				}
 
-				if(!isset($this->system_items[$key]['id']))
+				if(!isset($this->system_items[$navigation]['id']))
 				{
-					$this->system_items[$key] = array_merge($this->system_items[$key], $this->createMenuItem($menu_item));
+					$this->system_items[$navigation] = array_merge($this->system_items[$navigation], $this->createNavItem($_storage, $navigation, $nav_item));
 				}
 
-				$relations[$this->system_items[$key]['id']] = $key;
+				$relations[$this->system_items[$navigation]['id']] = $navigation;
 			}
 
 			if(empty($relations))
@@ -1139,22 +1061,22 @@
 				return $this->instance->merge($this->system_items);
 			}
 
-			foreach($this->database_items AS $k => $menu_item)
+			foreach($this->database_items AS $k => $nav_item)
 			{
 				$key = count($this->system_items);
-				$relations[$menu_item['id']] = $key;
+				$relations[$nav_item['id']] = $key;
 
-				$this->system_items[] = array_merge($menu_item, array('key' => $key));
+				$this->system_items[] = array_merge($nav_item, array('key' => $key));
 
-				if(!empty($menu_item['parent_id']))
+				if(!empty($nav_item['parent_id']))
 				{
-					if(!isset($this->system_items[$relations[$menu_item['parent_id']]]['children']))
+					if(!isset($this->system_items[$relations[$nav_item['parent_id']]]['children']))
 					{
-						$this->system_items[$relations[$menu_item['parent_id']]]['children'] = array();
+						$this->system_items[$relations[$nav_item['parent_id']]]['children'] = array();
 					}
 
-					$this->system_items[$key]['parent'] = $relations[$menu_item['parent_id']];
-					$this->system_items[$relations[$menu_item['parent_id']]]['children'][] = $key;
+					$this->system_items[$key]['parent'] = $relations[$nav_item['parent_id']];
+					$this->system_items[$relations[$nav_item['parent_id']]]['children'][] = $key;
 				}
 
 				unset($this->database_items[$k]);
@@ -1163,7 +1085,7 @@
 			return $this->instance->merge($this->system_items);
 		}
 
-		private function buildMenuItem($row)
+		private function buildNavItem($row)
 		{
 			if(isset($row['title']) && !empty($row['title']) && !is_array($row['title']))
 			{
@@ -1177,7 +1099,7 @@
 
 			return $row;
 		}
-	}
+	}*/
 
 	class EnvMerge extends BaseMerge
 	{

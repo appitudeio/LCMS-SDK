@@ -13,6 +13,7 @@
 	use LCMS\Core\Locale;
     use LCMS\Core\Env;
     use LCMS\Core\Database;
+    use LCMS\Core\Navigations;
 	use LCMS\Backbone\View;
 	use \Exception;
 
@@ -62,6 +63,11 @@
                 $this->settings['env'] = $_settings['env'];
             }
 
+            if(isset($_settings['navigations']) && $_settings['navigations'] instanceof Navigations)
+            {
+                $this->settings['navigations'] = $_settings['navigations'];
+            }
+
             if(isset($_settings['paths']) && is_array($_settings['paths']))
             {
                 $this->settings['paths'] = array();
@@ -109,22 +115,25 @@
             
             if(isset($this->settings['node']))
             {
-                $this->settings['node']->init(Env::get("domain") . "/images/"); // Initialize the ImageFactory
+                // Initialize ImageFactory
+                $this->settings['node']->init(Env::get("domain") . "/images/");
                
                 if(!isset($this->mergers['node']))
                 {
                     $this->mergers['node'] = new Merge($this->settings['node']);
                 }                
                
+                // Merge "local" nodes
                 if(isset($this->settings['locale'], $this->settings['paths'], $this->settings['paths']['i18n']))
                 {
-                    $this->mergers['node']->with($this->settings['paths']['i18n'] . "/" . $this->settings['locale']->getLanguage() . ".ini");
+                    $this->settings['node'] = $this->mergers['node']->with($this->settings['paths']['i18n'] . "/" . $this->settings['locale']->getLanguage() . ".ini");
                 }
 
-                if(isset($this->settings['database']))
+                // Merge Global nodes (without namespace)
+                /*if(isset($this->settings['database']))
                 {
                     $this->mergers['node']->with($this->settings['database']);
-                }
+                }*/
             }
             
             if(isset($this->settings['env'], $this->settings['database']))
@@ -135,6 +144,16 @@
                 }
 
                 $this->settings['env'] = $this->mergers['env']->with($this->settings['database']);
+            }
+
+            if(isset($this->settings['navigations'], $this->settings['database']))
+            {
+                if(!isset($this->mergers['navigations']))
+                {
+                    $this->mergers['navigations'] = new Merge($this->settings['navigations']);
+                }
+
+                $this->settings['navigations'] = $this->mergers['navigations']->with($this->settings['database']);
             }
             
             if(isset($this->settings['request'], $this->settings['route']))
@@ -207,6 +226,11 @@
                         $this->settings['node']->setNamespace($route_array['alias'], $route_array['id'] ?? null);
                     }
 
+                    if(isset($this->settings['database']))
+                    {
+                        $this->settings['node'] = $this->mergers['node']->with($this->settings['database']);
+                    }
+
                     if(isset($route_array['meta'], $route_array['meta'][$this->settings['locale']->getLanguage()]) && !empty($route_array['meta'][$this->settings['locale']->getLanguage()]))
                     {
                         $page->meta($route_array['meta'][$this->settings['locale']->getLanguage()]);
@@ -221,11 +245,11 @@
                     $page->meta(['robots' => array('noindex', 'nofollow')]);
                     header("X-Robots-Tag: noindex, nofollow");
                 }
-                elseif($robots_text = $this->settings['node']->get("robots")->text())
+                elseif($robots_node = $this->settings['node']->get("robots"))
                 {
                     $robots = array();
 
-                    if((list($row, $noindex_content) = get_string_between($robots_text, "Noindex: ", "\\n")) 
+                    if((list($row, $noindex_content) = get_string_between($robots_node->text(), "Noindex: ", "\\n")) 
                         && ($noindex_content = str_replace($this->settings['env']->get("web_path"), "", $noindex_content))
                         && (in_array($page->pattern, $noindex_content) || count(array_filter(explode("/", $page->pattern), fn($part) => in_array($part . "/", $noindex_content)))
                     ))
@@ -233,7 +257,7 @@
                         $robots[] = "noindex";
                     }
 
-                    if((list($row, $disallow_content) = get_string_between($robots_text, "Disallow: ", "\\n")) 
+                    if((list($row, $disallow_content) = get_string_between($robots_node->text(), "Disallow: ", "\\n")) 
                         && ($disallow_content = str_replace($this->settings['env']->get("web_path"), "", $disallow_content))
                         && (in_array($page->pattern, $disallow_content) || count(array_filter(explode("/", $page->pattern), fn($part) => in_array($part . "/", $disallow_content)))
                     ))
