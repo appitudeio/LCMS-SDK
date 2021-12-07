@@ -103,6 +103,7 @@
 
         public function dispatch()
         {
+            // Merge env before we runtime-edit it (with language settings below)
             if(isset($this->settings['env'], $this->settings['database']))
             {
                 if(!isset($this->mergers['env']))
