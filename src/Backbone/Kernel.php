@@ -103,6 +103,33 @@
 
         public function dispatch()
         {
+            if(isset($this->settings['env'], $this->settings['database']))
+            {
+                if(!isset($this->mergers['env']))
+                {
+                    $this->mergers['env'] = new Merge($this->settings['env']);
+                }
+
+                $this->settings['env'] = $this->mergers['env']->with($this->settings['database']);
+            }
+            
+            if(isset($this->settings['locale'], $this->settings['request'], $this->settings['env']))
+            {
+                // If we successfully set a new language through the URL, remove it from the Request
+                $self = $this;
+                $this->settings['locale']->setFrom($this->settings['request'], function($new_language) use ($self)
+                {
+                    if($new_language == $self->settings['env']->get("default_language"))
+                    {
+                        return $self->trigger("redirect", Redirect::to($self->settings['request']->getRequestUri()));
+                    }
+
+                    $self->settings['request']->setLanguage($new_language);
+                    $self->settings['locale']->setLanguage($new_language);
+                    $self->settings['env']->set("web_path", $self->settings['env']->get("web_path") . $new_language . "/");
+                });
+            }
+
             if(isset($this->settings['route'], $this->settings['database']))
             {
                 if(!isset($this->mergers['route']))
@@ -134,16 +161,6 @@
                 {
                     $this->mergers['node']->with($this->settings['database']);
                 }*/
-            }
-            
-            if(isset($this->settings['env'], $this->settings['database']))
-            {
-                if(!isset($this->mergers['env']))
-                {
-                    $this->mergers['env'] = new Merge($this->settings['env']);
-                }
-
-                $this->settings['env'] = $this->mergers['env']->with($this->settings['database']);
             }
 
             if(isset($this->settings['navigations'], $this->settings['database']))

@@ -216,7 +216,7 @@
 			{
 				$node['content'] = htmlspecialchars_decode($node['content'][Locale::getLanguage()]);
 			}
-			
+
 			return new NodeObject($node);
 		}
 
@@ -233,8 +233,8 @@
 			{
 				$_identifier = "global." . $_identifier;
 			}
-			
-			Arr::unflatten(self::$nodes, $_identifier, $_value);
+
+			//Arr::unflatten(self::$nodes, $_identifier, $_value);
 		}
 
 		public static function has($_identifier)
@@ -321,7 +321,7 @@
 		/**
 		 *	Probably from Database, via Api\Merge
 		 */
-		public function merge($_nodes = null)
+		public function merge($_nodes = null): Self
 		{
 			if(empty(self::$nodes) && !empty($_nodes))
 			{
@@ -339,13 +339,15 @@
 			{
 				return $this;
 			}
-
+			
 			foreach(array_filter(self::$parameters, fn($v) => !is_array($v)) AS $key => $value)
 			{
 				array_walk_recursive(self::$nodes, fn(&$item) => (!empty($item)) ? $item = str_replace("{{".$key."}}", $value, $item) : $item);
 
 				// self::$nodes[$identifier]['content'][Locale::getLanguage()] = str_replace('{{'.$key.'}}', $value, $node['content'][Locale::getLanguage()]);
 			}
+
+			self::$nodes = Arr::flatten(self::$nodes);
 
 			return $this;
 		}

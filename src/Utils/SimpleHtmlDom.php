@@ -547,7 +547,7 @@ class HtmlNode
                     case self::HDOM_QUOTE_DOUBLE:
                     default:
                         $quote = '"';
-                        $val = htmlentities($val, ENT_COMPAT, $this->dom->target_charset);
+                        $val = htmlentities($val, ENT_COMPAT, $this->dom->target_charset ?? "UTF-8");
                 }
 
                 $ret .= $key

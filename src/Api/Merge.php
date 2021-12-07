@@ -174,7 +174,7 @@
 				$node = $this->buildNode($row);
 
 				$identifier = $node['identifier'];
-				$value = $node['content'][Locale::getLanguage()] ?? "";
+				$value = (isset($node['content'][Locale::getLanguage()])) ? htmlspecialchars_decode($node['content'][Locale::getLanguage()]) : "";
 
 				if(empty($node['route_id']))
 				{
@@ -211,7 +211,6 @@
 					$this->nodes = array_replace_recursive($this->nodes, $identifier);
 				}
 			}
-
 
 			/**
 			 *	Pair the loops with the nodes

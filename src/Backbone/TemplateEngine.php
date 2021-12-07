@@ -203,8 +203,15 @@
             }
             else
             {
-                // ->outertext
-                list($element->innertext, $stored) = $this->handle($identifier, $element->attr, $element->innertext);
+                if(!isset($element->attr['as']))
+                {
+                    list($element->outertext, $stored) = $this->handle($identifier, $element->attr, $element->innertext);
+                }
+                else
+                {
+                    list($element->innertext, $stored) = $this->handle($identifier, $element->attr, $element->innertext);
+                    $element->removeChild($element);
+                }
             }
 
             if(isset($element->attr['as']))
@@ -213,8 +220,11 @@
                 unset($element->attr['as']);
             }
 
-            $element->attr['name'] = null;
-
+            if(!empty($element->attr))
+            {
+                $element->attr['name'] = null;
+            }
+            
             if($stored)
             {
                 $element->attr['type'] = null;
