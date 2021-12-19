@@ -90,17 +90,17 @@
 			return count($this->items) - 1;
 		}
 
-		public function current()
+		public function current(): mixed
 		{
 			return $this->items[$this->root[$this->index]];
 		}
 
-		public function next()
+		public function next(): void
 		{
 			$this->index++;
 		}
 
-		public function rewind()
+		public function rewind(): void
 		{
 			if(!$this->sorted)
 			{
@@ -110,12 +110,12 @@
 			$this->index = 0;
 		}
 
-		public function key()
+		public function key(): mixed
 		{
 			return $this->index;
 		}
 
-		public function valid()
+		public function valid(): bool
 		{
 			return isset($this->root[$this->key()]);
 		}
