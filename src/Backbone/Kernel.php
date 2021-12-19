@@ -91,14 +91,17 @@
             return $this;
         }
 
-        public function trigger($_event, $_data = null)
+        public function trigger($_event)
         {
             if(!isset($this->events[strtolower($_event)]))
             {
                 return false;
             }
 
-            return $this->events[strtolower($_event)]($_data);
+            $arguments = func_get_args();
+            unset($arguments[0]);
+
+            return $this->events[strtolower($_event)](...$arguments);
         }
 
         public function dispatch()
@@ -122,7 +125,7 @@
                 {
                     if($new_language == $self->settings['env']->get("default_language"))
                     {
-                        return $self->trigger("redirect", Redirect::to($self->settings['request']->getRequestUri()));
+                        return $self->trigger("redirect", Redirect::to(str_replace("/" . $new_language, "", $self->settings['request']->getRequestUri())));
                     }
 
                     $self->settings['request']->setLanguage($new_language);
@@ -290,7 +293,7 @@
                     }
                 }                
 
-                return $this->trigger("page", $page);
+                return $this->trigger("page", $page, $this->mergers);
             }
 
             throw new Exception("Nothing returned from Kernel");

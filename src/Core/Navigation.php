@@ -68,6 +68,12 @@
 			return $this;
 		}
 
+		public function remove($_key = null)
+		{
+			$_key = (!empty($_key)) ? $_key : $this->index; 
+			unset($this->items[$_key]);
+		}
+
 		public function group($_callback)
 		{
 			$this->currents[] = $this->items[$this->getCurrentKey()];
@@ -116,9 +122,6 @@
 
 		public function children($_key = null)
 		{
-			/*pre($this->root);
-			pre($this->item($this->index));
-			$_key = (empty($_key)) ? $this->root[$this->index] ?? $_key : $_key;*/
 			$_key = (empty($_key)) ? $this->item($this->index)['key'] : $_key;
 
 			if(empty($this->item($_key)['children']))
@@ -126,19 +129,11 @@
 				return array();
 			}
 
-			return array_map(function($k)
-			{
-				return $this->item($k);
-			}, $this->item($_key)['children']);
+			return array_map(fn($k) => $this->item($k), $this->item($_key)['children']);
 		}
 
 		public function items()
 		{
-			/*if(!$this->sorted)
-			{
-				$this->sort();
-			}*/
-
 			return $this->items;
 		}
 
@@ -158,11 +153,30 @@
 		{
 			foreach($_items AS $k => $v)
 			{
-				$this->items[$k] = $v;
-
-				if(empty($v['parent_id']))
+				if(isset($v['disabled']))
 				{
-					$this->root[$k] = $v['key'];
+					$has_disables = true;
+				
+					if(isset($this->items[$k]['parent']))
+					{
+						unset($this->items[$this->items[$k]['parent']]['children'][array_search($k, $this->items[$this->items[$k]['parent']]['children'])]);
+					}
+
+					unset($this->items[$k]);
+
+					if(empty($v['parent_id']))
+					{
+						unset($this->root[$k]);
+					}
+				}
+				else
+				{
+					$this->items[$k] = $v;
+
+					if(empty($v['parent_id']))
+					{
+						$this->root[$k] = $v['key'];
+					}
 				}
 			}
 
@@ -192,49 +206,10 @@
 
 				return $this->items[$key];
 			}, $keys);
-
+			
 			usort($items, fn($a, $b) => $a['order'] <=> $b['order']);
 
 			return array_column($items, "key");
 		}
-
-		/*public function merge($_menu_items)
-		{
-			die("MEnu Merg3!");
-
-			$database_relations = array();
-
-			foreach($_menu_items AS $k => $r)
-			{
-				if(isset($r['id']))
-				{
-					$database_relations[$r['id']] = $k;
-				}
-
-				self::$items[$k] = (isset(self::$items[$k])) ? array_merge(self::$items[$k], $r) : $r;
-				
-				if(!isset(self::$items[$k]['key']))
-				{
-					self::$items[$k]['key'] = $k;
-				}
-
-				if(!empty($r['alias']) && !isset(self::$relations[$r['alias']]))
-				{
-					self::$relations[$r['alias']] = $k;
-				}
-
-				if(isset($r['parent_id']) && !empty($r['parent_id']) && !isset(self::$items[$k]['parent']))
-				{
-					self::$items[$k]['parent'] = $database_relations[$r['parent_id']];
-				}
-
-				if(!in_array($k, self::$map[Request::METHOD_GET]))
-				{
-					self::$map[Request::METHOD_GET][] = $k;
-				}
-			}
-
-			return self::$instance;
-		}		*/	
 	}
 ?>

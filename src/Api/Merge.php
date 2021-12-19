@@ -8,7 +8,6 @@
 	use LCMS\Core\Database as DB;
 	use LCMS\Core\Route;
 	use LCMS\Core\Navigations;
-	use LCMS\Core\Navigation;
 	use LCMS\Core\Node;
 	use LCMS\Core\Request;
 	use LCMS\Core\Locale;
@@ -654,7 +653,13 @@
 					/**
 					 *	If parent has changed it's pattern, just replace it here
 					 */
-					if(substr($route['pattern'], 0, strlen($this->system_routes[$route['parent']]['pattern'])) !== $this->system_routes[$route['parent']]['pattern'])
+					if(!isset($this->system_routes[$route['parent']]['pattern'])) // Disabled because parent is disabled
+					{
+						//$this->system_routes[$key]['disabled'] = true;
+						//unset($this->system_routes[$key]);
+						continue;
+					}
+					elseif(substr($route['pattern'], 0, strlen($this->system_routes[$route['parent']]['pattern'])) !== $this->system_routes[$route['parent']]['pattern'])
 					{
 						$this->system_routes[$key]['pattern'] = str_replace($route['pattern'], $this->system_routes[$route['parent']]['pattern'], $this->system_routes[$key]['pattern']);
 					}
@@ -707,26 +712,42 @@
 						$this->system_routes[$key]['id'] = $this->createRoute($_storage, $route);
 					}
 
-					$relations[$this->system_routes[$key]['id']] = $key;
+					// Is this route disabled? (From LCMS)
+					/*if(isset($this->system_routes[$key]['settings'], $this->system_routes[$key]['settings'][Locale::getLanguage()], $this->system_routes[$key]['settings'][Locale::getLanguage()]['disabled']) && $this->system_routes[$key]['settings'][Locale::getLanguage()]['disabled']['value'])
+					{
+						// Remove this route from the mapping too
+						foreach(array_filter($this->instance::$map, fn($keys) => in_array($key, $keys)) AS $map => $keys)
+						{
+							unset($this->instance::$map[$map][array_search($key, $keys)]);
+						}
+
+						$this->system_routes[$key]['disabled'] = true;
+						
+						//unset($this->system_routes[$key]);
+					}
+					else
+					{*/
+						$relations[$this->system_routes[$key]['id']] = $key;
+					//}
 				}
 			}
 
 			if(empty($relations))
 			{
 				return $this->instance;
-			}			
+			}
 
 			if(empty($this->database_routes))
 			{
 				return $this->instance->merge($this->system_routes);
-			}			
-
+			}
+			
 			foreach($this->database_routes AS $k => $route)
 			{
 				$key = count($this->system_routes);
 				$relations[$route['id']] = $key;
 
-				$this->system_routes[] = array_merge($route, array('key' => $key));
+				$this->system_routes[] = $route + array('key' => $key);
 
 				if(!empty($route['parent_id']))
 				{
@@ -784,7 +805,11 @@
 		{
 			$this->system_navs = $this->instance->getAll();
 
-			$query = $db::query("SELECT `mi`.*, `r`.`alias` AS `route` FROM ".Env::get("db")['database'].".`lcms_navigations` AS `mi` LEFT JOIN ".Env::get("db")['database'].".`lcms_routes` AS `r` ON(`r`.`id` = `mi`.`route_id`) WHERE `mi`.`deleted_at` IS NULL ORDER BY `mi`.`parent_id` ASC, `mi`.`id` ASC");
+			// Only select those menu items which has enabled routes
+			$query = $db::query("SELECT `mi`.*, `r`.`alias` AS `route`, `r`.`settings` AS `route_settings`, `r`.`parent_id` AS `route_parent_id`
+									FROM ".Env::get("db")['database'].".`lcms_navigations` AS `mi` 
+										LEFT JOIN ".Env::get("db")['database'].".`lcms_routes` AS `r` ON(`r`.`id` = `mi`.`route_id`) 
+											WHERE `mi`.`deleted_at` IS NULL ORDER BY `mi`.`parent_id` ASC, `mi`.`id` ASC");
 
 			if($db::num_rows($query) == 0)
 			{
@@ -793,6 +818,11 @@
 
 			while($row = $db::fetch_assoc($query))
 			{
+				/*if(!empty($row['route_settings']) && ($route_settings = json_decode($row['route_settings'], true)) && isset($route_settings[Locale::getLanguage()], $route_settings[Locale::getLanguage()]['disabled']) && $route_settings[Locale::getLanguage()]['disabled']['value'])
+				{
+					continue;
+				}*/
+
 				if(!isset($this->database_navs[$row['navigation']]))
 				{
 					$this->database_navs[$row['navigation']] = array();
@@ -865,8 +895,9 @@
 			foreach($this->system_navs AS $navigation => $nav_object)
 			{
 				$system_items[$navigation] = $nav_object->items();
+				$disables = array();
 
-				foreach($nav_object->items() AS $nav_item_key => $nav_item)
+				foreach($system_items[$navigation] AS $nav_item_key => $nav_item)
 				{
 					if(isset($this->database_navs[$navigation]) && !empty($this->database_navs[$navigation]))
 					{
@@ -878,7 +909,26 @@
 						$system_items[$navigation][$nav_item_key] = array_merge($system_items[$navigation][$nav_item_key], $this->createNavItem($_storage, $navigation, $nav_item));
 					}
 
+					$route_settings = (!empty($system_items[$navigation][$nav_item_key]['route_settings'])) ? json_decode($system_items[$navigation][$nav_item_key]['route_settings'], true) : null;
+					unset($system_items[$navigation][$nav_item_key]['route_settings']);
+
+					// Disabled route?
+					if(!empty($route_settings) && isset($route_settings[Locale::getLanguage()], $route_settings[Locale::getLanguage()]['disabled']) && $route_settings[Locale::getLanguage()]['disabled']['value'])
+					{
+						$disables[] = $system_items[$navigation][$nav_item_key]['route_id'];
+					}
+
 					$relations[$navigation][$system_items[$navigation][$nav_item_key]['id']] = $nav_item_key;
+				}
+
+				if(!empty($disables))
+				{
+					$disables = array_unique($disables);
+
+					foreach(array_filter($system_items[$navigation], fn($i) => in_array($i['route_id'], $disables) || in_array($i['route_parent_id'], $disables)) AS $nav_item_key => $nav_item)
+					{
+						$system_items[$navigation][$nav_item_key]['disabled'] = true;
+					}
 				}
 
 				// Pair with parents

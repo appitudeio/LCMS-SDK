@@ -404,6 +404,14 @@
 					$routes = $routes_w_requirements + array_filter($routes, fn($r) => !isset($r['required_parameters']));
 				}
 
+				// Prioritize routes with pattern-fallback {} to be last
+				$routes_w_fallbacks = array_filter($routes, fn($r) => $r['pattern'][0] == "{");
+
+				if(!empty($routes_w_fallbacks))
+				{
+					$routes = array_filter($routes, fn($r) => $r['pattern'][0] != "{") + $routes_w_fallbacks;
+				}
+
 				foreach($routes AS $route_key => $route)
 				{
 					$pattern = self::parsePattern($route['pattern']);
@@ -473,7 +481,11 @@
 				throw new Exception("No RouteAlias found (" . $_to_alias . ")");
 			}
 
-			$url = (is_numeric($_to_alias) && isset(self::$db_relations[$_to_alias], self::$routes[self::$db_relations[$_to_alias]])) ? self::$routes[self::$db_relations[$_to_alias]]['pattern'] : self::$routes[self::$relations[$_to_alias]]['pattern'];
+			// Fallback, Route probably deleted from LCMS
+			if(!$url = (is_numeric($_to_alias) && isset(self::$db_relations[$_to_alias], self::$routes[self::$db_relations[$_to_alias]])) ? self::$routes[self::$db_relations[$_to_alias]]['pattern'] : self::$routes[self::$relations[$_to_alias]]['pattern'] ?? false)
+			{
+				return false;
+			}
 
 			/**
 			 *	If found pattern to replace from $_arguments
@@ -500,9 +512,20 @@
 				}
 			}
 
-			$url = (!empty($url)) ? trim(strtolower($url)) : "/";
-			$url = (!Locale::isDefault()) ? Locale::getLanguage() . "/" . $url : $url;
-			$url = "/" . ltrim($url, "/");
+			// Construct URL
+			$url_parts = array();
+
+			if(!Locale::isDefault())
+			{
+				$url_parts[] = Locale::getLanguage();
+			}
+			
+			if(!empty($url) && $url != "/")
+			{
+				$url_parts[] = trim(strtolower($url));
+			}
+			
+			$url = rtrim("/" . implode("/", $url_parts), "/");
 
 			if(!empty($_arguments) && $_arguments = array_filter($_arguments, fn($value) => !is_null($value) && $value !== ""))
 			{
@@ -605,6 +628,18 @@
 		{
 			foreach($_routes AS $k => $r)
 			{
+				if(isset($r['settings'], $r['settings'][Locale::getLanguage()], $r['settings'][Locale::getLanguage()]['disabled']) && $r['settings'][Locale::getLanguage()]['disabled']['value'])
+				{
+					// Remove this route from the mapping too
+					foreach(array_filter(self::$map, fn($keys) => in_array($k, $keys)) AS $map => $keys)
+					{
+						unset(self::$map[$map][array_search($k, $keys)]);
+					}
+
+					unset(self::$routes[$k]);
+					continue;
+				}
+
 				if(isset($r['id']))
 				{
 					self::$db_relations[$r['id']] = $k;
