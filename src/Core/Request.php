@@ -829,16 +829,16 @@
 		 *
 		 * @return bool
 		 */
-		public function isSecure()
+		public function isSecure(): Bool
 		{
 			/*if ($this->isFromTrustedProxy() && $proto = $this->getTrustedValues(self::HEADER_X_FORWARDED_PROTO))
 			{
 				return in_array(strtolower($proto[0]), ['https', 'on', 'ssl', '1'], true);
 			}*/
 
-			$https = $this->server->get('HTTPS');
-
-			return !empty($https) && 'off' !== strtolower($https);
+			return (Bool) (($this->server->get("HTTP_X_FORWARDED_PROTO") && $this->server->get("HTTP_X_FORWARDED_PROTO") == "https")
+				|| ($this->server->get("HTTP_X_FORWARDED_SSL") && $this->server->get("HTTP_X_FORWARDED_SSL") == "on")
+				|| ($this->server->get("HTTPS") && $this->server->get("HTTPS") == "on"));
 		}
 
 	   /**
