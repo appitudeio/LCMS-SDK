@@ -122,15 +122,15 @@
 			{
 				$column_value = ":" . $column;
 
-				if(!is_array($data) && strpos(strtolower($data), "now") === 0)
+				if(!is_array($data) && strpos(strtolower($data ?? ""), "now") === 0)
 				{
 					$column_value = "NOW()";
 				}
-				elseif(!is_array($data) && strpos(strtolower($data), "uuid") === 0)
+				elseif(!is_array($data) && strpos(strtolower($data ?? ""), "uuid") === 0)
 				{
-					$column_value = (in_array(strtolower($data), ["uuid", "uuid()"])) ? "UUID_TO_BIN('".Uuid::generate()."')" : "UUID_TO_BIN('".$match[1]."')";
+					$column_value = (in_array(strtolower($data ?? ""), ["uuid", "uuid()"])) ? "UUID_TO_BIN('".Uuid::generate()."')" : "UUID_TO_BIN('".$match[1]."')";
 				}
-				elseif(!is_array($data) && strpos(strtolower($data), "point(") === 0)
+				elseif(!is_array($data) && strpos(strtolower($data ?? ""), "point(") === 0)
 				{
 					$column_value = $data;	
 				}
@@ -146,7 +146,7 @@
 			{
 				foreach(self::bind($fields) AS list($column, $value, $param))
 				{
-					if(strpos(strtolower($value), "point(") === 0)
+					if(strpos(strtolower($value ?? ""), "point(") === 0)
 					{
 						continue;
 					}
@@ -194,15 +194,15 @@
 
 				$column_value = ":" . $column;
 
-				if(!is_array($data) && strpos(strtolower($data), "now") === 0)
+				if(!is_array($data) && strpos(strtolower($data ?? ""), "now") === 0)
 				{
 					$column_value = "NOW()";
 				}
-				elseif(!is_array($data) && strpos(strtolower($data), "uuid") === 0)
+				elseif(!is_array($data) && strpos(strtolower($data ?? ""), "uuid") === 0)
 				{
-					$column_value = (in_array(strtolower($data), ["uuid", "uuid()"])) ? "UUID_TO_BIN('".Uuid::generate()."')" : "UUID_TO_BIN('".$match[1]."')";
+					$column_value = (in_array(strtolower($data ?? ""), ["uuid", "uuid()"])) ? "UUID_TO_BIN('".Uuid::generate()."')" : "UUID_TO_BIN('".$match[1]."')";
 				}
-				elseif(!is_array($data) && strpos(strtolower($data), "point(") === 0)
+				elseif(!is_array($data) && strpos(strtolower($data ?? ""), "point(") === 0)
 				{
 					$column_value = $data;	
 				}
@@ -270,7 +270,7 @@
 				{
 					foreach($excludes AS $exclude)
 					{
-						if(strpos(strtolower($value), $exclude) === 0)
+						if(strpos(strtolower($value ?? ""), $exclude) === 0)
 						{
 							continue 2;
 						}

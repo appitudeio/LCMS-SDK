@@ -176,28 +176,28 @@
 	    	return (string) $this->render();
 	    }
 	
-		public function rewind() 
+		public function rewind(): void
 		{
 			$this->keys = array_keys($this->data);
 			$this->index = 0;
 		}
 	
-		public function current() 
+		public function current(): mixed
 		{
 			return $this->data[$this->key()];
 		}
 	
-		public function key() 
+		public function key(): mixed
 		{
 			return $this->keys[$this->index];
 		}
 	
-		public function next() 
+		public function next(): void
 		{
 			++$this->index;
 		}
 	
-		public function valid() 
+		public function valid(): bool
 		{
 			return isset($this->keys[$this->index]);
 		}
