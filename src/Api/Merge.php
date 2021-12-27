@@ -818,10 +818,10 @@
 
 			while($row = $db::fetch_assoc($query))
 			{
-				/*if(!empty($row['route_settings']) && ($route_settings = json_decode($row['route_settings'], true)) && isset($route_settings[Locale::getLanguage()], $route_settings[Locale::getLanguage()]['disabled']) && $route_settings[Locale::getLanguage()]['disabled']['value'])
+				if(!empty($row['hidden_at']) && ($hidden_at = json_decode($row['hidden_at'], true)) && isset($hidden_at[Locale::getLanguage()]) && !empty($hidden_at[Locale::getLanguage()]))
 				{
 					continue;
-				}*/
+				}
 
 				if(!isset($this->database_navs[$row['navigation']]))
 				{
