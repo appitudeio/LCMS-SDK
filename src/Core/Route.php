@@ -430,7 +430,9 @@
 					}
 					elseif(isset($route['required_specific_parameters']))
 					{
-						if(($findings = array_filter($route['required_specific_parameters'], fn($v, $k) => (self::getInstance()->request->all()[$k] == $v), ARRAY_FILTER_USE_BOTH)) && count($findings) < count($route['required_specific_parameters']))
+						$findings = array_filter($route['required_specific_parameters'], fn($v, $k) => (self::getInstance()->request->all()[$k] == $v), ARRAY_FILTER_USE_BOTH);
+
+						if(count($findings) < count($route['required_specific_parameters']))
 						{
 							continue;
 						}
