@@ -9,8 +9,8 @@
 
 	use LCMS\Core\Route;
 	use LCMS\Core\Locale;
-	use LCMS\Core\Database AS DB;
 	use LCMS\Utils\Arr;
+	use LCMS\Utils\Toolset;
 	use \Exception;
 	
 	class Node
@@ -39,6 +39,7 @@
 		);
 		private static $parameters;
 		private static $nodes;
+		private static $properties;
 		private static $instance;
 
 		public static function init($_image_endpoint)
@@ -65,21 +66,6 @@
 		{
 			self::$namespace = array($_namespace, $_route_id); // namespace == route_alias
 		}
-
-		/*public function create($_params)
-		{
-			DB::insert(Env::get("db")['database'].".`lcms_nodes`", $_params);
-
-			return DB::last_insert_id();
-		}
-
-
-		public function update($_node_id, $_params)
-		{
-			DB::update(WEB_DATABASE.".`core_nodes`", $_params, array('id' => $_node_id));
-
-			return true;
-		}*/
 
 		/**
 		 *	Actually loads all nodes, based on preparations
@@ -168,6 +154,14 @@
 		/**
 		 *
 		 */
+		public static function getAll()
+		{
+			return self::$nodes;
+		}
+
+		/**
+		 * 
+		 */
 		public static function get($_identifier)
 		{
 			/**
@@ -177,16 +171,17 @@
 			{
 				$node = Arr::get(self::$nodes, self::$namespace[0] . "." . $_identifier, false);
 
-				if(is_bool($node) && !$node)
+				if(!is_bool($node))
 				{
-					$node = Arr::get(self::$nodes, "global." . $_identifier, false);
-				}
-			}
-			else
-			{
-				$node = Arr::get(self::$nodes, "global." . $_identifier, false);
+					$is_local = true;
+				}			
 			}
 
+			if(!isset($is_local))
+			{
+				$node = Arr::get(self::$nodes, "global." . $_identifier, false);
+			}		
+		
 			if(is_bool($node) && !$node)
 			{
 				return false;
@@ -198,14 +193,29 @@
 				{
 					return new NodeObject(array());			
 				}
-				
+
 				return $node;
 			}
+
+			// Look for properties
+			$properties = null;
 			
+			if(!empty(self::$properties))
+			{
+				if(isset($is_local))
+				{
+					$properties = Arr::get(self::$properties, self::$namespace[0] . "." . $_identifier);
+				}
+				else
+				{
+					$properties = Arr::get(self::$properties, "global." . $_identifier);
+				}
+			}
+
 			$node = (is_string($node)) ? array('content' => $node) : $node;
 			$node += array(
 				'image_endpoint' => self::$image_endpoint,
-				'properties' => $node['properties'][Locale::getLanguage()] ?? null
+				'properties' => $properties ?: null
 			);
 
 			if(empty($node['content']) || (!is_string($node['content']) && !isset($node['content'][Locale::getLanguage()])))
@@ -234,7 +244,7 @@
 				$_identifier = "global." . $_identifier;
 			}
 
-			//Arr::unflatten(self::$nodes, $_identifier, $_value);
+			Arr::unflatten(self::$nodes, $_identifier, $_value);
 		}
 
 		public static function has($_identifier)
@@ -321,7 +331,7 @@
 		/**
 		 *	Probably from Database, via Api\Merge
 		 */
-		public function merge($_nodes = null): Self
+		public function merge($_nodes = null, $_properties = null): Self
 		{
 			if(empty(self::$nodes) && !empty($_nodes))
 			{
@@ -329,7 +339,19 @@
 			}
 			elseif(!empty(self::$nodes) && !empty($_nodes))
 			{
-				self::$nodes = array_merge(self::$nodes, $_nodes);
+				self::$nodes = array_replace_recursive(self::$nodes, $_nodes);
+			}
+
+			if(!empty($_properties))
+			{
+				if(empty(self::$properties))
+				{
+					self::$properties = $_properties;
+				}
+				else
+				{
+					self::$properties = array_replace_recursive(self::$properties, $_properties);
+				}
 			}
 
 			/**
@@ -339,15 +361,16 @@
 			{
 				return $this;
 			}
-			
+
 			foreach(array_filter(self::$parameters, fn($v) => !is_array($v)) AS $key => $value)
 			{
 				array_walk_recursive(self::$nodes, fn(&$item) => (!empty($item)) ? $item = str_replace("{{".$key."}}", $value, $item) : $item);
+				//array_walk_recursive(self::$properties, fn(&$item) => (!empty($item)) ? $item = str_replace("{{".$key."}}", $value, $item) : $item);
 
 				// self::$nodes[$identifier]['content'][Locale::getLanguage()] = str_replace('{{'.$key.'}}', $value, $node['content'][Locale::getLanguage()]);
 			}
 
-			self::$nodes = Arr::flatten(self::$nodes);
+			//self::$nodes = Arr::flatten(self::$nodes);
 
 			return $this;
 		}
@@ -378,21 +401,34 @@
 	class NodeObject
 	{
 		private $node;
+		private $image_endpoint;
 
 		function __construct($_node)
 		{
+			if(isset($_node['image_endpoint']))
+			{
+				$this->image_endpoint = $_node['image_endpoint'];
+			}
+
+			unset($_node['image_endpoint']);
+
 			$this->node = $_node;
 		}
 
-		public function text($_params = array())
+		public function text($_parameters = array())
 		{
 			// Any params we should replace 
-			$_params = array_replace_recursive($this->node['parameters'] ?? array(), $_params);
+			$_parameters = array_replace_recursive($this->node['parameters'] ?? array(), $_parameters);
 
-			if(!empty($_params))
+			if(!empty($_parameters))
 			{
-				foreach($_params AS $key => $value)
+				foreach($_parameters AS $key => $value)
 				{
+					if(in_array($key, ['name', 'type', 'content', 'as']))
+					{
+						continue;
+					}
+					
 					$this->node['content'] = str_replace('{{'.$key.'}}', $value, $this->node['content']);
 				}
 			}
@@ -408,7 +444,7 @@
 				return "";
 			}
 
-			$image_url = $this->node['image_endpoint'];
+			$image_url = $this->image_endpoint;
 
 			if(!empty($_width) && !empty($_height))
 			{
@@ -423,9 +459,9 @@
 
 			$return_image = "<img src='" . $image_url . "' ";
 
-			if(!empty($this->node['properties']))
+			if(!empty($this->properties))
 			{
-				foreach($this->node['properties'] AS $attribute => $value)
+				foreach($this->properties AS $attribute => $value)
 				{
 					if(empty($value) || in_array($attribute, ['width', 'height']))
 					{
@@ -442,8 +478,53 @@
 		/**
 		 *
 		 */
-		public function picture($width = null, $_height = null)
+		public function picture($_width = null, $_height = null)
 		{
+			// If empty image
+			if(empty($this->node['content']))
+			{
+				return "";
+			}
+
+			$image_url = $this->image_endpoint;
+
+			if(!empty($_width) && !empty($_height))
+			{
+				$image_url .= $_width . "x" . $_height . "/";
+			}
+			elseif(!empty($_width))
+			{
+				$image_url .= $_width . "/";
+			}
+
+			$image_url .= $this->node['content'];
+
+			return Toolset::picture($image_url, array_filter($this->properties, fn($k) => !in_array($k, ['width', 'height']), ARRAY_FILTER_USE_BOTH) ?? null);
+		}
+
+		public function route($properties = null)
+		{
+			$route = (!empty($this->node['content']) && $this->node['content'] != "#") ? Route::url($this->node['content']) : "#";
+			$label = $properties['label'] ?? null;
+
+			return array($route, $label);
+		}
+
+		public function loop()
+		{
+			return array_filter($this->node, fn($k, $v) => is_numeric($v), ARRAY_FILTER_USE_BOTH);
+		}
+
+		public function asArray()
+		{
+			return $this->node;
+		}
+	}
+/*
+
+	public function picture($width = null, $height = null)
+	{
+			/*
 			if(isWebp($this->node['content']))
 			{
 				return "<picture><source srcset='".$this->node['content']."' type='image/webp'>" . $this->image($_width, $_width) . "</picture>";
@@ -458,39 +539,9 @@
 				$picture .= $this->image($_width, $_height);
 
 			return $picture . "</picture>";
-		}
-
-		public function route($params = null)
-		{
-			return (!empty($this->node['content']) && $this->node['content'] != "#") ? Route::url($this->node['content']) : "#";
-		}
-
-		public function loop()
-		{
-			return array_filter($this->node, function($k, $v)
-			{
-				return is_numeric($v);
-			}, ARRAY_FILTER_USE_BOTH);
-		}
-
-		private function isWebp($_filename)
-		{
-
-		}
-
-		private function to($_extension, $_basename)
-		{
-
-		}
-
-		public function asArray()
-		{
-			return $this->node;
-		}
 	}
 
 
-/*
 	$section == "header" || array("header" => "hint text")
 
 

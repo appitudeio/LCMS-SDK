@@ -85,11 +85,11 @@
                     }
 
                     foreach($element AS $e)
-                    {                        
-                        $nodes[$key][$key] = array(
+                    {
+                        $nodes[$key][] = array(
                             'type'         => $this->identifyNodeType($e->attr['type'] ?? null),
                             'properties'   => $this->getPropertiesFromNodeType($e->attr),
-                            'identifier'   => $key,
+                            'identifier'   => $e->attr['name'],
                             'content'      => $e->attr['href'] ?? ($e->innertext ?? null), // Fallback text from document
                             'global'       => $e->attr['global'] ?? false
                         );
@@ -129,7 +129,7 @@
 
                 $loop_element->remove();
             }
-            elseif(empty($node->loop()))
+            elseif(empty($node)) //->loop()))
             {
                 // If empty, maybe the elements are unidentified
                 $this->elements[self::ELEMENT_UNIDENTIFIED][$loop_element->attr['name']] = array();
@@ -145,7 +145,7 @@
             {
                 $new_nodes = array();
 
-                foreach($node->loop() AS $key => $item)
+                foreach($node AS $key => $n) // $n == $node
                 {
                     /**
                      *  Break out the Loop from the tree
@@ -157,7 +157,7 @@
                         $this->parseElement($element, $loop_element->attr['name'], $key);
                     }
 
-                    $new_nodes[] = $loop_element_node;
+                    $new_nodes[] = str_replace("{{key}}", $key, (string) $loop_element_node);
                 }
 
                 /**
@@ -184,6 +184,11 @@
 
             $identifier = (!empty($parent)) ? $parent . "." . $key . "." . $name : $name;
 
+            if(!empty($key))
+            {
+                $element->attr['key'] = $key;
+            }
+
             if($is_meta)
             {
                 if($element->tag == "title")
@@ -197,20 +202,23 @@
             }
             elseif(isset($element->attr['type']) && $element->attr['type'] == "route")
             {
-                list($element->href, $stored) = $this->handle($identifier, $element->attr, "#");
-
+                list($route_data, $stored) = $this->handle($identifier, $element->attr, "#");
+                
+                $element->href = $route_data[0];
+                $element->innertext = $route_data[1] ?? $element->innertext;
+                
                 $element->tag = "a";
             }
             else
             {
-                if(!isset($element->attr['as']))
-                {
-                    list($element->outertext, $stored) = $this->handle($identifier, $element->attr, $element->innertext);
-                }
-                else
+                if(isset($element->attr['as']))
                 {
                     list($element->innertext, $stored) = $this->handle($identifier, $element->attr, $element->innertext);
                     $element->removeChild($element);
+                }
+                else
+                {
+                    list($element->outertext, $stored) = $this->handle($identifier, $element->attr, $element->innertext);
                 }
             }
 
@@ -229,7 +237,7 @@
             {
                 $element->attr['type'] = null;
             }
-            else
+            else //if(empty($key)) // $key == indicates this is from a loop item
             {
                 if(!empty($parent))
                 {
@@ -304,7 +312,7 @@
                 "text", "html", "textarea", "meta" => array($node->text($properties), true),
                 "image"     => array($node->image($properties['width'] ?? null, $properties['height'] ?? null), true),
                 "picture"   => array($node->picture($properties['width'] ?? null, $properties['height'] ?? null), true),
-                "route"     => array($node->route(), true),
+                "route"     => array($node->route($properties), true),
                 default     => array($fallback, false)
             };
 		}

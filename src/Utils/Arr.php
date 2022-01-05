@@ -29,7 +29,7 @@
 			{
 				return $array[$key] ?? $default;
 			}
-
+			
 			foreach(explode('.', $key) AS $segment) 
 			{
 				if (is_array($array)) 
@@ -126,7 +126,7 @@
 
 			foreach ($array AS $key => $value) 
 			{
-				if (is_array($value) && ! empty($value)) 
+				if (is_array($value) && !empty($value)) 
 				{
 					$results = array_merge($results, self::flatten($value, $prepend.$key.'.'));
 				}

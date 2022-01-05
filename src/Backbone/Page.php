@@ -79,9 +79,9 @@
 				$replace = array_values($extendable_data);
 			}
 
-			$meta = $this->meta[Locale::getLanguage()] ?? Node::get("meta") ?: $this->meta;
-			$meta = array_replace(array_filter($this->meta, fn($v) => is_string($v)), $meta);
-
+			$meta = array_filter($this->meta) ?? Node::get("meta");
+			$meta = array_replace(array_filter($this->meta, fn($v) => is_string($v) && !empty($v)), $meta);
+			
 			if(isset($meta['robots']))
 			{
 				SEO::metatags()->setRobots((is_array($meta['robots'])) ? implode(", ", $meta['robots']) : $meta['robots']);
@@ -120,11 +120,13 @@
 				return $this;
 			}
 
-			$_meta = (!isset($_meta[Locale::getLanguage()])) ? array(Locale::getLanguage() => $_meta) : $_meta;
+			$_meta = $_meta[Locale::getLanguage()] ?? $_meta;
+
+			//(!isset($_meta[Locale::getLanguage()])) ? array(Locale::getLanguage() => $_meta) : $_meta;
 			
 			if(!empty($this->meta))
 			{
-				$this->meta = array_replace_recursive($this->meta, $_meta);
+				$this->meta = array_replace_recursive($this->meta, array_filter($_meta));
 			}
 			else
 			{

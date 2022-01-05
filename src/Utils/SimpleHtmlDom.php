@@ -2404,7 +2404,7 @@ class HtmlDocument
             // https://www.w3.org/TR/html/syntax.html#attribute-values
             // https://www.w3.org/TR/xml/#AVNormalize
             $value = preg_replace("/[\r\n\t\s]+/u", ' ', $value);
-            $value = trim($value);
+            $value = trim($value ?? ""); 
         }
 
         if (!$is_duplicate) {

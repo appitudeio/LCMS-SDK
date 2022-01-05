@@ -1648,7 +1648,7 @@
 
 	class FileBag extends ParameterBag
 	{
-		private static $fileKeys = array('error', 'name', 'size', 'tmp_name', 'type');
+		private static $fileKeys = array('error', 'name', 'size', 'tmp_name', 'type', 'full_path');
 
 		function __construct(array $parameters = array())
 		{
@@ -1702,7 +1702,7 @@
 				$keys = array_keys($file);
 				sort($keys);
 
-				if ($keys == self::$fileKeys)
+				if(!array_diff($keys, self::$fileKeys))
 				{
 					if (UPLOAD_ERR_NO_FILE == $file['error'])
 					{
@@ -1718,7 +1718,7 @@
 					$file = array_map(array($this, 'convertFileInformation'), $file);
 				}
 			}
-
+			
 			return $file;
 		}
 
@@ -3022,6 +3022,8 @@
 	            {
 	                return $file;
 	            }
+
+				$file = (is_array($file)) ? new File($file['tmp_name'], $file['name'], $file['error']) : $file;
 
 	            return is_array($file)
 	                        ? $this->convertUploadedFiles($file)

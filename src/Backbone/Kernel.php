@@ -176,7 +176,7 @@
 
                 $this->settings['navigations'] = $this->mergers['navigations']->with($this->settings['database']);
             }
-            
+
             if(isset($this->settings['request'], $this->settings['route']))
             {
                 $response = $this->settings['route']->dispatch($this->settings['request']);
@@ -228,17 +228,7 @@
 				// Let's populate a Page (Or Redirect, Or Response)
 				$page = new Page($route_array);
 
-				$compilation = $page->compile();
-
-				if($compilation instanceof Redirect)
-                {
-                    return $this->trigger("redirect", $compilation);
-                }
-                elseif($compilation instanceof Response)
-				{
-					return $this->trigger("response", $compilation);
-				}
-
+                // Merge nodes with database (Incase we use Nodes inside any controller)
                 if(isset($this->settings['node']))
                 {
                     if(isset($route_array['alias']) && !empty($route_array['alias']))
@@ -251,11 +241,30 @@
                     {
                         $this->settings['node'] = $this->mergers['node']->with($this->settings['database']);
                     }
+                }
 
-                    if(isset($route_array['meta'], $route_array['meta'][$this->settings['locale']->getLanguage()]) && !empty($route_array['meta'][$this->settings['locale']->getLanguage()]))
-                    {
-                        $page->meta($route_array['meta'][$this->settings['locale']->getLanguage()]);
-                    }
+                // Compile page into the end product
+                $compilation = $page->compile();
+
+				if($compilation instanceof Redirect)
+                {
+                    return $this->trigger("redirect", $compilation);
+                }
+                elseif($compilation instanceof Response)
+				{
+					return $this->trigger("response", $compilation);
+				}
+
+                // Prepare Meta
+                if(isset($this->settings['node'], $route_array['meta'], $route_array['meta'][$this->settings['locale']->getLanguage()]) && !empty($route_array['meta'][$this->settings['locale']->getLanguage()]))
+                {
+                    $page->meta($route_array['meta'][$this->settings['locale']->getLanguage()]);
+                }
+                
+                // Set content type (Coming from Controller)
+                if($content_type = $this->settings['request']->headers->get("Content-type"))
+                {
+                    Header("Content-type: " . $content_type);
                 }
 
                 /** 

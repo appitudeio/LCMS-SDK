@@ -397,17 +397,21 @@
 			{
 				// Prioritizes routes from Controllers (Based on if having requirements)
 				$routes = array_combine($map_keys, array_map(fn($route_key) => self::$routes[$route_key], $map_keys));
-				$routes_w_requirements = array_filter($routes, fn($r) => isset($r['required_parameters']));
+				$routes = array_filter($routes, fn($r) => !empty($r['pattern'])); // Remove all empty pattern-routes (Probably wrong because of merge)
 
-				if(!empty($routes_w_requirements))
+				if(empty($routes))
+				{
+					continue;
+				}
+
+				// Prioritize routes with parameter requirements
+				if($routes_w_requirements = array_filter($routes, fn($r) => isset($r['required_parameters'])))
 				{
 					$routes = $routes_w_requirements + array_filter($routes, fn($r) => !isset($r['required_parameters']));
 				}
 
 				// Prioritize routes with pattern-fallback {} to be last
-				$routes_w_fallbacks = array_filter($routes, fn($r) => $r['pattern'][0] == "{");
-
-				if(!empty($routes_w_fallbacks))
+				if($routes_w_fallbacks = array_filter($routes, fn($r) => $r['pattern'][0] == "{"))
 				{
 					$routes = array_filter($routes, fn($r) => $r['pattern'][0] != "{") + $routes_w_fallbacks;
 				}
@@ -426,9 +430,7 @@
 					}
 					elseif(isset($route['required_specific_parameters']))
 					{
-						$findings = array_filter($route['required_specific_parameters'], fn($v, $k) => (self::getInstance()->request->all()[$k] == $v), ARRAY_FILTER_USE_BOTH);
-
-						if(count($findings) < count($route['required_specific_parameters']))
+						if(($findings = array_filter($route['required_specific_parameters'], fn($v, $k) => (self::getInstance()->request->all()[$k] == $v), ARRAY_FILTER_USE_BOTH)) && count($findings) < count($route['required_specific_parameters']))
 						{
 							continue;
 						}
@@ -440,9 +442,7 @@
 					}
 
 					// Get named capture group values
-					$params = array_map(fn($m) => $m, array_filter($matches, fn($key) => is_string($key), ARRAY_FILTER_USE_KEY));
-
-					if(!empty($params))
+					if($params = array_map(fn($m) => $m, array_filter($matches, fn($key) => is_string($key), ARRAY_FILTER_USE_KEY)))
 					{
 						self::$routes[$route_key]['parameters'] = (isset(self::$routes[$route_key]['parameters'])) ? array_merge(self::$routes[$route_key]['parameters'], $params) : $params;
 					}
@@ -562,14 +562,14 @@
 		}
 
 		// Pair everything as a tree based on parent/children
-		public function asTree()
+		public function asTree($_strict = true)
 		{
 			// Root
 			$root = array();
 
 			foreach(self::$routes AS $r)
 			{
-				if(isset($r['parent']) || !in_array($r['key'], self::$map[Request::METHOD_GET]))
+				if(isset($r['parent']) || ($_strict && !in_array($r['key'], self::$map[Request::METHOD_GET])))
 				{
 					continue;
 				}
@@ -636,8 +636,12 @@
 						unset(self::$map[$map][array_search($k, $keys)]);
 					}
 
-					unset(self::$routes[$k]);
-					continue;
+					//unset(self::$routes[$k]);
+					//continue;
+				}
+				elseif(!in_array($k, self::$map[Request::METHOD_GET]))
+				{
+					self::$map[Request::METHOD_GET][] = $k;
 				}
 
 				if(isset($r['id']))
@@ -660,11 +664,6 @@
 				if(isset($r['parent_id']) && !empty($r['parent_id']) && !isset(self::$routes[$k]['parent']))
 				{
 					self::$routes[$k]['parent'] = self::$db_relations[$r['parent_id']];
-				}
-
-				if(!in_array($k, self::$map[Request::METHOD_GET]))
-				{
-					self::$map[Request::METHOD_GET][] = $k;
 				}
 			}
 

@@ -48,10 +48,6 @@
 			{
 				$this->merger = new NavigationsMerger($this->object);
 			}
-			/*elseif($this->object instanceof Menu)
-			{
-				$this->merger = new MenuMerge($this->object);
-			}*/
 			elseif($this->object instanceof Env)
 			{
 				$this->merger = new EnvMerge($this->object);
@@ -91,6 +87,7 @@
 	abstract class BaseMerge
 	{
 		protected $instance;
+		protected $storage;
 
 		function __construct($_instance)
 		{
@@ -99,6 +96,8 @@
 
 		protected function prepare($_storage)
 		{
+			$this->storage = $_storage;
+
 			if($_storage instanceof DB)
 			{
 				return $this->prepareFromDatabase($_storage);
@@ -145,7 +144,7 @@
 	class NodeMerge extends BaseMerge
 	{
 		public $nodes = array();
-		private $storage;
+		public $properties = array();
 		
 		protected function prepareFromFile($_file)
 		{
@@ -158,7 +157,7 @@
 		{
 			$condition = ($this->instance::$namespace != null && $this->instance::$namespace[1] != null) ? " OR `route_id`=".$this->instance::$namespace[1] : null;
 
-			$query = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_nodes` WHERE (`route_id` IS NULL " . $condition . ") AND `deleted_at` IS NULL AND `hidden_at` IS NULL ORDER BY `order` ASC, `id` ASC");
+			$query = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_nodes` WHERE (`route_id` IS NULL " . $condition . ") AND `deleted_at` IS NULL AND JSON_EXTRACT(`hidden_at`, '$.".Locale::getLanguage()."') IS NULL ORDER BY `order` ASC, `id` ASC");
 
 			if($db::num_rows($query) == 0)
 			{
@@ -173,7 +172,8 @@
 				$node = $this->buildNode($row);
 
 				$identifier = $node['identifier'];
-				$value = (isset($node['content'][Locale::getLanguage()])) ? htmlspecialchars_decode($node['content'][Locale::getLanguage()]) : "";
+				$value = $node['content'][Locale::getLanguage()] ?? $node['content']["*"] ?? "";
+				$value = (!empty($value)) ? htmlspecialchars_decode($value) : "";
 
 				if(empty($node['route_id']))
 				{
@@ -182,8 +182,11 @@
 				}
 				elseif($this->instance::$namespace != null)
 				{
-					$identifier = array($this->instance::$namespace[0] => array($identifier => $value));
-					//$identifier = $this->instance::$namespace[1] . "." . $identifier;
+					$array = array();
+					Arr::unflatten($array, $identifier, $value);
+
+					$identifier = array($this->instance::$namespace[0] => $array);
+					unset($array);
 				}				
 
 				if(!empty($node['loop_id']))
@@ -203,11 +206,17 @@
 				}
 				elseif($node['type'] == Node::TYPE_LOOP)
 				{
-					$loops_relations[$node['id']] = $identifier;
+					$loops_relations[$node['id']] = array_key_first(Arr::flatten($identifier));
 				}
 				else
 				{
 					$this->nodes = array_replace_recursive($this->nodes, $identifier);
+				
+					if(isset($node['properties'][Locale::getLanguage()]) && !empty($node['properties'][Locale::getLanguage()]) && $properties = $node['properties'][Locale::getLanguage()])
+					{
+						array_walk_recursive($identifier, fn(&$value) => ($value = $properties));
+						$this->properties = array_replace_recursive($this->properties, $identifier);
+					}
 				}
 			}
 
@@ -224,11 +233,22 @@
 						continue;
 					}
 
-					foreach($loops[$node_id] AS $key => $value)
+					foreach($loops[$node_id] AS $key => $nodes)
 					{
-						foreach($value AS $k => $v)
+						foreach($nodes AS $k => $node)
 						{
-							$this->nodes[$identifier . "." . $key . "." . $k] = $v;
+							$array = array();
+							Arr::unflatten($array, $identifier, array($key => array($k => $node['content'][Locale::getLanguage()] ?? $node['content']["*"] ?? "")));
+
+							$this->nodes = array_replace_recursive($this->nodes, $array);
+
+							if(isset($node['properties'][Locale::getLanguage()]) && !empty($node['properties'][Locale::getLanguage()]) && $properties = $node['properties'][Locale::getLanguage()])
+							{
+								array_walk_recursive($array, fn(&$value) => ($value = $properties));
+								$this->properties = array_replace_recursive($this->properties, $array);
+							}
+
+							unset($array);
 						}
 					}
 				}
@@ -240,7 +260,7 @@
 		private function getLoop(DB $db, $loop_identifier)
 		{
 			// Fetch existing loops (Extend if any exists)
-			$condition = ($this->instance::$namespace != null) ? " OR `route_id`=".$this->instance::$namespace[0] : null;
+			$condition = ($this->instance::$namespace != null) ? " OR `route_id`=".$this->instance::$namespace[1] : null;
 
 			$query = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_nodes` WHERE `identifier`='".$loop_identifier."' AND (`route_id` IS NULL " . $condition . ") AND `type`=".Node::TYPE_LOOP." AND `deleted_at` IS NULL AND `hidden_at` IS NULL");
 
@@ -254,9 +274,9 @@
 
 		public function store($_what, $_into = null)
 		{
-			if($_into instanceof DB)
+			if($_into instanceof DB || (!empty($this->storage) && $this->storage instanceof DB))
 			{
-				return $this->storeToDatabase($_into, $_what);
+				return $this->storeToDatabase($_into ?? $this->storage, $_what);
 			}
 			elseif($this->storage != null)
 			{
@@ -281,7 +301,7 @@
 					if(!$loop_array)
 					{
 						$db::insert(Env::get("db")['database'].".`lcms_nodes`", array(
-							'route_id' 		=> ((!isset($n['global']) || !$n['global']) && $this->instance::$namespace != null) ? $this->instance::$namespace[0] : null,
+							'route_id' 		=> ((!isset($n['global']) || !$n['global']) && $this->instance::$namespace != null) ? $this->instance::$namespace[1] : null,
 							'identifier'	=> $key,
 							'type'			=> Node::TYPE_LOOP,
 							'parameters'	=> $node // Snapshot of all nodes to be used here
@@ -290,29 +310,23 @@
 					else
 					{
 						// Loop exists, update the params
-						$params = json_decode($loop_array['parameters'], true);
-						$new_params = (empty($params)) ? array() : $params;
+						$org_parameters = json_decode($loop_array['parameters'], true);
+						$new_parameters = (empty(!$org_parameters)) ? $org_parameters : array();
 
-						if(empty($new_params))
+						foreach($node AS $n)
 						{
-							$new_params = $node;
-						}
-						else
-						{
-							foreach($node AS $k => $v)
+							if(in_array($n['identifier'], array_column($org_parameters, "identifier")))
 							{
-								if(isset($params[$k]))
-								{
-									continue;
-								}
-
-								$new_params += array($k => $v);
+								continue;
 							}
+
+							$n['content'] = ""; //array(Locale::getLanguage() => $n['content']);
+							$new_parameters[] = $n;
 						}
 
-						if(count($new_params) != count($params))
+						if(count($new_parameters) != count($org_parameters))
 						{
-							$db::update(Env::get("db")['database'].".`lcms_nodes`", array('parameters' => $new_params), array('id' => $loop_array['id']));
+							$db::update(Env::get("db")['database'].".`lcms_nodes`", array('parameters' => $new_parameters), array('id' => $loop_array['id']));
 						}
 					}
 				}
@@ -354,7 +368,6 @@
 			{
 				if((!isset($node['global']) || !$node['global']) && $this->instance::$namespace == null)
 				{
-					die("damn");
 					continue;
 				}
 
@@ -490,7 +503,7 @@
 		/**
 		 *	Construct the new routes as the format they came as
 		 */
-		public function execute($_storage) : Node
+		public function execute($_storage): Node
 		{
 			if(empty($this->nodes))
 			{
@@ -498,20 +511,17 @@
 			}
 
 			// Unflatten the file-content
-			return $this->instance->merge($this->nodes);
+			return $this->instance->merge($this->nodes, $this->properties);
 		}
 
-		private function array_to_ini(array $array) : string
+		private function array_to_ini(array $array): string
 		{
 			return array_reduce(array_keys($array), function($str, $sectionName) use ($array) 
 			{
 				$sub = $array[$sectionName];
 
 				return $str . "[$sectionName]" . PHP_EOL .
-					array_reduce(array_keys($sub), function($str, $key) use($sub) 
-					{
-						return $str . $key . ' = "' . $sub[$key] . '"' . PHP_EOL;
-					}) . PHP_EOL;
+					array_reduce(array_keys($sub), fn($str, $key) => $str . $key . ' = "' . $sub[$key] . '"' . PHP_EOL) . PHP_EOL;
 			});
 		}
 
@@ -632,12 +642,29 @@
 				$row['pattern'] = json_decode($row['pattern'], true);
 			}
 
+			$row['org_pattern'] = array_filter($row['pattern']);
 			$row['pattern'] = $row['pattern'][Locale::getLanguage()] ?? $row['pattern'][array_key_first($row['pattern'])];	
 
 			if(!empty($row['parent_id']))
 			{
 				$row['pattern'] = $this->database_routes[$row['parent_id']]['pattern'] . "/" . $row['pattern'];
+
+				foreach($row['org_pattern'] AS $lang => $pattern)
+				{
+					if(!$parent_pattern = $this->database_routes[$row['parent_id']]['org_pattern'][$lang] ?? false)
+					{
+						unset($row['org_pattern'][$lang]);
+						continue;
+					}
+
+					$row['org_pattern'][$lang] = $this->database_routes[$row['parent_id']]['org_pattern'][$lang] . "/" . $pattern;
+				}
 			}
+
+			if(empty($row['org_pattern']))
+			{
+				unset($row['org_pattern']);
+			}			
 
 			return $row;
 		}
@@ -653,7 +680,7 @@
 					/**
 					 *	If parent has changed it's pattern, just replace it here
 					 */
-					if(!isset($this->system_routes[$route['parent']]['pattern'])) // Disabled because parent is disabled
+					if(!isset($route['parent']) || !isset($this->system_routes[$route['parent']]['pattern'])) // Disabled because parent is disabled
 					{
 						//$this->system_routes[$key]['disabled'] = true;
 						//unset($this->system_routes[$key]);
@@ -1152,6 +1179,7 @@
 
 	class EnvMerge extends BaseMerge
 	{
+		private $excluded_keys = ['is_dev', 'db'];
 		private $items;
 
 		protected function prepareFromFile($_file): Self
@@ -1170,7 +1198,7 @@
 
 		protected function prepareFromDatabase(DB $db): Self
 		{
-			$query = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_settings`");
+			$query = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_settings` WHERE `key` NOT IN('".implode("', '", $this->excluded_keys)."')");
 
 			if($db::num_rows($query) == 0)
 			{

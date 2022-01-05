@@ -4,12 +4,8 @@
 	 */
 	namespace LCMS\Api;
 
-	use LCMS\Api\Merge;
 	use LCMS\Core\Request;
-	use LCMS\Core\Route;
 	use LCMS\Core\Env;
-	use LCMS\Boilerplate\Menu;
-	use LCMS\Boilerplate\Page;
 	use \ReflectionClass;
 	use \Exception;
 

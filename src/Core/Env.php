@@ -70,11 +70,12 @@
 		}
 
 		/**
-		 *	Never return DB
+		 *	Never return DB nor protected assets
 		 */
 		public static function getAll()
 		{
-			$return = self::getInstance()->parameters;
+			$return = array_filter(self::getInstance()->parameters, fn($e) => !isset($e[1]) || $e[1] != 999);
+
 			unset($return['db']);
 
 			return $return;
