@@ -9,7 +9,7 @@
 
 	use \Exception;
 
-  class UUID
+  class Uuid
   {
     public static function v3($namespace, $name)
     {
