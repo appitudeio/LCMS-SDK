@@ -962,7 +962,8 @@
 				foreach(array_filter($system_items[$navigation], fn($i) => isset($i['parent'])) AS $nav_item_key => $nav_object)
 				{
 					$system_items[$navigation][$nav_item_key]['parent_id'] = $system_items[$navigation][$nav_object['parent']]['id'];
-					$this->updateNavItem($_storage, $nav_object['id'], array('parent_id' => $system_items[$navigation][$nav_item_key]['parent_id']));
+					
+					//$this->updateNavItem($_storage, $nav_object['id'], array('parent_id' => $system_items[$navigation][$nav_item_key]['parent_id']));
 				}
 			}
 
