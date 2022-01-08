@@ -72,7 +72,7 @@
             {
                 return $this->document;
             }
-
+            
 			$nodes = array();
 
 			foreach($this->elements[self::ELEMENT_UNIDENTIFIED] AS $key => $element)
@@ -129,7 +129,7 @@
 
                 $loop_element->remove();
             }
-            elseif(empty($node)) //->loop()))
+            elseif($node instanceof Node && empty($node->loop()))
             {
                 // If empty, maybe the elements are unidentified
                 $this->elements[self::ELEMENT_UNIDENTIFIED][$loop_element->attr['name']] = array();

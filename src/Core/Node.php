@@ -193,7 +193,7 @@
 				{
 					return new NodeObject(array());			
 				}
-
+				
 				return $node;
 			}
 
@@ -459,17 +459,9 @@
 
 			$return_image = "<img src='" . $image_url . "' ";
 
-			if(!empty($this->properties))
+			if($properties = (isset($this->node['properties']) && !empty($this->node['properties'])) ? array_filter($this->node['properties'], fn($k) => !in_array($k, ['width', 'height']), ARRAY_FILTER_USE_BOTH) ?? null : null)
 			{
-				foreach($this->properties AS $attribute => $value)
-				{
-					if(empty($value) || in_array($attribute, ['width', 'height']))
-					{
-						continue;
-					}
-					
-					$return_image .= $attribute ."='".$value."' ";
-				}
+				array_walk($properties, fn($value, $attribute) => ($return_image .= $attribute ."='".$value."' "));
 			}
 			
 			return $return_image . "/>";			
@@ -499,7 +491,9 @@
 
 			$image_url .= $this->node['content'];
 
-			return Toolset::picture($image_url, array_filter($this->properties, fn($k) => !in_array($k, ['width', 'height']), ARRAY_FILTER_USE_BOTH) ?? null);
+			$properties = (isset($this->node['properties']) && !empty($this->node['properties'])) ? array_filter($this->node['properties'], fn($k) => !in_array($k, ['width', 'height']), ARRAY_FILTER_USE_BOTH) ?? null : null;
+
+			return Toolset::picture($image_url, $properties);
 		}
 
 		public function route($properties = null)

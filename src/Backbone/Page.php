@@ -5,11 +5,9 @@
 	namespace LCMS\Backbone;
 
 	use LCMS\Core\Request;
-	use LCMS\Core\Response;
 	use LCMS\Core\Node;
 	use LCMS\Core\Locale;
 	use LCMS\Backbone\View;
-	use LCMS\Backbone\TemplateEngine;
 	use LCMS\Backbone\SEO;
 	use LCMS\Utils\Arr;
 	use \Exception;
@@ -79,7 +77,7 @@
 				$replace = array_values($extendable_data);
 			}
 
-			$meta = array_filter($this->meta) ?? Node::get("meta");
+			$meta = $this->meta ?? Node::get("meta"); // array_filter($this->meta) ?? Node::get("meta");
 			$meta = array_replace(array_filter($this->meta, fn($v) => is_string($v) && !empty($v)), $meta);
 			
 			if(isset($meta['robots']))
@@ -89,9 +87,13 @@
 			}
 
 			// Iterate all 'meta' to extract tags
-			array_walk($meta, fn($v, $k) => Node::set("meta." . $k, ((isset($search, $replace) && !empty($v) && str_contains($v, "{{")) ? str_replace($search, $replace, $v) : $v)));
+			if(!empty($meta))
+			{
+				// Fallback, look for data in the global namespace
+				array_walk($meta, fn($v, $k) => Node::set("meta." . $k, ((isset($search, $replace) && !empty($v) && str_contains($v, "{{")) ? str_replace($search, $replace, $v) : ((is_null($v) && $node = Node::get("meta." . $k)) ? Node::get("meta." . $k)->text() : (string) $v))));
+			}
 			
-			$canonical_url = $this->meta[Locale::getLanguage()]['canonical_url'] ?? ((isset($_SERVER['REQUEST_URI'])) ? substr(STATIC_PATH, 0, -1) . parse_url($_SERVER['REQUEST_URI'])['path']  ?? "" : "");
+			$canonical_url = $this->meta[Locale::getLanguage()]['canonical_url'] ?? Request::getInstance()->url();
 
 			SEO::openGraph()->addProperty('url', $canonical_url);
 			SEO::setCanonical($canonical_url);
