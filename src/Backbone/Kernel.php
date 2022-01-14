@@ -262,7 +262,7 @@
                 }
                 
                 // Set content type (Coming from Controller)
-                if($content_type = $this->settings['request']->headers->get("Content-type"))
+                if(($content_type = $this->settings['request']->headers->get("Content-type")) && $content_type != "application/x-www-form-urlencoded")
                 {
                     Header("Content-type: " . $content_type);
                 }

@@ -31,7 +31,7 @@
 
 				if(!self::$translations)
 				{
-					throw new Exception("Could not parse ini-file $translation_file_path!");
+					throw new Exception("Could not parse ini-file: " . $translation_file_path);
 				}
 			}
 		}
