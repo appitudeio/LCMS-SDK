@@ -224,9 +224,28 @@
                 {
                     return $this->trigger("view", View::getInstance());
                 }
-                
+
+                // If this is a POST-request, with a View returned, try to find the GET equivalent
+                if($this->settings['request']->method() != $this->settings['request']::METHOD_GET && !isset($route_array['alias']) && $get_route_array = $this->settings['route']->match($this->settings['request']->path(), $this->settings['request']::METHOD_GET, false, false))
+                {
+                    if(isset($get_route_array['alias']) && !empty($get_route_array['alias']))
+                    {
+                        $route_array['alias'] = $get_route_array['alias'];
+                    }
+
+                    if(isset($get_route_array['id']) && !empty($get_route_array['id']))
+                    {
+                        $route_array['id'] = $get_route_array['id'];
+                    }
+
+                    if(isset($get_route_array['meta']) && !empty($get_route_array['meta']) && empty($route_array['meta']))
+                    {
+                        $route_array['meta'] = $get_route_array['meta'];
+                    }
+                }
+
 				// Let's populate a Page (Or Redirect, Or Response)
-				$page = new Page($route_array);
+				$page = new Page($route_array);                
 
                 // Merge nodes with database (Incase we use Nodes inside any controller)
                 if(isset($this->settings['node']))
@@ -300,8 +319,8 @@
                         $page->meta(['robots' => $robots]);
                         header("X-Robots-Tag: " . implode(", ", $robots));
                     }
-                }                
-
+                }
+            
                 return $this->trigger("page", $page, $this->mergers);
             }
 

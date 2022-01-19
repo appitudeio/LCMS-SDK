@@ -63,6 +63,10 @@
 			{
 				if(!is_array($value) || count(array_filter(array_keys($value), 'is_string')) == 0)
 				{
+					if(is_string($value))
+					{
+						$extendable_data[$key] = $value;
+					}
 					continue;
 				}
 				
