@@ -88,7 +88,7 @@
 		 */
 		public static function replacePlaceholders($message, $placeholders)
 		{
-			foreach($placeholders AS $key => $placeholder)
+			foreach(array_filter($placeholders) AS $key => $placeholder)
 			{
 				$message = str_replace('{{' . $key . '}}', $placeholder, $message);
 			}
