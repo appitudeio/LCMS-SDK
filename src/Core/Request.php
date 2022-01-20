@@ -112,7 +112,7 @@
 
 			if($instance->request === null)
 			{
-		        if(strpos($instance->headers->get('CONTENT_TYPE'), 'application/x-www-form-urlencoded') === 0 && in_array(strtoupper($instance->server->get('REQUEST_METHOD', 'GET')), ['PUT', 'DELETE', 'PATCH']))
+		        if($instance->headers->get('CONTENT_TYPE') && str_contains($instance->headers->get('CONTENT_TYPE'), 'application/x-www-form-urlencoded') && in_array(strtoupper($instance->server->get('REQUEST_METHOD', 'GET')), ['PUT', 'DELETE', 'PATCH']))
 		        {
 		        	parse_str($instance->getContent(), $data);
 		            $instance->request = new InputBag($data);
