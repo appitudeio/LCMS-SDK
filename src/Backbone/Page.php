@@ -94,7 +94,7 @@
 			if(!empty($meta))
 			{
 				// Fallback, look for data in the global namespace
-				array_walk($meta, fn($v, $k) => Node::set("meta." . $k, ((isset($search, $replace) && !empty($v) && str_contains($v, "{{")) ? str_replace($search, $replace, $v) : ((is_null($v) && $node = Node::get("meta." . $k)) ? Node::get("meta." . $k)->text() : (string) $v))));
+				array_walk($meta, fn($v, $k) => Node::set("meta." . $k, ((isset($search, $replace) && !empty($v) && str_contains($v, "{{")) ? strtr($v, array_combine($search, $replace)) : ((is_null($v) && $node = Node::get("meta." . $k)) ? Node::get("meta." . $k)->text() : (string) $v))));
 			}
 			
 			$canonical_url = $this->meta[Locale::getLanguage()]['canonical_url'] ?? Request::getInstance()->url();
