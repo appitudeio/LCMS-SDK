@@ -244,22 +244,36 @@
                     }
                 }
 
-				// Let's populate a Page (Or Redirect, Or Response)
-				$page = new Page($route_array);                
-
-                // Merge nodes with database (Incase we use Nodes inside any controller)
-                if(isset($this->settings['node']))
+                // If this route ends with a {wildcard}, and doesnt have an alias, try to match it to it's parent
+                /*if(empty($route_array['alias']) 
+                    && isset($route_array['parent'], $route_array['parameters'])
+                    && !empty($route_array['parent'])
+                    && !empty($route_array['parameters']) 
+                    && str_ends_with($route_array['pattern'], "}") 
+                    && ($parent = $this->settings['route']->asArray()[$route_array['parent']])
+                    && !empty($parent['alias']))
                 {
-                    if(isset($route_array['alias']) && !empty($route_array['alias']))
-                    {
-                        // Only Routes with Alias may use the Node "locally"
-                        $this->settings['node']->setNamespace($route_array['alias'], $route_array['id'] ?? null);
-                    }
+                    $route_array['alias'] = $parent['alias'] . "&" . implode("&", array_keys($route_array['parameters']));
 
-                    if(isset($this->settings['database']))
+                    if(isset($parent['meta']) && !empty($parent['meta']) && empty($route_array['meta']))
                     {
-                        $this->settings['node'] = $this->mergers['node']->with($this->settings['database']);
-                    }
+                        $route_array['meta'] = $parent['meta'];
+                    }                    
+                }*/
+
+				// Let's populate a Page (Or Redirect, Or Response)
+				$page = new Page($route_array);
+            
+                // Merge nodes with database (Incase we use Nodes inside any controller)
+                $this->settings['node']->setNamespace(array(
+                    'id'    => $route_array['id'] ?? null,
+                    'alias' => $route_array['alias'] ?? null,
+                    'pattern' => $route_array['pattern']
+                ));
+
+                if(isset($this->settings['database']))
+                {
+                    $this->settings['node'] = $this->mergers['node']->with($this->settings['database']);
                 }
 
                 // Compile page into the end product
@@ -273,7 +287,7 @@
 				{
 					return $this->trigger("response", $compilation);
 				}
-
+                
                 // Prepare Meta
                 if(isset($this->settings['node'], $route_array['meta'], $route_array['meta'][$this->settings['locale']->getLanguage()]) && !empty($route_array['meta'][$this->settings['locale']->getLanguage()]))
                 {

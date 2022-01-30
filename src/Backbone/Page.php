@@ -48,42 +48,14 @@
 			}
 		}
 
+		/**
+		 * 	
+		 */
 		private function initMeta(View $_view): Self
 		{
-			// Views and controllers may overwrite Meta of a page
-			if(!isset($this->route['alias']))
-			{
-				return $this;
-			}
+			// Meta built by Controller -> i18n -> DB 
+			$meta = array_replace_recursive($this->meta, Node::get("meta") ?: array()); //, fn($obj) => !is_null($obj));
 
-			// Flatten view-variables for data-extraction into SEO-tags (Only use named 'keys')
-			$extendable_data = array();
-
-			foreach($_view AS $key => $value)
-			{
-				if(!is_array($value) || count(array_filter(array_keys($value), 'is_string')) == 0)
-				{
-					if(is_string($value))
-					{
-						$extendable_data[$key] = $value;
-					}
-					continue;
-				}
-				
-				$extendable_data[$key] = $value;
-			}
-
-			if(!empty($extendable_data))
-			{
-				$extendable_data = Arr::flatten($extendable_data);
-				
-				$search = array_map(fn($k) => "{{" . $k . "}}", array_keys($extendable_data));
-				$replace = array_values($extendable_data);
-			}
-
-			$meta = $this->meta ?? Node::get("meta"); // array_filter($this->meta) ?? Node::get("meta");
-			$meta = array_replace(array_filter($this->meta, fn($v) => is_string($v) && !empty($v)), $meta);
-			
 			if(isset($meta['robots']))
 			{
 				SEO::metatags()->setRobots((is_array($meta['robots'])) ? implode(", ", $meta['robots']) : $meta['robots']);
@@ -93,10 +65,17 @@
 			// Iterate all 'meta' to extract tags
 			if(!empty($meta))
 			{
-				// Fallback, look for data in the global namespace
-				array_walk($meta, fn($v, $k) => Node::set("meta." . $k, ((isset($search, $replace) && !empty($v) && str_contains($v, "{{")) ? strtr($v, array_combine($search, $replace)) : ((is_null($v) && $node = Node::get("meta." . $k)) ? Node::get("meta." . $k)->text() : (string) $v))));
+				// Fallback, look for data in the global namespace and fill them out with values from Views
+				$extendable_data = (function() use($_view)
+				{
+					$viewData = array_filter(array_values((array) $_view)[0], fn($value) => !empty($value) && (is_string($value) || (is_array($value) && count(array_filter(array_keys($value), 'is_string')) > 0)));
+					return (empty($viewData)) ? array() : (($viewData = Arr::flatten($viewData)) ? array_combine(array_map(fn($k) => "{{" . $k . "}}", array_keys($viewData)), $viewData) : array());
+				})();
+
+				array_walk($meta, fn($v, $k) => Node::set("meta." . $k, ((!empty($extendable_data) && !empty($v) && str_contains($v, "{{")) ? strtr($v, $extendable_data) : ((is_null($v) && $node = Node::get("meta." . $k)) ? Node::get("meta." . $k)->text() : (string) $v))));
 			}
 			
+			// Set canonicalURL if found in meta, fallback the current URL
 			$canonical_url = $this->meta[Locale::getLanguage()]['canonical_url'] ?? Request::getInstance()->url();
 
 			SEO::openGraph()->addProperty('url', $canonical_url);
@@ -105,44 +84,23 @@
 			return $this;
 		}
 
-		public function setParameters($_params): Self
+		public function setParameters(Array $_params): Self
 		{
-			if(!empty($this->parameters))
-			{
-				$this->parameters = array_merge($this->parameters, $_params);
-			}
-			else
-			{
-				$this->parameters = $_params;
-			}
+			$this->parameters = (!empty($this->parameters)) ? array_merge($this->parameters, $_params) : $_params;
 
 			return $this;
 		}
 
-		public function meta($_meta = null): Self
+		public function meta(Array $_meta): Self
 		{
-			if(empty($_meta))
-			{
-				return $this;
-			}
-
 			$_meta = $_meta[Locale::getLanguage()] ?? $_meta;
 
-			//(!isset($_meta[Locale::getLanguage()])) ? array(Locale::getLanguage() => $_meta) : $_meta;
-			
-			if(!empty($this->meta))
-			{
-				$this->meta = array_replace_recursive($this->meta, array_filter($_meta));
-			}
-			else
-			{
-				$this->meta = $_meta;
-			}
+			$this->meta = (!empty($this->meta)) ? array_replace_recursive($this->meta, array_filter($_meta)) : $_meta;
 
 			return $this;
 		}
 
-		public function settings($_settings)
+		public function settings(Array $_settings)
 		{
 			$_settings = (!isset($_settings[Locale::getLanguage()])) ? array(Locale::getLanguage() => $_settings) : $_settings;
 			
@@ -158,7 +116,7 @@
 			return $this;
 		}
 
-		public function setting($_key, $_value = null)
+		public function setting(string $_key, $_value = null)
 		{
 			if(!empty($_value))
 			{
@@ -219,6 +177,11 @@
             return $this->compilation;
 		}
 
+		public function asArray(): Array
+		{
+			return $this->route; 
+		}
+
 		public function render()
 		{
 			return $this->compilation; // HTML from View
@@ -237,7 +200,7 @@
 		/**
 		 *
 		 */
-		public function __toString()
+		public function __toString(): String
 		{
 			if(empty($this->compilation))
 			{

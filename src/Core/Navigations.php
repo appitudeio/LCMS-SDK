@@ -13,14 +13,14 @@
 
 		private $collection = array();
 
-		public function add($_identifier, Navigation $_menu)
+		public function add($_identifier, Navigation $_menu): Self
 		{
 			$this->getInstance()->collection[$_identifier] = $_menu;			
 
 			return $this->getInstance();
 		}
 
-		public function get($_identifier)
+		public function get($_identifier): Navigation
 		{
 			if(!isset($this->getInstance()->collection[$_identifier]))
 			{
@@ -30,17 +30,17 @@
 			return $this->getInstance()->collection[$_identifier];
 		}
 
-		public function getAll()
+		public function getAll(): Array
 		{
 			return $this->getInstance()->collection;
 		}
 
-		public function asTree()
+		public function asTree(): Array
 		{
 			return (empty($this->getInstance()->getAll())) ? array() : array_keys($this->getInstance()->collection);
 		}
 
-		public function merge($_menus)
+		public function merge($_menus): Self
 		{
 			foreach($_menus AS $menu_identifier => $menu_items)
 			{

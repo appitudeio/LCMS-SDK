@@ -15,7 +15,7 @@
 		private static $instance;
 		private $parameters = array();
 
-		public static function getInstance()
+		public static function getInstance(): Self
 		{
 			if(self::$instance == null)
 			{
@@ -25,7 +25,7 @@
 			return self::$instance;
 		}
 
-		public static function get($_key)
+		public static function get($_key): String | Array
 		{
 			$_key = strtolower($_key);
 			
@@ -54,12 +54,12 @@
 			//return (isset(self::getInstance()->parameters[$_key][0]) && is_array(self::getInstance()->parameters[$_key][0])) ? self::getInstance()->parameters[$_key][0] : self::getInstance()->parameters[$_key];
 		}
 
-		public static function set($_key, $_value)
+		public static function set($_key, $_value): Void
 		{
 			self::getInstance()->parameters[strtolower($_key)] = $_value;
 		}
 
-		public function merge($_params)
+		public function merge($_params): Self
 		{
 			foreach($_params AS $k => $v)
 			{
@@ -72,7 +72,7 @@
 		/**
 		 *	Never return DB nor protected assets
 		 */
-		public static function getAll()
+		public static function getAll(): Array
 		{
 			$return = array_filter(self::getInstance()->parameters, fn($e) => !isset($e[1]) || $e[1] != 999);
 

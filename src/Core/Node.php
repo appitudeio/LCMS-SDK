@@ -42,12 +42,12 @@
 		private static $properties;
 		private static $instance;
 
-		public static function init($_image_endpoint)
+		public static function init($_image_endpoint): Void
 		{
 			self::$image_endpoint .= $_image_endpoint;
 		}
 
-		public static function getInstance($_data = null)
+		public static function getInstance($_data = null): Self
 		{
 			if(self::$instance == null)
 			{
@@ -62,134 +62,51 @@
 			return self::$instance;
 		}
 
-		public static function setNamespace($_namespace, $_route_id = null)
+		public static function setNamespace(array $_namespace): Void
 		{
-			self::$namespace = array($_namespace, $_route_id); // namespace == route_alias
+			self::$namespace = array_filter($_namespace);
+
+			/*self::$namespace = array($_namespace); // namespace == route_alias
+
+			if(!empty($_route_id))
+			{
+				self::$namespace[] = $_route_id;
+			}*/
 		}
 
 		/**
-		 *	Actually loads all nodes, based on preparations
+		 *	@return Array of all nodes
 		 */
-		/*public function load()
-		{
-			if(empty($this->nodes))
-			{
-
-			}
-			else
-			{
-
-			}
-			if(empty($this->nodes))
-			{
-				return true;
-			}
-
-			$aliases = array();
-
-			foreach($this->nodes AS $n)
-			{
-				if(empty($n['alias']))
-				{
-					continue;
-				}
-
-				$aliases[] = $n['alias'];
-			}
-
-			$conditions = "";
-
-			if(!empty($aliases))
-			{
-				$aliases = array_unique($aliases);
-
-				$conditions .= " AND (`alias` IN('".implode("', '", $aliases)."') OR `alias` IS NULL)";
-			}
-
-			$query = DB::query("SELECT * FROM ".WEB_DATABASE.".`core_nodes` WHERE `identifier` IN('".implode("', '", array_keys($this->nodes))."') ".$conditions." AND `language_id`=".$this->language_id." ORDER BY `alias` ASC");
-
-			if(DB::num_rows($query) > 0)
-			{
-				while($row = DB::fetch_assoc($query))
-				{
-					$this->nodes[$row['identifier']]['id'] 		= $row['id'];
-					$this->nodes[$row['identifier']]['content'] = $row['content'];
-					$this->nodes[$row['identifier']]['data'] 	= (!empty($row['data'])) ? json_decode($row['data'], true) : null;
-
-					if(!empty($this->global_data_params))
-					{
-						foreach($this->global_data_params AS $key => $value)
-						{
-							$this->nodes[$row['identifier']]['content'] = str_replace('{'.$key.'}', $value, $this->nodes[$row['identifier']]['content']);
-						}
-					}
-
-					// Inline-route used?
-					$parsed_routes = $this->get_string_between($this->nodes[$row['identifier']]['content'], "{route:", "}");
-
-					if(!empty($parsed_routes))
-					{
-						foreach($parsed_routes AS $route)
-						{
-							$this->nodes[$row['identifier']]['content'] = str_replace($route[0], Route::get($route[1]), $this->nodes[$row['identifier']]['content']);
-						}
-					}					
-				}
-			}
-
-			// Find out which Nodes that didnt get an ID from the DB; create those
-			foreach($this->nodes AS $identifier => $node)
-			{
-				if(isset($node['id']))
-				{
-					continue;
-				}
-
-				DB::insert(WEB_DATABASE.".`core_nodes`", $node);
-			}
-
-			return true;
-		}
-
-		/**
-		 *
-		 */
-		public static function getAll()
+		public static function getAll(): Array
 		{
 			return self::$nodes;
 		}
 
 		/**
-		 * 
+		 * 	
+		 * 	@return 
+		 * 		- Boolean if not found
+		 * 		- Array if a loop
+		 * 		- NodeObject if a Node
 		 */
-		public static function get($_identifier)
+		public static function get(string $_identifier): Bool | Array | NodeObject
 		{
-			/**
-			 *	Check local namespace, with global as fallback
-			 */
-			if(self::$namespace != null)
-			{
-				$node = Arr::get(self::$nodes, self::$namespace[0] . "." . $_identifier, false);
+			// Check local namespace first with Global as fallback
+			$is_local = true;
 
-				if(!is_bool($node))
+			if(is_bool($node = Arr::get(self::$nodes, (self::$namespace['alias'] ?? self::$namespace['pattern']) . "." . $_identifier, false)))
+			{
+				if(is_bool($node = Arr::get(self::$nodes, "global." . $_identifier, false)))
 				{
-					$is_local = true;
-				}			
+					return false;
+				}
+
+				$is_local = false;
 			}
 
-			if(!isset($is_local))
+			if(is_array($node))
 			{
-				$node = Arr::get(self::$nodes, "global." . $_identifier, false);
-			}		
-		
-			if(is_bool($node) && !$node)
-			{
-				return false;
-			}
-			elseif(is_array($node))
-			{
-				// Loop
-				if(empty($node))
+				if(empty($node)) // Loop
 				{
 					return new NodeObject(array());			
 				}
@@ -198,19 +115,7 @@
 			}
 
 			// Look for properties
-			$properties = null;
-			
-			if(!empty(self::$properties))
-			{
-				if(isset($is_local))
-				{
-					$properties = Arr::get(self::$properties, self::$namespace[0] . "." . $_identifier);
-				}
-				else
-				{
-					$properties = Arr::get(self::$properties, "global." . $_identifier);
-				}
-			}
+			$properties = (empty(self::$properties)) ? null : (($is_local) ? Arr::get(self::$properties, (self::$namespace['alias'] ?? self::$namespace['pattern']) . "." . $_identifier) : Arr::get(self::$properties, "global." . $_identifier));
 
 			$node = (is_string($node)) ? array('content' => $node) : $node;
 			$node += array(
@@ -233,11 +138,11 @@
 		/**
 		 *	Check local namespace, with global as fallback
 		 */
-		public static function set($_identifier, $_value)
+		public static function set($_identifier, $_value): Void
 		{
 			if(self::$namespace != null)
 			{
-				$_identifier = self::$namespace[0] . "." . $_identifier;
+				$_identifier =  (self::$namespace['alias'] ?? self::$namespace['pattern']) . "." . $_identifier;
 			}
 			else
 			{
@@ -247,18 +152,18 @@
 			Arr::unflatten(self::$nodes, $_identifier, $_value);
 		}
 
-		public static function has($_identifier)
+		public static function has($_identifier): Bool
 		{
 			return self::exists($_identifier);
 		}
 
 		// Check Local namespace first, then as fallback Global"
-		public static function exists($_identifier)
+		public static function exists($_identifier): Bool
 		{
 			// Check from namespaced node
-			if(self::$namespace != null && !$node = Arr::get(self::$namespace[0] . "." . $_identifier))
+			if(self::$namespace != null && !$node = Arr::get((self::$namespace['alias'] ?? self::$namespace['pattern']) . "." . $_identifier))
 			{
-				return;
+				return false;
 			}
 
 			if(Arr::has(self::$nodes, $_identifier))
@@ -270,117 +175,38 @@
 				return false;
 			}
 
-			return Arr::has(self::$nodes, self::$namespace[0] . "." . $_identifier);
+			return Arr::has(self::$nodes,  (self::$namespace['alias'] ?? self::$namespace['pattern']) . "." . $_identifier);
 		}	
-
-		/**
-		 *	Prepares all Nodes we want to load before we use them in the document or wherever
-		 */
-		/*public function prepare2($alias = null, $identifier, $node_type, $data = null)
-		{
-			self::validateType($node_type);
-
-			$params = null;
-
-			if(is_array($data))
-			{
-				if(isset($data['params']))
-				{
-					$params = $data['params'];
-					unset($data['params']);
-				}
-			}
-
-			$this->nodes[$identifier] = array(
-				'alias'			=> (!empty($alias)) ? $alias : null,
-				'type'			=> $node_type,
-				'identifier'	=> $identifier,
-				'data'			=> $data,
-				'params'		=> $params,
-				'content'		=> null,
-				'language_id'	=> $this->language_id
-			);
-		}
-
-		public function bulkPrepare($alias = null, $nodes)
-		{
-			foreach($nodes AS $identifier => $node_type)
-			{
-				self::validateType($node_type);
-
-				$this->nodes[$identifier] = array(
-					'alias'			=> (!empty($alias)) ? $alias : null,
-					'type'			=> $node_type,
-					'identifier'	=> $identifier,
-					'content'		=> null,
-					'language_id'	=> $this->language_id
-				);
-			}
-		}
-
-		private static function validateType($node_type)
-		{
-			if(!in_array($node_type, [self::TYPE_TEXT, self::TYPE_HTML, self::TYPE_TEXTAREA, self::TYPE_BOOL, self::TYPE_IMAGE, self::TYPE_FILE, self::TYPE_ROUTE]))
-			{
-				throw new Exception("Node type: " . $node_type . " not defined");
-			}
-
-			return true;
-		}*/
 
 		/**
 		 *	Probably from Database, via Api\Merge
 		 */
-		public function merge($_nodes = null, $_properties = null): Self
+		public function merge(Array $_nodes, Array $_properties = null): Self
 		{
-			if(empty(self::$nodes) && !empty($_nodes))
-			{
-				self::$nodes = $_nodes;
-			}
-			elseif(!empty(self::$nodes) && !empty($_nodes))
-			{
-				self::$nodes = array_replace_recursive(self::$nodes, $_nodes);
-			}
-
-			if(!empty($_properties))
-			{
-				if(empty(self::$properties))
-				{
-					self::$properties = $_properties;
-				}
-				else
-				{
-					self::$properties = array_replace_recursive(self::$properties, $_properties);
-				}
-			}
-
+			self::$nodes = array_replace(self::$nodes ?? array(), $_nodes);
+			self::$properties = array_replace(self::$properties ?? array(), $_properties ?? array());
+			
 			/**
 			 *	Merge data with strings
 			 */
-			if(empty(self::$parameters))
+			if(empty(self::$parameters) || (($parameters = array_filter(self::$parameters, fn($v) => !is_array($v))) && empty($parameters)))
 			{
 				return $this;
 			}
 
-			foreach(array_filter(self::$parameters, fn($v) => !is_array($v)) AS $key => $value)
-			{
-				array_walk_recursive(self::$nodes, fn(&$item) => (!empty($item)) ? $item = str_replace("{{".$key."}}", $value, $item) : $item);
-				//array_walk_recursive(self::$properties, fn(&$item) => (!empty($item)) ? $item = str_replace("{{".$key."}}", $value, $item) : $item);
-
-				// self::$nodes[$identifier]['content'][Locale::getLanguage()] = str_replace('{{'.$key.'}}', $value, $node['content'][Locale::getLanguage()]);
-			}
-
-			//self::$nodes = Arr::flatten(self::$nodes);
+			// Convert ['static_path' => "https://..."] => ['{{static_path}}' => "https://..."]
+			$parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($parameters)), $parameters);
+			array_walk_recursive(self::$nodes, fn(&$item) => (!empty($item) && str_contains($item, "{{")) ? $item = strtr($item, $parameters) : $item);
 
 			return $this;
 		}
 
-		public static function getParameter($_key)
+		public static function getParameter($_key): Array | Null
 		{
 			return self::$parameters[$_key] ?? null;
 		}
 
-		public static function with(String | Array $_key, $_value = null)
+		public static function with(String | Array $_key, $_value = null): Self
 		{
 			if(is_array($_key))
 			{
@@ -415,28 +241,29 @@
 			$this->node = $_node;
 		}
 
-		public function text($_parameters = array())
+		/**
+		 * 	
+		 */
+		public function text($_parameters = array()): String
 		{
 			// Any params we should replace 
-			$_parameters = array_replace_recursive($this->node['parameters'] ?? array(), $_parameters);
+			$forbidden_keys = array('name', 'type', 'content', 'as');
 
-			if(!empty($_parameters))
+			if(str_contains($this->node['content'], "{{") && $_parameters = array_filter(array_replace_recursive($this->node['parameters'] ?? array(), $_parameters), fn($key) => in_array($key, $forbidden_keys), ARRAY_FILTER_USE_KEY))
 			{
-				foreach($_parameters AS $key => $value)
-				{
-					if(in_array($key, ['name', 'type', 'content', 'as']))
-					{
-						continue;
-					}
-					
-					$this->node['content'] = str_replace('{{'.$key.'}}', $value, $this->node['content']);
-				}
+				// Convert ['static_path' => "https://..."] => ['{{static_path}}' => "https://..."]
+				$_parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($_parameters)), $_parameters);
+	
+				$this->node['content'] = strtr($this->node['content'], $_parameters);
 			}
 
 			return $this->node['content'];
 		}
 
-		public function image($_width = null, $_height = null)
+		/**
+		 * 	
+		 */
+		public function image($_width = null, $_height = null): String
 		{
 			// If empty image
 			if(empty($this->node['content']))
@@ -468,9 +295,9 @@
 		}
 
 		/**
-		 *
+		 *	
 		 */
-		public function picture($_width = null, $_height = null)
+		public function picture($_width = null, $_height = null): String
 		{
 			// If empty image
 			if(empty($this->node['content']))
@@ -496,7 +323,10 @@
 			return Toolset::picture($image_url, $properties);
 		}
 
-		public function route($properties = null)
+		/**
+		 * 	
+		 */
+		public function route($properties = null): String
 		{
 			$route = (!empty($this->node['content']) && $this->node['content'] != "#") ? Route::url($this->node['content']) : "#";
 			$label = $properties['label'] ?? null;
@@ -504,17 +334,22 @@
 			return array($route, $label);
 		}
 
-		public function loop()
+		/**
+		 * 	
+		 */
+		public function loop(): Array
 		{
 			return array_filter($this->node, fn($k, $v) => is_numeric($v), ARRAY_FILTER_USE_BOTH);
 		}
 
-		public function asArray()
+		public function asArray(): Array
 		{
 			return $this->node;
 		}
 	}
 /*
+	----Graveyard for later use:
+
 
 	public function picture($width = null, $height = null)
 	{
@@ -807,5 +642,150 @@
 				return $node['content'];
 			}
 		}
-		*/
+
+
+
+
+
+		/**
+		 *	Actually loads all nodes, based on preparations
+		 */
+		/*public function load()
+		{
+			if(empty($this->nodes))
+			{
+
+			}
+			else
+			{
+
+			}
+			if(empty($this->nodes))
+			{
+				return true;
+			}
+
+			$aliases = array();
+
+			foreach($this->nodes AS $n)
+			{
+				if(empty($n['alias']))
+				{
+					continue;
+				}
+
+				$aliases[] = $n['alias'];
+			}
+
+			$conditions = "";
+
+			if(!empty($aliases))
+			{
+				$aliases = array_unique($aliases);
+
+				$conditions .= " AND (`alias` IN('".implode("', '", $aliases)."') OR `alias` IS NULL)";
+			}
+
+			$query = DB::query("SELECT * FROM ".WEB_DATABASE.".`core_nodes` WHERE `identifier` IN('".implode("', '", array_keys($this->nodes))."') ".$conditions." AND `language_id`=".$this->language_id." ORDER BY `alias` ASC");
+
+			if(DB::num_rows($query) > 0)
+			{
+				while($row = DB::fetch_assoc($query))
+				{
+					$this->nodes[$row['identifier']]['id'] 		= $row['id'];
+					$this->nodes[$row['identifier']]['content'] = $row['content'];
+					$this->nodes[$row['identifier']]['data'] 	= (!empty($row['data'])) ? json_decode($row['data'], true) : null;
+
+					if(!empty($this->global_data_params))
+					{
+						foreach($this->global_data_params AS $key => $value)
+						{
+							$this->nodes[$row['identifier']]['content'] = str_replace('{'.$key.'}', $value, $this->nodes[$row['identifier']]['content']);
+						}
+					}
+
+					// Inline-route used?
+					$parsed_routes = $this->get_string_between($this->nodes[$row['identifier']]['content'], "{route:", "}");
+
+					if(!empty($parsed_routes))
+					{
+						foreach($parsed_routes AS $route)
+						{
+							$this->nodes[$row['identifier']]['content'] = str_replace($route[0], Route::get($route[1]), $this->nodes[$row['identifier']]['content']);
+						}
+					}					
+				}
+			}
+
+			// Find out which Nodes that didnt get an ID from the DB; create those
+			foreach($this->nodes AS $identifier => $node)
+			{
+				if(isset($node['id']))
+				{
+					continue;
+				}
+
+				DB::insert(WEB_DATABASE.".`core_nodes`", $node);
+			}
+
+			return true;
+		}	
+		
+		
+
+
+		/**
+		 *	Prepares all Nodes we want to load before we use them in the document or wherever
+		 */
+		/*public function prepare2($alias = null, $identifier, $node_type, $data = null)
+		{
+			self::validateType($node_type);
+
+			$params = null;
+
+			if(is_array($data))
+			{
+				if(isset($data['params']))
+				{
+					$params = $data['params'];
+					unset($data['params']);
+				}
+			}
+
+			$this->nodes[$identifier] = array(
+				'alias'			=> (!empty($alias)) ? $alias : null,
+				'type'			=> $node_type,
+				'identifier'	=> $identifier,
+				'data'			=> $data,
+				'params'		=> $params,
+				'content'		=> null,
+				'language_id'	=> $this->language_id
+			);
+		}
+
+		public function bulkPrepare($alias = null, $nodes)
+		{
+			foreach($nodes AS $identifier => $node_type)
+			{
+				self::validateType($node_type);
+
+				$this->nodes[$identifier] = array(
+					'alias'			=> (!empty($alias)) ? $alias : null,
+					'type'			=> $node_type,
+					'identifier'	=> $identifier,
+					'content'		=> null,
+					'language_id'	=> $this->language_id
+				);
+			}
+		}
+
+		private static function validateType($node_type)
+		{
+			if(!in_array($node_type, [self::TYPE_TEXT, self::TYPE_HTML, self::TYPE_TEXTAREA, self::TYPE_BOOL, self::TYPE_IMAGE, self::TYPE_FILE, self::TYPE_ROUTE]))
+			{
+				throw new Exception("Node type: " . $node_type . " not defined");
+			}
+
+			return true;
+		}*/
 ?>

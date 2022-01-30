@@ -86,6 +86,43 @@
 			return true;
 		}
 
+		/**
+		 * 	Remove one or many array items from a given array using "dot" notation.
+		 */
+		public static function forget(array &$array, array | string $keys): Void
+		{
+			$original = &$array;
+			$keys = (array) $keys;
+
+			if(count($keys) === 0) 
+			{
+				return;
+			}
+
+			foreach($keys as $key) 
+			{
+				// if the exact key exists in the top-level, remove it
+				$parts = explode('.', $key);
+
+				// clean up before each pass
+				$array = &$original;
+
+				while(count($parts) > 1) 
+				{
+					$part = array_shift($parts);
+
+					if(!isset($array[$part]) || !is_array($array[$part])) 
+					{
+						continue 2;
+					}
+					
+					$array = &$array[$part];
+				}
+
+				unset($array[array_shift($parts)]);
+			}
+		}		
+
 		public static function unflatten(&$array, $key, $value)
 		{
 	        if (is_null($key)) 

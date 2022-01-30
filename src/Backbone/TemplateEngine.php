@@ -7,6 +7,7 @@
 	use LCMS\Core\Node;
     use LCMS\Utils\SimpleHtmlDom;
 
+    use \Closure;
 	use \Exception;
 
 	class TemplateEngine
@@ -14,11 +15,10 @@
         const ELEMENT_UNIDENTIFIED  = "unidentified";
         const ELEMENT_IDENTIFIED    = "identified";
 
-		private $nodes;
         private $elements;
         private $document;
 
-		public function parse($_string, $_unidentfied_nodes_collector = null)
+		public function parse(String $_string, Closure $_unidentfied_nodes_collector = null): SimpleHtmlDom | String
 		{
             if(!$this->document = SimpleHtmlDom::string($_string))
             {
@@ -75,6 +75,20 @@
             
 			$nodes = array();
 
+            
+            pre($this->elements[self::ELEMENT_UNIDENTIFIED]);
+
+            die("No");
+            
+
+            $buildElement = (fn($el, $key) => array(
+                'type'         => $this->identifyNodeType($el->attr['type'] ?? null),
+                'properties'   => $this->getPropertiesFromNodeType($el->attr),
+                'identifier'   => $key,
+                'content'      => $el->attr['href'] ?? ($el->innertext ?? null), // Fallback text from document
+                'global'       => $el->attr['global'] ?? false
+            ));
+
 			foreach($this->elements[self::ELEMENT_UNIDENTIFIED] AS $key => $element)
 			{
                 if(is_array($element))
@@ -86,39 +100,31 @@
 
                     foreach($element AS $e)
                     {
-                        $nodes[$key][] = array(
-                            'type'         => $this->identifyNodeType($e->attr['type'] ?? null),
-                            'properties'   => $this->getPropertiesFromNodeType($e->attr),
-                            'identifier'   => $e->attr['name'],
-                            'content'      => $e->attr['href'] ?? ($e->innertext ?? null), // Fallback text from document
-                            'global'       => $e->attr['global'] ?? false
-                        );
+                        $nodes[$key][] = $buildElement($e, $e->attr['name']);
                     }
                 }
                 else
                 {
-                    $nodes[$key] = array(
-                        'type'         => $this->identifyNodeType($element->attr['type'] ?? null),
-                        'properties'   => $this->getPropertiesFromNodeType($element->attr),
-                        'identifier'   => $key,
-                        'content'      => $element->attr['href'] ?? ($element->innertext ?? null), // Fallback text from document
-                        'global'       => $element->attr['global'] ?? false
-                    );
+                    $nodes[$key] = $buildElement($element, $key);
                 }
 			}
 
-            $_unidentfied_nodes_collector($nodes); // Send to collector
+            /**
+             *   The Collector will decide what to do with the nodes.
+             *      - Probably store them in ini-file or to DB
+             */
+            $_unidentfied_nodes_collector($nodes);
 
 			return $this->document;
 		}
 
-        private function handleLoop($loop_element)
+        /**
+         *  Handles \LCMS\Utils\SimpleHtmlDom subclass HtmlNode
+         */
+        private function handleLoop(Object $loop_element): Void
         {
-            // Check if this Loop exists
-            $node = Node::get($loop_element->attr['name']);
-
             // Items found, let's put them into the loop (Merge with nodes)
-            if(!$node)
+            if(false === $node = Node::get($loop_element->attr['name']))
             {
                 $this->elements[self::ELEMENT_UNIDENTIFIED][$loop_element->attr['name']] = array();
 
@@ -169,7 +175,12 @@
             }
         }
 
-        private function parseElement($element, $parent = null, $key = null)
+        /**
+         *  Handles \LCMS\Utils\SimpleHtmlDom subclass HtmlNode
+         *  
+         *  @return HtmlNode with modified content
+         */
+        private function parseElement(Object $element, String $parent = null, Int $key = null): Void
         {
             $is_meta = (in_array($element->tag, ["meta", "title"]) || str_starts_with($element->attr['name'], "meta.")) ? true : false;
 
@@ -255,7 +266,7 @@
             }
         }        
 
-        private function getPropertiesFromNodeType($_properties)
+        private function getPropertiesFromNodeType(Array $_properties): Null | Array
         {
             $type = $this->identifyNodeType($_properties['type'] ?? null);
 
@@ -274,7 +285,7 @@
            return $self;
         }
 
-		private function identifyNodeType($_type = null)
+		private function identifyNodeType(String $_type = null): String
 		{
             return match($_type)
             {
@@ -288,7 +299,7 @@
             };
 		}
 
-		private function handle($identifier, $properties, $fallback)
+		private function handle(String $identifier, Array $properties, String $fallback): Array | String
 		{
             if(!$node = Node::get($identifier))
             {
@@ -307,7 +318,7 @@
                 return array($node->text($properties), true);
             }
 
-            return match($properties['type'])
+            return match($properties['type'] ?? "")
             {
                 "text", "html", "textarea", "meta" => array($node->text($properties), true),
                 "image"     => array($node->image($properties['width'] ?? null, $properties['height'] ?? null), true),

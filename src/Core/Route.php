@@ -258,16 +258,6 @@
 			return self::getInstance();
 		}
 
-		public function getPattern(): String
-		{
-			return $this->params['pattern'];
-		}
-
-		public function getAlias(): String
-		{
-			return $this->alias;
-		}
-
 		private static function parsePattern($_pattern): string
 		{
 	        // Convert the route to a regular expression: escape forward slashes
@@ -287,7 +277,7 @@
 		/**
 		 *
 		 */
-		public static function compile($_route, $_callback = null)
+		public static function compile($_route): Array
 		{
 			// If the route doesnt have any controller, get it from the parent
 			if(isset($_route['parent']) && !empty($_route['parent']))
@@ -331,19 +321,6 @@
             	return $middleware;
             }
 
-			if(gettype($_callback) == "object")
-			{
-				$_callback();
-			}
-
-			/*if(isset($_route['page']))
-			{
-				$_route['page']->setController($_route['controller']);
-				$_route['page']->setAction($_route['action']);
-
-				return $_route['page'];
-			}*/
-
 			return $_route;
 		}
 
@@ -355,16 +332,14 @@
 		 *
 		 * @return void
 		 */
-		public static function dispatch(Request $_request)
+		public static function dispatch(Request $_request): Array
 		{
-			$route = self::match($_request->path(), $_request->getMethod(), $_request->ajax());
-
-			if(!$route)
+			if(!$route_array = self::match($_request->path(), $_request->getMethod(), $_request->ajax()))
 			{
 				throw new Exception('No route matched', 404);
 			}
 
-			return self::$current = $route;
+			return self::$current = $route_array;
 		}
 
 		/**
@@ -375,7 +350,7 @@
 		 *
 		 * @return boolean  true if a match found, false otherwise
 		 */
-		public static function match($_url, $_method = "GET", $_is_ajax_request = false, $_init = true): Bool|Array
+		public static function match($_url, $_method = "GET", $_is_ajax_request = false): Bool | Array
 		{
 			/**
 			 *	Map all children routes, now when the rest is done
@@ -390,7 +365,6 @@
 			$maps = (isset(self::$map[$_method])) ? array($_method => self::$map[$_method]) : array();
 			$maps += ($_is_ajax_request && isset(self::$map[Request::METHOD_AJAX])) ? array(Request::METHOD_AJAX => self::$map[Request::METHOD_AJAX]) : array();
 			$maps = array_reverse($maps); // Ajax first
-
 
 			foreach($maps AS $map_group => $map_keys)
 			{
@@ -437,20 +411,13 @@
 						}
 					}
 
-					if(!$_init)
-					{
-						return $route;
-					}
-
-					// Get named capture group values
+					// If we captured any value from e.g {product_id}, store the catch for this matched route ['parameters' => ['product_id' => {product_id}]]
 					if($params = array_map(fn($m) => $m, array_filter($matches, fn($key) => is_string($key), ARRAY_FILTER_USE_KEY)))
 					{
 						self::$routes[$route_key]['parameters'] = (isset(self::$routes[$route_key]['parameters'])) ? array_merge(self::$routes[$route_key]['parameters'], $params) : $params;
 					}
 
-					self::$current = self::$routes[$route_key];
-
-					return self::$current;
+					return self::$routes[$route_key];
 				}
 			}
 

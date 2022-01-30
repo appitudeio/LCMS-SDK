@@ -20,7 +20,7 @@
 			$this->params = array('identifier' => $_identifier);
 		}
 
-		public function add($_title = null, $_route = null, $_params = null)
+		public function add($_title = null, $_route = null, $_params = null): Self
 		{
 			$item = array(
 				'key'	=> $this->getCurrentKey() + 1,
@@ -68,13 +68,13 @@
 			return $this;
 		}
 
-		public function remove($_key = null)
+		public function remove($_key = null): Void
 		{
 			$_key = (!empty($_key)) ? $_key : $this->index; 
 			unset($this->items[$_key]);
 		}
 
-		public function group($_callback)
+		public function group($_callback): Void
 		{
 			$this->currents[] = $this->items[$this->getCurrentKey()];
 
@@ -85,7 +85,7 @@
 			$this->currents = array_values($this->currents);
 		}
 
-		private function getCurrentKey()
+		private function getCurrentKey(): Int
 		{
 			return count($this->items) - 1;
 		}
@@ -120,7 +120,7 @@
 			return isset($this->root[$this->key()]);
 		}
 
-		public function children($_key = null)
+		public function children($_key = null): Array
 		{
 			$_key = (empty($_key)) ? $this->item($this->index)['key'] : $_key;
 
@@ -132,24 +132,24 @@
 			return array_map(fn($k) => $this->item($k), $this->item($_key)['children']);
 		}
 
-		public function items()
+		public function items(): Array
 		{
 			return $this->items;
 		}
 
-		public function item($_key)
+		public function item($_key): Array | Null
 		{
 			return $this->items[$_key] ?? null;
 		}
 
-		private function sort()
+		private function sort(): Void
 		{
 			$this->sorted = true;
 
 			$this->root = $this->sortRecursive($this->root);
 		}
 
-		public function merge($_items)
+		public function merge($_items): Self
 		{
 			foreach($_items AS $k => $v)
 			{
@@ -185,12 +185,12 @@
 			return $this;
 		}
 
-		public function asArray()
+		public function asArray(): Array
 		{
 			return array_merge($this->params, array('items' => $this->items));
 		}
 
-		private function sortRecursive($keys)
+		private function sortRecursive($keys): Array
 		{
 			$items = array_map(function($key)
 			{
