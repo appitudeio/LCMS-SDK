@@ -2,6 +2,7 @@
     namespace LCMS\Backbone;
 
     use LCMS\Utils\Singleton;
+    use LCMS\Utils\Arr;
     use \Exception;
 
     class SEO
@@ -80,17 +81,26 @@
         {
             if (is_array($urls)) 
             {
-                self::pengraph()->addImages($urls);
+                self::openGraph()->addImages($urls);
             } 
             else 
             {
-                self::opengraph()->addImage($urls);
+                self::openGraph()->addImage($urls);
             }
 
             self::twitter()->setImage($urls);
 
-            self::jsonLd()->addImage($urls);
+            self::jsonLd()->setImages($urls);
 
+            return self::getInstance();
+        }
+
+        public static function setImage($url)
+        {
+            self::openGraph()->setImage($url);
+            self::twitter()->setImage($url);
+            self::jsonLd()->setImages($url);       
+            
             return self::getInstance();
         }
 
@@ -1070,7 +1080,7 @@
                 'author',
                 'isbn',
                 'release_date',
-                'tag',
+                'tag'
             ];
 
             $this->setProperties('book', 'bookProperties', $attributes, $validkeys);
@@ -1397,7 +1407,7 @@
             $attributes = [],
             $validKeys = []
         ) {
-            if (isset($this->properties['type']) && $this->properties['type'] == $type) 
+            if (!isset($this->properties[$type])) //'type']) && $this->properties['type'] == $type) 
             {
                 foreach ($attributes as $attribute => $value) 
                 {
@@ -1406,6 +1416,8 @@
                         $this->{$key}[$attribute] = $value;
                     }
                 }
+
+                $this->setType($type);
             }
         }
 
@@ -1458,6 +1470,13 @@
             return $this;
         }
 
+        public function setImage($source = null, $attributes = [])
+        {
+            $this->images = array();
+
+            return $this->addImage($source, $attributes);
+        }
+
         /**
          * {@inheritdoc}
          */
@@ -1498,6 +1517,11 @@
         public function setSiteName($name)
         {
             return $this->addProperty('site_name', $name);
+        }
+
+        public function getProperties(): Array
+        {
+            return $this->properties;
         }
     }
 

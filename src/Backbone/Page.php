@@ -55,6 +55,7 @@
 		{
 			// Meta built by Controller -> i18n -> DB 
 			$meta = array_replace_recursive(Node::get("meta") ?: array(), array_filter($this->meta));
+			$meta['canonical_url'] = $meta['canonical_url'] ?? Request::getInstance()->url();
 
 			if(isset($meta['robots']))
 			{
@@ -73,14 +74,34 @@
 				})();
 
 				array_walk($meta, fn($v, $k) => Node::set("meta." . $k, ((!empty($extendable_data) && !empty($v) && str_contains($v, "{{")) ? strtr($v, $extendable_data) : ((is_null($v) && $node = Node::get("meta." . $k)) ? Node::get("meta." . $k)->text() : (string) $v))));
+		
+				foreach($meta AS $key => $value)
+				{
+					if(match($key)
+					{
+						"title" 		=> SEO::setTitle($value),
+						"description" 	=> SEO::setDescription($value),
+						"canonical_url" => SEO::setCanonical($value) && SEO::openGraph()->addProperty("url", $value),
+						default 		=> "unhandled"
+					} == "unhandled" && str_starts_with($key, "og:"))
+					{
+						if($key == "og:image")
+						{
+							SEO::setImage($value);
+						}
+						else
+						{
+							SEO::openGraph()->addProperty(str_replace("og:", "", $key), $value);
+						}
+					}
+				}
+
+				if(!isset(SEO::openGraph()->getProperties()['type']))
+				{
+					SEO::openGraph()->addProperty("type", "website");
+				}
 			}
 			
-			// Set canonicalURL if found in meta, fallback the current URL
-			$canonical_url = $this->meta[Locale::getLanguage()]['canonical_url'] ?? Request::getInstance()->url();
-
-			SEO::openGraph()->addProperty('url', $canonical_url);
-			SEO::setCanonical($canonical_url);
-
 			return $this;
 		}
 

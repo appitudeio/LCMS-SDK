@@ -341,7 +341,7 @@
                 $page->meta(['robots' => array('noindex', 'nofollow')]);
                 header("X-Robots-Tag: noindex, nofollow");
             }
-            elseif($robots_node = $this->settings['node']->get("robots"))
+            elseif(isset($this->settings['env']) && $robots_node = $this->settings['node']->get("robots"))
             {
                 $robots = array();
 

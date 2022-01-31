@@ -38,7 +38,14 @@
 
                 if($element = $this->document->find($element, 0) ?? $this->document->find("meta[property='".$tag."']"))
                 {
-                    $this->parseElement($element);
+                    if(is_array($element))
+                    {
+                        array_walk($element, fn($e) => (!empty($e->attr) && empty($e->attr['content'])) ? $this->parseElement($e) : null);
+                    }
+                    elseif(empty($element->attr) || empty($element->attr['content']))
+                    {
+                        $this->parseElement($element);
+                    }
                 }
             }
 
