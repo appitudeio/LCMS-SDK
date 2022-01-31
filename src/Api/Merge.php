@@ -348,9 +348,9 @@
 				elseif(str_starts_with($node['identifier'], "meta."))
 				{
 					// Meta-data
-					if(!empty($this->instance::$namespace) && isset($this->instance::$namespace[1]))
+					if(!empty($this->instance::$namespace) && isset($this->instance::$namespace['id']))
 					{
-						$db::query("UPDATE ".Env::get("db")['database'].".`lcms_routes` SET `meta` = JSON_MERGE_PATCH(`meta`, ?) WHERE `id`=?", [ array(Locale::getLanguage() => [explode(".", $node['identifier'], 2)[1] => $node['content']]), $this->instance::$namespace[1] ]);
+						$db::query("UPDATE ".Env::get("db")['database'].".`lcms_routes` SET `meta` = JSON_MERGE_PATCH(`meta`, ?) WHERE `id`=?", [ array(Locale::getLanguage() => [explode(".", $node['identifier'], 2)[1] => $node['content']]), $this->instance::$namespace['id'] ]);
 					}
 					else
 					{

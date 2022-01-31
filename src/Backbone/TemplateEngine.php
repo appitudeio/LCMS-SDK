@@ -79,7 +79,7 @@
                 'type'         => $this->identifyNodeType($el->attr['type'] ?? null),
                 'properties'   => $this->getPropertiesFromNodeType($el->attr),
                 'identifier'   => $key,
-                'content'      => $el->attr['href'] ?? $el->attr['src'] ?: $el->innertext ?? null, // Fallback text from document
+                'content'      => $el->attr['href'] ?? $el->attr['src'] ?? $el->innertext ?? null, // Fallback text from document
                 'global'       => $el->attr['global'] ?? false
             ));
 
