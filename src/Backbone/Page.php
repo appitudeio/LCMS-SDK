@@ -54,7 +54,7 @@
 		private function initMeta(View $_view): Self
 		{
 			// Meta built by Controller -> i18n -> DB 
-			$meta = array_replace_recursive($this->meta, Node::get("meta") ?: array()); //, fn($obj) => !is_null($obj));
+			$meta = array_replace_recursive(Node::get("meta") ?: array(), array_filter($this->meta));
 
 			if(isset($meta['robots']))
 			{
@@ -93,9 +93,12 @@
 
 		public function meta(Array $_meta): Self
 		{
-			$_meta = $_meta[Locale::getLanguage()] ?? $_meta;
+			$_meta = array_filter($_meta[Locale::getLanguage()] ?? $_meta);
 
-			$this->meta = (!empty($this->meta)) ? array_replace_recursive($this->meta, array_filter($_meta)) : $_meta;
+			if(!empty($_meta))
+			{
+				$this->meta = (!empty($this->meta)) ? array_replace_recursive($this->meta, array_filter($_meta)) : $_meta;
+			}
 
 			return $this;
 		}

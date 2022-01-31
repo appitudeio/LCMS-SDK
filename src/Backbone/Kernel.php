@@ -15,6 +15,7 @@
     use LCMS\Core\Database;
     use LCMS\Core\Navigations;
 	use LCMS\Backbone\View;
+    use LCMS\Utils\Toolset;
 	use \Exception;
 
 	class Kernel
@@ -344,7 +345,7 @@
             {
                 $robots = array();
 
-                if((list($row, $noindex_content) = get_string_between($robots_node->text(), "Noindex: ", "\\n")) 
+                if((list($row, $noindex_content) = Toolset::getStringBetween($robots_node->text(), "Noindex: ", "\\n")) 
                     && ($noindex_content = str_replace($this->settings['env']->get("web_path"), "", $noindex_content))
                     && (in_array($page->pattern, $noindex_content) || count(array_filter(explode("/", $page->pattern), fn($part) => in_array($part . "/", $noindex_content)))
                 ))
@@ -352,7 +353,7 @@
                     $robots[] = "noindex";
                 }
 
-                if((list($row, $disallow_content) = get_string_between($robots_node->text(), "Disallow: ", "\\n")) 
+                if((list($row, $disallow_content) = Toolset::getStringBetween($robots_node->text(), "Disallow: ", "\\n")) 
                     && ($disallow_content = str_replace($this->settings['env']->get("web_path"), "", $disallow_content))
                     && (in_array($page->pattern, $disallow_content) || count(array_filter(explode("/", $page->pattern), fn($part) => in_array($part . "/", $disallow_content)))
                 ))

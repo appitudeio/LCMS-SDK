@@ -40,6 +40,10 @@
 				$html .= "<source srcset='".self::imgTo($_url, $_size, "png")."' type='image/png'>";
 				$html .= "<img src='".self::imgTo($_url, $_size, "png")."' ".$attributes."/>";
 			}
+			elseif($file_ending == "svg")
+			{
+				$html .= "<img src='".$_url."' ".$attributes."/>";
+			}
 			else
 			{
 				$html .= "<source srcset='".self::imgTo($_url, $_size)."' type='image/webp'>";
@@ -67,6 +71,16 @@
 			$parts = explode("/", $_url);
 			$parts[count($parts) - 2] = $_size;
 			return implode("/", $parts);
-		}		
+		}
+		
+		public static function getStringBetween($string, $start, $end)
+		{
+			if(preg_match_all('/'.$start.'(.*?)'.$end.'/', $string, $match) > 0)
+			{
+				return array($match[0], $match[1]);
+			}
+
+			return false;
+		}	
 	}
 ?>

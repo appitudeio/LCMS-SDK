@@ -145,11 +145,13 @@
 	{
 		public $nodes;
 		public $properties;
+		private $unmergers;
 		
 		protected function prepareFromFile($_file): Self
 		{
 			$this->nodes = array();
 			$this->properties = array();
+			$this->unmergers = array();
 
 			return $this->prepareFromIni($_file);
 		}
@@ -158,6 +160,7 @@
 		{
 			$this->nodes = array();
 			$this->properties = array();
+			$this->unmergers = array();
 
 			$condition = ($this->instance::$namespace != null && isset($this->instance::$namespace['id'])) ? " OR `route_id`=".$this->instance::$namespace['id'] : null;
 
@@ -166,8 +169,9 @@
 										AND `deleted_at` IS NULL 
 										AND JSON_EXTRACT(`hidden_at`, '$.".Locale::getLanguage()."') IS NULL
 										AND (
-											JSON_EXTRACT(`content`, '$.".Locale::getLanguage()."') > 0 OR
-											JSON_EXTRACT(`content`, '$.*') > 0
+											`type`=".Node::TYPE_LOOP."
+											OR JSON_EXTRACT(`content`, '$.".Locale::getLanguage()."') > 0 
+											OR JSON_EXTRACT(`content`, '$.*') > 0
 										)
 											ORDER BY `order` ASC, `id` ASC");
 
@@ -184,7 +188,7 @@
 				$node = $this->buildNode($row);
 
 				$identifier = $node['identifier'];
-				$value = htmlspecialchars_decode($node['content'][Locale::getLanguage()] ?? $node['content']["*"]);
+				$value = htmlspecialchars_decode($node['content'][Locale::getLanguage()] ?? $node['content']["*"] ?? "");
 
 				if(empty($node['route_id']))
 				{
@@ -243,6 +247,8 @@
 			 */
 			foreach($loops_relations AS $node_id => $identifier)
 			{
+				$this->unmergers[] = $identifier;
+				
 				foreach($loops[$node_id] AS $key => $nodes)
 				{
 					foreach($nodes AS $k => $node)
@@ -533,7 +539,7 @@
 			}
 
 			// Unflatten the file-content
-			return $this->instance->merge($this->nodes, $this->properties);
+			return $this->instance->merge($this->nodes, $this->properties, $this->unmergers);
 		}
 
 		private function array_to_ini(array $array): string

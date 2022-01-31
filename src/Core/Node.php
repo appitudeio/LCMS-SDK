@@ -181,10 +181,15 @@
 		/**
 		 *	Probably from Database, via Api\Merge
 		 */
-		public function merge(Array $_nodes, Array $_properties = null): Self
+		public function merge(Array $_nodes, Array $_properties = null, Array $_unmergers = null): Self
 		{
-			self::$nodes = array_replace(self::$nodes ?? array(), $_nodes);
-			self::$properties = array_replace(self::$properties ?? array(), $_properties ?? array());
+			if(!empty($_unmergers))
+			{
+				array_walk($_unmergers, fn($um) => Arr::forget(self::$nodes, $um));
+			}
+
+			self::$nodes = array_replace_recursive(self::$nodes ?? array(), $_nodes);
+			self::$properties = array_replace_recursive(self::$properties ?? array(), $_properties ?? array());
 			
 			/**
 			 *	Merge data with strings
@@ -271,18 +276,25 @@
 				return "";
 			}
 
-			$image_url = $this->image_endpoint;
-
-			if(!empty($_width) && !empty($_height))
+			if(str_starts_with($this->node['content'], "http"))
 			{
-				$image_url .= $_width . "x" . $_height . "/";
+				$image_url = $this->node['content'];
 			}
-			elseif(!empty($_width))
+			else
 			{
-				$image_url .= $_width . "/";
-			}
+				$image_url = $this->image_endpoint;
 
-			$image_url .= $this->node['content'];
+				if(!empty($_width) && !empty($_height))
+				{
+					$image_url .= $_width . "x" . $_height . "/";
+				}
+				elseif(!empty($_width))
+				{
+					$image_url .= $_width . "/";
+				}
+
+				$image_url .= $this->node['content'];
+			}
 
 			$return_image = "<img src='" . $image_url . "' ";
 
@@ -305,18 +317,25 @@
 				return "";
 			}
 
-			$image_url = $this->image_endpoint;
-
-			if(!empty($_width) && !empty($_height))
+			if(str_starts_with($this->node['content'], "http"))
 			{
-				$image_url .= $_width . "x" . $_height . "/";
+				$image_url = $this->node['content'];
 			}
-			elseif(!empty($_width))
+			else
 			{
-				$image_url .= $_width . "/";
-			}
+				$image_url = $this->image_endpoint;
 
-			$image_url .= $this->node['content'];
+				if(!empty($_width) && !empty($_height))
+				{
+					$image_url .= $_width . "x" . $_height . "/";
+				}
+				elseif(!empty($_width))
+				{
+					$image_url .= $_width . "/";
+				}
+
+				$image_url .= $this->node['content'];
+			}
 
 			$properties = (isset($this->node['properties']) && !empty($this->node['properties'])) ? array_filter($this->node['properties'], fn($k) => !in_array($k, ['width', 'height']), ARRAY_FILTER_USE_BOTH) ?? null : null;
 
