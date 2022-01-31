@@ -463,6 +463,12 @@
 			return $this->pathInfo;
 		}
 
+		public function resetPathInfo()
+		{
+			$this->pathInfo = null;
+			$this->requestUri = null;
+		}
+
 		/**
 		 * Generates the normalized query string for the Request.
 		 *
@@ -560,8 +566,8 @@
 			}
 			elseif ($this->server->has('REQUEST_URI'))
 			{
-				$requestUri = $this->server->get('REQUEST_URI');
-
+				$requestUri = (string) $this->server->get('REQUEST_URI');
+	
 				if ('' !== $requestUri && '/' === $requestUri[0])
 				{
 					// To only use path and query remove the fragment.
