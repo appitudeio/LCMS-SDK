@@ -15,7 +15,7 @@
 			}
 		}
 
-		public static function picture(String $_url, Array $_attributes = array(), String | Int $_size = null): String
+		public static function picture($_url, $_attributes = null, $_size = null)
 		{
 			$_size = (!empty($size) && is_string($_size)) ? explode("x", $_size) : null;
 			$parts = explode(".", $_url);
@@ -52,50 +52,6 @@
 			}
 	
 			return $html . "</picture>";
-		}
-
-		public static function pictureArray(String $_url, Array $_attributes = null, String | Int $_size = null): Array
-		{
-			$_size = (!empty($size) && is_string($_size)) ? explode("x", $_size) : null;
-			$parts = explode(".", $_url);
-			$file_ending = $parts[count($parts) - 1];
-			unset($parts[count($parts) - 1]);
-
-			$_attributes = array_merge($_attributes ?? array(), array('loading' => "lazy"));
-
-			$mime = ($file_ending == "jpg") ? "jpeg" : $file_ending;
-
-			if($file_ending == "webp")
-			{
-				return array(
-					array("source", array('srcset' => $_url, 'type' => "image/webp")),
-					array("source", array('srcset' => self::imgTo($_url, $_size, "png"), 'type' => 'image/png')),
-					array("img", array('src' => self::imgTo($_url, $_size, "png")) + $_attributes)
-				);
-			}
-			elseif($file_ending == "svg")
-			{
-				return array(
-					array("img", array('src' => $_url) + $_attributes)
-				);
-			}
-			
-			return array(
-				array("source", array('srcset' => self::imgTo($_url, $_size), 'type' => "image/webp")),
-				array("source", array('srcset' => $_url, 'type' => 'image/' . $mime)),
-				array("img", array('src' => $_url) + $_attributes)
-			);
-		}
-
-		public static function pictureArrayToString(Array $picture_data)
-		{
-			$picture_parts = array_map(fn($picture) => 
-				"<" . $picture[0] . ((isset($picture[1]) && !empty($picture[1])) 
-					? " " . implode(" ", array_map(fn($key) => $key . '="' . $picture[1][$key] . '"', array_keys($picture[1]))) 
-					: "") . ">", $picture_data);
-
-			return "<picture>" . implode("", $picture_parts) . "</picture>";
-
 		}
 
 		public static function imgTo($_url, $_size, $_file_ending = "webp")

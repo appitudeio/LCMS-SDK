@@ -591,7 +591,7 @@
 					}
 				}
 
-				return $str . PHP_EOL;
+				return $str;
 			});
 
 			/*return array_reduce(array_keys($array), function($str, $sectionName) use ($array) 
