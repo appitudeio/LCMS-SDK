@@ -249,7 +249,7 @@
 		/**
 		 * 	
 		 */
-		public function text($_parameters = array()): String
+		public function text(Array $_parameters = array()): String
 		{
 			// Any params we should replace 
 			$forbidden_keys = array('name', 'type', 'content', 'as');
@@ -268,7 +268,7 @@
 		/**
 		 * 	
 		 */
-		public function image($_width = null, $_height = null): String
+		public function image(Int $_width = null, Int $_height = null): String
 		{
 			// If empty image
 			if(empty($this->node['content']))
@@ -309,7 +309,7 @@
 		/**
 		 *	
 		 */
-		public function picture($_width = null, $_height = null): String
+		public function picture(Int $_width = null, Int $_height = null): String
 		{
 			// If empty image
 			if(empty($this->node['content']))
@@ -343,14 +343,22 @@
 		}
 
 		/**
+		 *  
+		 */
+		public function href(Array $_parameters = array()): Array
+		{
+			$_parameters['href'] = $_parameters['href'] ?? "#";
+			return array($this->node['content'], $_parameters);
+		}
+
+		/**
 		 * 	
 		 */
-		public function route($properties = null): String
+		public function route(Array $properties = null): Array
 		{
-			$route = (!empty($this->node['content']) && $this->node['content'] != "#") ? Route::url($this->node['content']) : "#";
-			$label = $properties['label'] ?? null;
+			$properties['href'] = (!empty($this->node['content']) && $this->node['content'] != "#") ? Route::url($this->node['content']) : "#";
 
-			return array($route, $label);
+			return array($properties['label'] ?? null, $properties);
 		}
 
 		/**

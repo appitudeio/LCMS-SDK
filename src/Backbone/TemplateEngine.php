@@ -212,13 +212,18 @@
                     list($element->content, $stored) = $this->handle($identifier, $element->attr, $element->innertext);
                 }
             }
-            elseif(isset($element->attr['type']) && $element->attr['type'] == "route")
+            elseif((isset($element->attr['type']) && in_array($element->attr['type'], ['route', 'a'])) || (isset($element->attr['as']) && in_array($element->attr['as'], ['route', 'a'])))
             {
                 list($route_data, $stored) = $this->handle($identifier, $element->attr, "#");
-                
-                $element->href = $route_data[0];
-                $element->innertext = $route_data[1] ?? $element->innertext;
-                
+
+                $excluded_data = ['as', 'name'];
+
+                foreach(array_filter($route_data[1], fn($d) => !in_array($d, $excluded_data), ARRAY_FILTER_USE_KEY) AS $tag => $value)
+                {
+                    $element->$tag = $value;
+                }
+
+                $element->innertext = $route_data[0] ?? $element->innertext;
                 $element->tag = "a";
             }
             else
@@ -314,17 +319,18 @@
 				$properties = array_merge($properties, $node->asArray()['properties']);
 			}
 
-            if(!isset($properties['type']))
+            if(!isset($properties['type']) && !isset($properties['as']))
             {
                 return array($node->text($properties), true);
             }
 
-            return match($properties['type'] ?? "")
+            return match($properties['as'] ?? $properties['type'])
             {
                 "text", "html", "textarea", "meta" => array($node->text($properties), true),
                 "image"     => array($node->image($properties['width'] ?? null, $properties['height'] ?? null), true),
                 "picture"   => array($node->picture($properties['width'] ?? null, $properties['height'] ?? null), true),
                 "route"     => array($node->route($properties), true),
+                "a"         => array($node->href($properties), true),
                 default     => array($fallback, false)
             };
 		}

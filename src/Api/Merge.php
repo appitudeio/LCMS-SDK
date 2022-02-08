@@ -507,7 +507,23 @@
 			{
 				foreach($value AS $k => $v)
 				{
-					Arr::unflatten($this->nodes[$key], $k, $v);
+					if(is_array($v))
+					{
+						if(isset($v['text']) || isset($v['content']) || isset($v['innertext']))
+						{
+							Arr::unflatten($this->nodes[$key], $k, $v['text'] ?? $v['content'] ?? $v['innertext']);
+							unset($v['text'], $v['content'], $v['innertext']);
+						}
+
+						if(!empty($v))
+						{
+							Arr::unflatten($this->properties[$key], $k, $v);
+						}
+					}
+					else
+					{
+						Arr::unflatten($this->nodes[$key], $k, $v);
+					}
 				}
 			}
 
@@ -526,7 +542,7 @@
 			}
 
 			return $this;
-		}		
+		}
 
 		/**
 		 *	Construct the new routes as the format they came as
@@ -559,7 +575,7 @@
 				'content'		=> (!empty($row['content'])) ? json_decode($row['content'], true) : null,
 				'parameters'	=> (!empty($row['parameters'])) ? json_decode($row['parameters'], true) : null,
 				'properties' 	=> (!empty($row['properties'])) ? json_decode($row['properties'], true) : null
-			));		
+			));
 		}		
 	}
 
