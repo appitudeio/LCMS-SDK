@@ -26,6 +26,7 @@
 		public const TYPE_IMAGE 	= 10;
 		public const TYPE_FILE 		= 15;
 		public const TYPE_ROUTE 	= 20;
+		public const TYPE_HYPERLINK	= 25;
 		public const TYPE_LOOP		= 30;
 
 		public static $namespace;
@@ -35,6 +36,10 @@
 			),
 			Node::TYPE_ROUTE => array(
 				//'route' => null
+			),
+			Node::TYPE_HYPERLINK => array(
+				'href' => null,
+				'content' => null
 			)
 		);
 		private static $parameters;
@@ -65,13 +70,6 @@
 		public static function setNamespace(array $_namespace): Void
 		{
 			self::$namespace = array_filter($_namespace);
-
-			/*self::$namespace = array($_namespace); // namespace == route_alias
-
-			if(!empty($_route_id))
-			{
-				self::$namespace[] = $_route_id;
-			}*/
 		}
 
 		/**
@@ -348,6 +346,7 @@
 		public function href(Array $_parameters = array()): Array
 		{
 			$_parameters['href'] = $_parameters['href'] ?? "#";
+			
 			return array($this->node['content'], $_parameters);
 		}
 

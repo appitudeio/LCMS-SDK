@@ -438,7 +438,14 @@
 						continue;
 					}
 
-					$existing_file_array[$alias][$node['identifier']] = $node['content'];
+					if(isset($node['properties']) && !empty($node['properties']))
+					{
+						$existing_file_array[$alias][$node['identifier']] = $node['properties'];
+					}
+					else
+					{
+						$existing_file_array[$alias][$node['identifier']] = $node['content'];
+					}
 
 					$new_entrys++;
 				}
@@ -558,15 +565,42 @@
 			return $this->instance->merge($this->nodes, $this->properties, $this->unmergers);
 		}
 
+		/**
+		 * 	2022-02-08: Now handles array values (attributes)
+		 */
 		private function array_to_ini(array $array): string
 		{
 			return array_reduce(array_keys($array), function($str, $sectionName) use ($array) 
 			{
 				$sub = $array[$sectionName];
 
+				$str .= "[" . $sectionName . "]" . PHP_EOL;
+
+				foreach($sub AS $key => $value)
+				{
+					if(is_array($value))
+					{
+						foreach($value AS $k => $v)
+						{
+							$str .= $key . '[' . $k . '] = "' . $v . '"' . PHP_EOL;
+						}
+					}
+					else
+					{
+						$str .= $key . ' = "' . $value . '"' . PHP_EOL; 
+					}
+				}
+
+				return $str;
+			});
+
+			/*return array_reduce(array_keys($array), function($str, $sectionName) use ($array) 
+			{
+				$sub = $array[$sectionName];
+
 				return $str . "[$sectionName]" . PHP_EOL .
 					array_reduce(array_keys($sub), fn($str, $key) => $str . $key . ' = "' . $sub[$key] . '"' . PHP_EOL) . PHP_EOL;
-			});
+			});*/
 		}
 
 		private function buildNode($row)

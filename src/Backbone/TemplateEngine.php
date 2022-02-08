@@ -79,12 +79,12 @@
             {
                 return $this->document;
             }
-            
+
 			$nodes = array();
 
             $buildElement = (fn($el, $key) => array(
-                'type'         => $this->identifyNodeType($el->attr['type'] ?? null),
-                'properties'   => $this->getPropertiesFromNodeType($el->attr),
+                'type'         => $this->identifyNodeType($el->attr['type'] ?? $el->tag ?? null),
+                'properties'   => $this->getPropertiesFromNode($el),
                 'identifier'   => $key,
                 'content'      => $el->attr['href'] ?? $el->attr['src'] ?? $el->innertext ?? null, // Fallback text from document
                 'global'       => $el->attr['global'] ?? false
@@ -214,16 +214,19 @@
             }
             elseif((isset($element->attr['type']) && in_array($element->attr['type'], ['route', 'a'])) || (isset($element->attr['as']) && in_array($element->attr['as'], ['route', 'a'])))
             {
-                list($route_data, $stored) = $this->handle($identifier, $element->attr, "#");
+                list($route_data, $stored) = $this->handle($identifier, $element->attr, $element->attr['href'] ?? "#");
 
-                $excluded_data = ['as', 'name'];
-
-                foreach(array_filter($route_data[1], fn($d) => !in_array($d, $excluded_data), ARRAY_FILTER_USE_KEY) AS $tag => $value)
+                if(is_array($route_data) && isset($route_data[1]) && is_array($route_data[1]))
                 {
-                    $element->$tag = $value;
+                    $excluded_data = ['as', 'name'];
+
+                    foreach(array_filter($route_data[1], fn($d) => !in_array($d, $excluded_data), ARRAY_FILTER_USE_KEY) AS $tag => $value)
+                    {
+                        $element->$tag = $value;
+                    }
                 }
 
-                $element->innertext = $route_data[0] ?? $element->innertext;
+                $element->innertext = (is_array($route_data)) ? $route_data[0] : $element->innertext;
                 $element->tag = "a";
             }
             else
@@ -272,11 +275,11 @@
             }
         }        
 
-        private function getPropertiesFromNodeType(Array $_properties): Null | Array
+        private function getPropertiesFromNode(Object $_element): Null | Array
         {
-            $type = $this->identifyNodeType($_properties['type'] ?? null);
+            $type = $this->identifyNodeType($_element->attr['type'] ?? $_element->tag ?? null);
 
-            if(!in_array($type, [Node::TYPE_IMAGE])) //, Node::TYPE_ROUTE]))
+            if(!in_array($type, [Node::TYPE_IMAGE, Node::TYPE_HYPERLINK])) //, Node::TYPE_ROUTE]))
             {
                 return null;
             }
@@ -285,7 +288,12 @@
 
             foreach(Node::$type_properties[$type] AS $k => $v)
             {
-                $self[$k] = $_properties[$k] ?? $v;
+                $self[$k] = $_element->attr[$k] ?? $v;
+            }
+
+            if($content = $_element->innertext)
+            {
+                $self['content'] = $content;
             }
 
            return $self;
@@ -300,6 +308,7 @@
                 "wysiwyg", "html"   => Node::TYPE_HTML,
                 "bool", "boolean"   => Node::TYPE_BOOLEAN,
                 "route"             => Node::TYPE_ROUTE,
+                "a"                 => Node::TYPE_HYPERLINK,
                 "textarea"          => Node::TYPE_TEXTAREA,
                 default             => Node::TYPE_TEXT
             };
@@ -319,12 +328,12 @@
 				$properties = array_merge($properties, $node->asArray()['properties']);
 			}
 
-            if(!isset($properties['type']) && !isset($properties['as']))
+            if(!in_array($properties['type'] ?? $properties['as'] ?? null, ['text', 'html', 'textarea', 'meta', 'image', 'picture', 'route', 'a']))
             {
                 return array($node->text($properties), true);
             }
 
-            return match($properties['as'] ?? $properties['type'])
+            return match($properties['type'] ?? $properties['as'])
             {
                 "text", "html", "textarea", "meta" => array($node->text($properties), true),
                 "image"     => array($node->image($properties['width'] ?? null, $properties['height'] ?? null), true),
