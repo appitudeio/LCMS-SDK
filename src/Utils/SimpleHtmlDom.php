@@ -117,6 +117,11 @@ class SimpleHtmlDom
 
         return $dom->load($str, $lowercase, $stripRN);
     }
+
+    public static function createElement($name, $value = null)
+    {
+        return HtmlDocument::createElement($name, $value);
+    }
 }
 
 class HtmlNode
@@ -1370,7 +1375,6 @@ class HtmlNode
         }
 
         // No need to re-index node->children because it is about to be removed!
-
         foreach($node->nodes as $entity) {
             $enidx = array_search($entity, $node->nodes, true);
             $edidx = array_search($entity, $node->dom->nodes, true);
@@ -1385,7 +1389,6 @@ class HtmlNode
         }
 
         // No need to re-index node->nodes because it is about to be removed!
-
         $nidx = array_search($node, $this->nodes, true);
         $cidx = array_search($node, $this->children, true);
         $didx = array_search($node, $this->dom->nodes, true);
@@ -1415,15 +1418,22 @@ class HtmlNode
     function replace($new_node)
     {
         if($this->parent) {
-            $this->parent->replaceChild($this);
+            $this->parent->replaceChild($new_node);
         }
     }
 
     function replaceChild($node)
     {
-        $node->nodes = $node->root->nodes;
+        pre($node);
 
-        $node->clear;
+        pre($node->root->nodes ?? $node->nodes);
+
+
+        die();
+
+        $node->nodes = $node->root->nodes ?? $node->nodes;
+
+        //$node->clear();
     }
 
     function getElementById($id)
@@ -1508,7 +1518,6 @@ class HtmlNode
         }
 
         return null;
-
     }
 
     function hasChildNodes()
@@ -1545,7 +1554,6 @@ class HtmlNode
 
         return $this;
     }
-
 }
 
 class HtmlDocument
@@ -1855,7 +1863,6 @@ class HtmlDocument
                     ++$this->cursor;
                     $node->_[HtmlNode::HDOM_INFO_TEXT] = $content;
                     $this->link_nodes($node, false);
-
                 }
             }
 
@@ -2594,7 +2601,7 @@ class HtmlDocument
         return $this->root->lastChild();
     }
 
-    function createElement($name, $value = null)
+    public static function createElement($name, $value = null)
     {
         $node = new HtmlNode(null);
         $node->nodetype = HtmlNode::HDOM_TYPE_ELEMENT;

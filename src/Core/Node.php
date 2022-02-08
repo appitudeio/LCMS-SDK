@@ -24,6 +24,7 @@
 		public const TYPE_BOOLEAN 	= 4;
 		public const TYPE_ARRAY 	= 6;
 		public const TYPE_IMAGE 	= 10;
+		public const TYPE_BACKGROUND 	= 11;
 		public const TYPE_FILE 		= 15;
 		public const TYPE_ROUTE 	= 20;
 		public const TYPE_HYPERLINK	= 25;
@@ -32,7 +33,7 @@
 		public static $namespace;
 		public static $type_properties = array(
 			Node::TYPE_IMAGE => array(
-				'title' => null, 'alt' => null, 'width' => null, 'height' => null
+				'alt' => null
 			),
 			Node::TYPE_ROUTE => array(
 				//'route' => null
@@ -225,6 +226,11 @@
 
 			return self::getInstance();
 		}
+
+		public static function NodeObject(Array $_node): NodeObject
+		{
+			return new NodeObject($_node);
+		}
 	}
 
 	class NodeObject
@@ -232,7 +238,7 @@
 		private $node;
 		private $image_endpoint;
 
-		function __construct($_node)
+		function __construct(Array $_node)
 		{
 			if(isset($_node['image_endpoint']))
 			{
@@ -247,7 +253,7 @@
 		/**
 		 * 	
 		 */
-		public function text(Array $_parameters = array()): String
+		public function text(Array $_parameters = array()): Self
 		{
 			// Any params we should replace 
 			$forbidden_keys = array('name', 'type', 'content', 'as');
@@ -257,62 +263,64 @@
 				// Convert ['static_path' => "https://..."] => ['{{static_path}}' => "https://..."]
 				$_parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($_parameters)), $_parameters);
 	
-				$this->node['content'] = strtr($this->node['content'], $_parameters);
+				$this->node['parameters'] = array_merge($this->node['parameters'], $_parameters);
+
+				$this->node['content'] = strtr($this->node['content'], $this->node['parameters']);
 			}
 
-			return $this->node['content'];
+			return $this;
 		}
 
 		/**
 		 * 	
 		 */
-		public function image(Int $_width = null, Int $_height = null): String
+		public function image(Int $_width = null, Int $_height = null): Self
 		{
 			// If empty image
 			if(empty($this->node['content']))
 			{
-				return "";
+				return $this;
 			}
 
-			if(str_starts_with($this->node['content'], "http"))
+			if(!str_starts_with($this->node['content'], "http"))
 			{
-				$image_url = $this->node['content'];
-			}
-			else
-			{
-				$image_url = $this->image_endpoint;
+				$img_src = $this->node['content'];
+				
+				$this->node['content'] = $this->image_endpoint;
 
 				if(!empty($_width) && !empty($_height))
 				{
-					$image_url .= $_width . "x" . $_height . "/";
+					$this->node['content'] .= $_width . "x" . $_height . "/";
 				}
 				elseif(!empty($_width))
 				{
-					$image_url .= $_width . "/";
+					$this->node['content'] .= $_width . "/";
 				}
 
-				$image_url .= $this->node['content'];
+				$this->node['content'] .= $img_src;
 			}
 
-			$return_image = "<img src='" . $image_url . "' ";
+			$return_image = "<img src='" . $this->node['content'] . "'";
 
 			if($properties = (isset($this->node['properties']) && !empty($this->node['properties'])) ? array_filter($this->node['properties'], fn($k) => !in_array($k, ['width', 'height']), ARRAY_FILTER_USE_BOTH) ?? null : null)
 			{
-				array_walk($properties, fn($value, $attribute) => ($return_image .= $attribute ."='".$value."' "));
+				$return_image .= implode(" ", array_map(fn($key) => (is_bool($properties[$key])) ? $properties[$key] : $key . '="' . $properties[$key] . '"', array_keys($properties)));
 			}
+
+			$this->node['content'] = $return_image . "/>";
 			
-			return $return_image . "/>";			
+			return $this;
 		}
 
 		/**
 		 *	
 		 */
-		public function picture(Int $_width = null, Int $_height = null): String
+		public function picture(Int $_width = null, Int $_height = null): Self
 		{
 			// If empty image
 			if(empty($this->node['content']))
 			{
-				return "";
+				return $this;
 			}
 
 			if(str_starts_with($this->node['content'], "http"))
@@ -321,43 +329,73 @@
 			}
 			else
 			{
-				$image_url = $this->image_endpoint;
-
-				if(!empty($_width) && !empty($_height))
-				{
-					$image_url .= $_width . "x" . $_height . "/";
-				}
-				elseif(!empty($_width))
-				{
-					$image_url .= $_width . "/";
-				}
-
-				$image_url .= $this->node['content'];
+				$image_url = $this->image_endpoint . $this->node['content'];
 			}
 
-			$properties = (isset($this->node['properties']) && !empty($this->node['properties'])) ? array_filter($this->node['properties'], fn($k) => !in_array($k, ['width', 'height']), ARRAY_FILTER_USE_BOTH) ?? null : null;
+			$size = (!empty($_width) && !empty($_height)) ? $_width . "x" . $_height : ((!empty($_width)) ? $_width : null);
 
-			return Toolset::picture($image_url, $properties);
-		}
+			$this->node['properties'] = (isset($this->node['properties']) && !empty($this->node['properties'])) ? array_filter($this->node['properties'], fn($k) => !in_array($k, ['width', 'height']), ARRAY_FILTER_USE_BOTH) ?? null : null;
 
-		/**
-		 *  
-		 */
-		public function href(Array $_parameters = array()): Array
-		{
-			$_parameters['href'] = $_parameters['href'] ?? "#";
-			
-			return array($this->node['content'], $_parameters);
+			$this->node['picture'] = Toolset::pictureArray($image_url, $this->node['properties'], $size);
+
+			$this->node['content'] = Toolset::pictureArrayToString($this->node['picture']);
+
+			return $this;
 		}
 
 		/**
 		 * 	
 		 */
-		public function route(Array $properties = null): Array
+		public function background(Int $_width = null, $_height = null): Self
 		{
-			$properties['href'] = (!empty($this->node['content']) && $this->node['content'] != "#") ? Route::url($this->node['content']) : "#";
+			// If empty image
+			if(empty($this->node['content']))
+			{
+				return $this;
+			}
 
-			return array($properties['label'] ?? null, $properties);
+			if(str_starts_with($this->node['content'], "http"))
+			{
+				return $this->node['content'];
+			}
+
+			$image_url = $this->image_endpoint;
+
+			if(!empty($_width) && !empty($_height))
+			{
+				$image_url .= $_width . "x" . $_height . "/";
+			}
+			elseif(!empty($_width))
+			{
+				$image_url .= $_width . "/";
+			}
+
+			$this->content = $image_url .= $this->node['content'];
+
+			return $this;
+		}
+
+		/**
+		 *  
+		 */
+		public function href(): Self
+		{
+			return $this;
+		}
+
+		/**
+		 * 	
+		 */
+		public function route(Array $properties = null): Self
+		{
+			if(!isset($this->node['properties']))
+			{
+				$this->node['properties'] = array();
+			}
+
+			$this->node['properties']['href'] = $this->node['content'] = (!empty($this->node['content']) && $this->node['content'] != "#") ? Route::url($this->node['content']) : "#";
+
+			return $this;
 		}
 
 		/**
@@ -371,6 +409,11 @@
 		public function asArray(): Array
 		{
 			return $this->node;
+		}
+
+		function __toString()
+		{
+			return $this->node['content'];
 		}
 	}
 /*

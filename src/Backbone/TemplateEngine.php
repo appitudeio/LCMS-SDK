@@ -214,23 +214,33 @@
             }
             elseif((isset($element->attr['type']) && in_array($element->attr['type'], ['route', 'a'])) || (isset($element->attr['as']) && in_array($element->attr['as'], ['route', 'a'])))
             {
-                list($route_data, $stored) = $this->handle($identifier, $element->attr, $element->attr['href'] ?? "#");
+                list($href, $stored) = $this->handle($identifier, $element->attr, $element->attr['href'] ?? "#");
 
-                if(is_array($route_data) && isset($route_data[1]) && is_array($route_data[1]))
+                if(isset($href->asArray()['properties']) && !empty($href->asArray()['properties']))
                 {
                     $excluded_data = ['as', 'name'];
 
-                    foreach(array_filter($route_data[1], fn($d) => !in_array($d, $excluded_data), ARRAY_FILTER_USE_KEY) AS $tag => $value)
+                    foreach(array_filter($href->asArray()['properties'], fn($d) => !in_array($d, $excluded_data), ARRAY_FILTER_USE_KEY) AS $tag => $value)
                     {
-                        $element->$tag = $value;
+                        if($element->$tag != $value)
+                        {
+                            $element->$tag = $value;
+                        }
                     }
                 }
 
-                $element->innertext = (is_array($route_data)) ? $route_data[0] : $element->innertext;
-                $element->tag = "a";
+                $element->innertext = (string) $href;
+                $element->attr['as'] = "a";
+            }
+            elseif((isset($element->attr['type']) && in_array($element->attr['type'], ['img', 'image', 'picture'])) || (isset($element->attr['as']) && in_array($element->attr['as'], ['img', 'image', 'picture'])))
+            {
+                list($element->outertext, $stored) = $this->handle($identifier, $element->attr, $element->attr['src'] ?? $element->innertext);
             }
             else
             {
+                /**
+                 *  Text HtmlNodes may have siblings, so we remove them
+                 */
                 if(isset($element->attr['as']))
                 {
                     list($element->innertext, $stored) = $this->handle($identifier, $element->attr, $element->innertext);
@@ -303,7 +313,8 @@
 		{
             return match($_type)
             {
-                "image", "picture"  => Node::TYPE_IMAGE,
+                "image", "picture", "img" => Node::TYPE_IMAGE,
+                "background"        => Node::TYPE_BACKGROUND,
                 "loop"              => Node::TYPE_LOOP,
                 "wysiwyg", "html"   => Node::TYPE_HTML,
                 "bool", "boolean"   => Node::TYPE_BOOLEAN,
@@ -316,9 +327,12 @@
 
 		private function handle(String $identifier, Array $properties, String $fallback): Array | String
 		{
+            $stored = true;
+
             if(!$node = Node::get($identifier))
             {
-                return array($fallback, false);
+                $node = Node::NodeObject(array('content' => $fallback));
+                $stored = false;
             }
 
             $properties = $properties ?? array();
@@ -328,19 +342,20 @@
 				$properties = array_merge($properties, $node->asArray()['properties']);
 			}
 
-            if(!in_array($properties['type'] ?? $properties['as'] ?? null, ['text', 'html', 'textarea', 'meta', 'image', 'picture', 'route', 'a']))
+            if(!in_array($properties['type'] ?? $properties['as'] ?? null, ['text', 'html', 'textarea', 'meta', 'image', 'picture', 'route', 'a', 'img']))
             {
-                return array($node->text($properties), true);
+                return array($node->text($properties), $stored);
             }
 
             return match($properties['type'] ?? $properties['as'])
             {
-                "text", "html", "textarea", "meta" => array($node->text($properties), true),
-                "image"     => array($node->image($properties['width'] ?? null, $properties['height'] ?? null), true),
-                "picture"   => array($node->picture($properties['width'] ?? null, $properties['height'] ?? null), true),
-                "route"     => array($node->route($properties), true),
-                "a"         => array($node->href($properties), true),
-                default     => array($fallback, false)
+                "text", "html", "textarea", "meta" => array($node->text($properties), $stored),
+                "image", "img"  => array($node->image($properties['width'] ?? null, $properties['height'] ?? null), $stored),
+                "picture"       => array($node->picture($properties['width'] ?? null, $properties['height'] ?? null), $stored),
+                "background"    => array($node->background($properties['width'] ?? null, $properties['height'] ?? null), $stored),
+                "route"         => array($node->route($properties), $stored),
+                "a"             => array($node->href($properties), $stored),
+                default         => array($fallback, false)
             };
 		}
 	}
