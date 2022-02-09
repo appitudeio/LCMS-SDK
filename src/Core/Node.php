@@ -36,11 +36,10 @@
 				'alt' => null
 			),
 			Node::TYPE_ROUTE => array(
-				//'route' => null
+				'route' => null
 			),
 			Node::TYPE_HYPERLINK => array(
-				'href' => null,
-				'content' => null
+				'href' => null
 			)
 		);
 		private static $parameters;
@@ -118,7 +117,6 @@
 
 			$node = (is_string($node)) ? array('content' => $node) : $node;
 			$node += array(
-				'image_endpoint' => self::$image_endpoint,
 				'properties' => $properties ?: null
 			);
 
@@ -238,14 +236,14 @@
 		private $node;
 		private $image_endpoint;
 
-		function __construct(Array $_node)
+		function __construct(Array | String $_node)
 		{
-			if(isset($_node['image_endpoint']))
-			{
-				$this->image_endpoint = $_node['image_endpoint'];
-			}
+			$this->image_endpoint = Node::$image_endpoint;
 
-			unset($_node['image_endpoint']);
+			if(is_string($_node))
+			{
+				$_node = array('content' => $_node);
+			}
 
 			$this->node = $_node;
 		}

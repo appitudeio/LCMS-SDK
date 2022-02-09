@@ -86,7 +86,7 @@
                 'type'         => $this->identifyNodeType($el->attr['type'] ?? $el->tag ?? null),
                 'properties'   => $this->getPropertiesFromNode($el),
                 'identifier'   => $key,
-                'content'      => $el->attr['href'] ?? $el->attr['src'] ?? $el->innertext ?? null, // Fallback text from document
+                'content'      => $el->attr['src'] ?? $el->innertext ?? null, // Fallback text from document
                 'global'       => $el->attr['global'] ?? false
             ));
 
@@ -214,7 +214,7 @@
             }
             elseif((isset($element->attr['type']) && in_array($element->attr['type'], ['route', 'a'])) || (isset($element->attr['as']) && in_array($element->attr['as'], ['route', 'a'])))
             {
-                list($href, $stored) = $this->handle($identifier, $element->attr, $element->attr['href'] ?? "#");
+                list($href, $stored) = $this->handle($identifier, $element->attr, $element->innertext ?? "");
 
                 if(isset($href->asArray()['properties']) && !empty($href->asArray()['properties']))
                 {
@@ -256,6 +256,11 @@
             {
                 $element->tag = $element->attr['as'];
                 unset($element->attr['as']);
+            }
+
+            if(isset($element->attr['global']))
+            {
+                $element->attr['global'] = null;
             }
 
             if(!empty($element->attr))
@@ -301,10 +306,10 @@
                 $self[$k] = $_element->attr[$k] ?? $v;
             }
 
-            if($content = $_element->innertext)
+            /*if($content = $_element->innertext)
             {
                 $self['content'] = $content;
-            }
+            }*/
 
            return $self;
         }
@@ -331,7 +336,7 @@
 
             if(!$node = Node::get($identifier))
             {
-                $node = Node::NodeObject(array('content' => $fallback));
+                $node = Node::NodeObject(array('content' => $fallback, 'properties' => $properties));
                 $stored = false;
             }
 
