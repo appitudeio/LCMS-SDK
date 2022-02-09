@@ -282,33 +282,28 @@
 				return $this;
 			}
 
-			if(!str_starts_with($this->node['content'], "http"))
+			$size = (!empty($_width) && !empty($_height)) ? $_width . "x" . $_height : ((!empty($_width)) ? $_width : null);
+
+			if(str_starts_with($this->node['content'], "http") || $this->node['content'][0] == "/")
 			{
-				$img_src = $this->node['content'];
-				
-				$this->node['content'] = $this->image_endpoint;
-
-				if(!empty($_width) && !empty($_height))
-				{
-					$this->node['content'] .= $_width . "x" . $_height . "/";
-				}
-				elseif(!empty($_width))
-				{
-					$this->node['content'] .= $_width . "/";
-				}
-
-				$this->node['content'] .= $img_src;
+				$image_url = $this->node['content'];
+			}
+			else
+			{
+				$image_url = $this->image_endpoint . $this->node['content'];
 			}
 
-			$return_image = "<img src='" . $this->node['content'] . "'";
+			$image_url = (!empty($size)) ? Toolset::resize($image_url, $size) : $image_url;
+
+			$image_props = "";
 
 			if($properties = (isset($this->node['properties']) && !empty($this->node['properties'])) ? array_filter($this->node['properties'], fn($k) => !in_array($k, ['width', 'height']), ARRAY_FILTER_USE_BOTH) ?? null : null)
 			{
-				$return_image .= implode(" ", array_map(fn($key) => (is_bool($properties[$key])) ? $properties[$key] : $key . '="' . $properties[$key] . '"', array_keys($properties)));
+				$image_props = implode(" ", array_map(fn($key) => $key . '="' . $properties[$key] . '"', array_keys($properties)));
 			}
 
-			$this->node['content'] = $return_image . "/>";
-			
+			$this->node['content'] = "<img src='".$image_url."'" . $image_props . " />";
+
 			return $this;
 		}
 
@@ -323,7 +318,7 @@
 				return $this;
 			}
 
-			if(str_starts_with($this->node['content'], "http"))
+			if(str_starts_with($this->node['content'], "http") || $this->node['content'][0] == "/")
 			{
 				$image_url = $this->node['content'];
 			}
@@ -335,10 +330,7 @@
 			$size = (!empty($_width) && !empty($_height)) ? $_width . "x" . $_height : ((!empty($_width)) ? $_width : null);
 
 			$this->node['properties'] = (isset($this->node['properties']) && !empty($this->node['properties'])) ? array_filter($this->node['properties'], fn($k) => !in_array($k, ['width', 'height']), ARRAY_FILTER_USE_BOTH) ?? null : null;
-
-			$this->node['picture'] = Toolset::pictureArray($image_url, $this->node['properties'], $size);
-
-			$this->node['content'] = Toolset::pictureArrayToString($this->node['picture']);
+			$this->node['content'] = Toolset::picture($image_url, $this->node['properties'], $size);
 
 			return $this;
 		}
@@ -354,7 +346,7 @@
 				return $this;
 			}
 
-			if(str_starts_with($this->node['content'], "http"))
+			if(str_starts_with($this->node['content'], "http") || $this->node['content'][0] == "/")
 			{
 				return $this->node['content'];
 			}

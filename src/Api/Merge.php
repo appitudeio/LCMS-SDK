@@ -440,7 +440,7 @@
 
 					if(isset($node['properties']) && !empty($node['properties']))
 					{
-						$existing_file_array[$alias][$node['identifier']] = $node['properties'];
+						$existing_file_array[$alias][$node['identifier']] = array('content' => $node['content']) + $node['properties'];
 					}
 					else
 					{
@@ -516,10 +516,10 @@
 				{
 					if(is_array($v))
 					{
-						if(isset($v['text']) || isset($v['content']) || isset($v['innertext']))
+						if($content = $v['text'] ?? $v['content'] ?? $v['innertext'] ?? $v['src'] ?? $v['label'] ?? false)
 						{
-							Arr::unflatten($this->nodes[$key], $k, $v['text'] ?? $v['content'] ?? $v['innertext']);
-							unset($v['text'], $v['content'], $v['innertext']);
+							Arr::unflatten($this->nodes[$key], $k, $content);
+							unset($v['text'], $v['content'], $v['innertext'], $v['src'], $v['label'], $content);
 						}
 
 						if(!empty($v))

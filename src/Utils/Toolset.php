@@ -17,41 +17,9 @@
 
 		public static function picture(String $_url, Array $_attributes = array(), String | Int $_size = null): String
 		{
-			$_size = (!empty($size) && is_string($_size)) ? explode("x", $_size) : null;
-			$parts = explode(".", $_url);
-			$file_ending = $parts[count($parts) - 1];
-			unset($parts[count($parts) - 1]);
-	
-			$attributes = "loading='lazy'";
-	
-			if(!empty($_attributes))
-			{
-				$attributes = array_map(fn($k) => $k."='".$_attributes[$k]."'", array_keys($_attributes));
-				$attributes = " " . implode(" ", $attributes);
-			}
-	
-			$mime = ($file_ending == "jpg") ? "jpeg" : $file_ending;
-	
-			$html = "<picture>";
-	
-			if($file_ending == "webp")
-			{
-				$html .= "<source srcset='".$_url."' type='image/webp'>";
-				$html .= "<source srcset='".self::imgTo($_url, $_size, "png")."' type='image/png'>";
-				$html .= "<img src='".self::imgTo($_url, $_size, "png")."' ".$attributes."/>";
-			}
-			elseif($file_ending == "svg")
-			{
-				$html .= "<img src='".$_url."' ".$attributes."/>";
-			}
-			else
-			{
-				$html .= "<source srcset='".self::imgTo($_url, $_size)."' type='image/webp'>";
-				$html .= "<source srcset='".$_url."' type='image/".$mime."'>";
-				$html .= "<img src='".$_url."' ".$attributes."/>";
-			}
-	
-			return $html . "</picture>";
+			$parts = self::pictureArray($_url, $_attributes, $_size);
+
+			return self::pictureArrayToString($parts);
 		}
 
 		public static function pictureArray(String $_url, Array $_attributes = null, String | Int $_size = null): Array
