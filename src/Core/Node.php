@@ -33,7 +33,10 @@
 		public static $namespace;
 		public static $type_properties = array(
 			Node::TYPE_IMAGE => array(
-				'alt' => null
+				'alt' 	=> null,
+				'title'	=> null,
+				'width' => null,
+				'height' => null
 			),
 			Node::TYPE_ROUTE => array(
 				'route' => null
@@ -327,8 +330,8 @@
 
 			$size = (!empty($_width) && !empty($_height)) ? $_width . "x" . $_height : ((!empty($_width)) ? $_width : null);
 
-			$this->node['properties'] = (isset($this->node['properties']) && !empty($this->node['properties'])) ? array_filter($this->node['properties'], fn($k) => !in_array($k, ['width', 'height']), ARRAY_FILTER_USE_BOTH) ?? null : null;
-			$this->node['content'] = Toolset::picture($image_url, $this->node['properties'], $size);
+			$this->node['properties'] = (isset($this->node['properties']) && !empty($this->node['properties'])) ? array_filter(array_filter($this->node['properties']), fn($k) => !in_array($k, ['width', 'height']), ARRAY_FILTER_USE_KEY) ?? null : null;
+			$this->node['content'] = Toolset::picture($image_url, $this->node['properties'] ?? array(), $size);
 
 			return $this;
 		}

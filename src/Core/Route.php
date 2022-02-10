@@ -277,7 +277,7 @@
 		/**
 		 *
 		 */
-		public static function compile($_route): Array
+		public static function compile($_route): Array | Response | Redirect | View
 		{
 			// If the route doesnt have any controller, get it from the parent
 			if(isset($_route['parent']) && !empty($_route['parent']))

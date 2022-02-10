@@ -438,9 +438,11 @@
 						continue;
 					}
 
-					if(isset($node['properties']) && !empty($node['properties']))
+					$properties = array_filter($node['properties']) ?? array();
+
+					if($properties)
 					{
-						$existing_file_array[$alias][$node['identifier']] = array('content' => $node['content']) + $node['properties'];
+						$existing_file_array[$alias][$node['identifier']] = array('content' => $node['content']) + $properties;
 					}
 					else
 					{

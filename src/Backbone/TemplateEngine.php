@@ -234,7 +234,8 @@
             }
             elseif((isset($element->attr['type']) && in_array($element->attr['type'], ['img', 'image', 'picture'])) || (isset($element->attr['as']) && in_array($element->attr['as'], ['img', 'image', 'picture'])))
             {
-                list($element->outertext, $stored) = $this->handle($identifier, $element->attr, $element->attr['src'] ?? $element->innertext);
+                list($image, $stored) = $this->handle($identifier, $element->attr, $element->attr['src'] ?? $element->innertext);
+                $element->outertext = (string) $image;
             }
             else
             {
@@ -306,11 +307,6 @@
                 $self[$k] = $_element->attr[$k] ?? $v;
             }
 
-            /*if($content = $_element->innertext)
-            {
-                $self['content'] = $content;
-            }*/
-
            return $self;
         }
 
@@ -333,26 +329,28 @@
 		private function handle(String $identifier, Array $properties, String $fallback): Array | String
 		{
             $stored = true;
+            $type = $properties['type'] ?? $properties['as'] ?? null;
 
             if(!$node = Node::get($identifier))
             {
-                $node = Node::NodeObject(array('content' => $fallback, 'properties' => $properties));
+                unset($properties['as'], $properties['name']);
+                $props = (!empty($properties)) ? array('properties' => $properties) : array();
+
+                $node = Node::NodeObject(array('content' => $fallback) + $props);
                 $stored = false;
             }
 
-            $properties = $properties ?? array();
-            
 			if(isset($node->asArray()['properties']) && !empty($node->asArray()['properties']))
 			{
-				$properties = array_merge($properties, $node->asArray()['properties']);
+				$properties = array_merge($properties, array_filter($node->asArray()['properties']));
 			}
 
-            if(!in_array($properties['type'] ?? $properties['as'] ?? null, ['text', 'html', 'textarea', 'meta', 'image', 'picture', 'route', 'a', 'img']))
+            if(!in_array($type, ['text', 'html', 'textarea', 'meta', 'image', 'picture', 'route', 'a', 'img']))
             {
                 return array($node->text($properties), $stored);
             }
 
-            return match($properties['type'] ?? $properties['as'])
+            return match($type)
             {
                 "text", "html", "textarea", "meta" => array($node->text($properties), $stored),
                 "image", "img"  => array($node->image($properties['width'] ?? null, $properties['height'] ?? null), $stored),

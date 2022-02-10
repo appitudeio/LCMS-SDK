@@ -13,7 +13,7 @@
 	{
 		private static $instance;
 		private $instances = array();
-		public static $ips = array("34.248.220.208");
+		public static $ips = array("16.170.44.93");
 
 		/**
 		 *	Makes instances of the application reachable through this class, statically
