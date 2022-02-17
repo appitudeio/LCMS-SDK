@@ -19,7 +19,7 @@
 		public static $map = array();
 		public static $current;
 
-		private static $namespace = "App\Controllers\\";
+		private static $namespace = "App\\";
 		private static $parent;
 		private static $relations = array();
 		private static $db_relations = array();
@@ -67,7 +67,7 @@
 			{
 				$caller_parts = explode("@", $_caller);
 
-				$route['controller'] 	= self::getInstance()->getNamespace() . $caller_parts[0];
+				$route['controller'] 	= self::getInstance()->getNamespace() . "Controllers\\" . $caller_parts[0];
 				$route['action'] 		= $caller_parts[1] ?? "Index";
 			}
 
@@ -431,7 +431,7 @@
 
 		public function setNamespace($_namespace): String
 		{
-			return self::$namespace = self::getNamespace() . $_namespace . "\\";
+			return self::$namespace = rtrim($_namespace, "\\") . "\\";
 		}
 
 		/**
