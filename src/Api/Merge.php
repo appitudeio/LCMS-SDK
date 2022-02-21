@@ -438,7 +438,7 @@
 						continue;
 					}
 
-					$properties = array_filter($node['properties']) ?? array();
+					$properties = (!empty($node['properties'])) ? array_filter($node['properties']) : null;
 
 					if($properties)
 					{
