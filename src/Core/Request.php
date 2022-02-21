@@ -126,6 +126,7 @@
 			self::$instance = $instance;
 
 			$instance->cookies->setDomain(self::$instance->getHost());
+			$instance->cookies->setSecure(self::$instance->isSecure());
 		}
 
 		public function __call($method, $args)
@@ -1866,6 +1867,11 @@
 			$_domain = implode('.', array_slice(explode('.', parse_url($_domain)['path']), -2));
 
 			$this->defaults['domain'] = "." . $_domain;
+		}
+
+		public function setSecure($_secure)
+		{
+			$this->defaults['secure'] = $_secure;
 		}
 
 		public function set($key, $value, $options = array())
