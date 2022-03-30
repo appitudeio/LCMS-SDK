@@ -2099,14 +2099,6 @@
 			if (true === $replace || !isset($this->headers[$key]))
 			{
 				$this->headers[$key] = $values;
-
-				if(is_array($values))
-				{
-					foreach($values AS $value)
-					{
-						Header($key . ": " . $value);
-					}
-				}
 			}
 			else
 			{
