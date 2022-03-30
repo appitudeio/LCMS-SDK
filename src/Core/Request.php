@@ -2100,9 +2100,12 @@
 			{
 				$this->headers[$key] = $values;
 
-				if(!is_array($values))
+				if(is_array($values))
 				{
-					Header($key . ": " . $values);
+					foreach($values AS $value)
+					{
+						Header($key . ": " . $value);
+					}
 				}
 			}
 			else
