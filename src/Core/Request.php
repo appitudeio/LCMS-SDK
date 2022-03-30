@@ -2099,6 +2099,11 @@
 			if (true === $replace || !isset($this->headers[$key]))
 			{
 				$this->headers[$key] = $values;
+
+				if(!is_array($values))
+				{
+					Header($key . ": " . $values);
+				}
 			}
 			else
 			{
