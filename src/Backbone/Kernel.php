@@ -330,7 +330,7 @@
             // Set content type (Coming from Controller)
             if(($content_type = $this->settings['request']->headers->get("Content-type")) && $content_type != "application/x-www-form-urlencoded")
             {
-                Header("Content-type: " . $content_type);
+                $this->settings['request']->headers->set("Content-type", $content_type);
             }
 
             /** 
@@ -339,7 +339,7 @@
             if(isset($this->settings['env']) && $this->settings['env']->get("is_dev"))
             {
                 $page->meta(['robots' => array('noindex', 'nofollow')]);
-                header("X-Robots-Tag: noindex, nofollow");
+                $this->settings['request']->headers->set("X-Robots-Tag", "noindex, nofollow");
             }
             elseif(isset($this->settings['env']) && $robots_node = $this->settings['node']->get("robots"))
             {
@@ -364,7 +364,7 @@
                 if(!empty($robots))
                 {
                     $page->meta(['robots' => $robots]);
-                    header("X-Robots-Tag: " . implode(", ", $robots));
+                    $this->settings['request']->headers->set("X-Robots-Tag", implode(", ", $robots));
                 }
             }
         
