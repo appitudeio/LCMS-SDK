@@ -75,7 +75,7 @@
 					self::getInstance()->data[$key] = array();
 				}
 
-				self::getInstance()->data[$key] += $value;
+				self::getInstance()->data[$key] = array_merge(self::getInstance()->data[$key], $value);
 			}
 			elseif($value instanceof \Closure)
 			{

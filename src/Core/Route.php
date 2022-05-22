@@ -8,7 +8,7 @@
 	use LCMS\Core\Response;
 	use LCMS\Core\Redirect;
 	use LCMS\Core\Locale;
-	use LCMS\Boilerplate\View;
+	use LCMS\Backbone\View;
 	use \Exception;
 
 	class Route
