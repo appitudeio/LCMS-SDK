@@ -90,21 +90,6 @@
 			return self::$connections[$key];
 		}
 
-		/*public static function getInstance()
-		{
-			if(self::$instance == null)
-			{
-				self::$instance = new Static();
-			}
-
-			return self::$instance;
-		}
-
-		public static function instance()
-		{
-			return self::getInstance();
-		}*/
-
 		/**
 		 *	Smart insertQuery which allows an associative array with columns and values.
 		 *		Also, ofcourse, with Binds and prepared statements
