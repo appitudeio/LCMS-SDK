@@ -90,21 +90,6 @@
 			return self::$connections[$key];
 		}
 
-		/*public static function getInstance()
-		{
-			if(self::$instance == null)
-			{
-				self::$instance = new Static();
-			}
-
-			return self::$instance;
-		}
-
-		public static function instance()
-		{
-			return self::getInstance();
-		}*/
-
 		/**
 		 *	Smart insertQuery which allows an associative array with columns and values.
 		 *		Also, ofcourse, with Binds and prepared statements
@@ -128,6 +113,7 @@
 				}
 				elseif(!is_array($data) && strpos(strtolower($data ?? ""), "uuid") === 0)
 				{
+					preg_match('#\((.*?)\)#', $data, $match);
 					$column_value = (in_array(strtolower($data ?? ""), ["uuid", "uuid()"])) ? "UUID_TO_BIN('".Uuid::generate()."')" : "UUID_TO_BIN('".$match[1]."')";
 				}
 				elseif(!is_array($data) && strpos(strtolower($data ?? ""), "point(") === 0)
