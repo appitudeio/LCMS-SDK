@@ -11,6 +11,7 @@
 	 */
 	namespace LCMS\Utils;
 	
+	use LCMS\Core\File;
 	use \Exception;
 	use Aws\S3\S3Client;
 
@@ -59,13 +60,9 @@
 		/**
 		 *
 		 */
-		public static function image($local_file, $to_path = null, $new_filename = null)
+		public static function image(File $local_file, string $to_path = "images", string $new_filename = null)
 		{
-			/*$to = (empty($to_path)) ? "images" : $to_path;
-			$to = ($to[0] == "/") ? substr($to, 1) : $to;
-			$to = ($to[strlen($to) - 1] == "/") ? substr($to, 0, -1) : $to;*/
-
-			self::validate("image", $local_file['tmp_name']);
+			self::validate("image", $local_file);
 
 			return self::uploadToS3($local_file, $to_path, $new_filename);
 		}
@@ -87,47 +84,20 @@
 		/**
 		 *	Type is either file || image
 		 */
-		private static function validate($type, $local_file)
+		private static function validate(string $type, File $local_file): Bool
 		{
 			if(!self::$initialized)
 			{
 				throw new Exception("Uploader needs to be initialized first");
 			}
-
-			// Does it exist?
-			if(!is_file($local_file))
+			elseif(!$local_file->isValid())
 			{
-				throw new Exception("The local file &quot;" . $local_file . "&quot; doesnt exist");
+				throw new Exception($local_file->getErrorMessage());
 			}
-
-			// Validate mimes
-			$finfo = finfo_open(FILEINFO_MIME_TYPE);
-			$file_mime = finfo_file($finfo, $local_file);
-			finfo_close($finfo);
-
-			if(!in_array($file_mime, self::$allowed_mimes[$type]))
+			elseif(!in_array($local_file->getMimeType(), self::$allowed_mimes[$type]))
 			{
-				throw new Exception("Mime &quot;" . $file_mime . "&quot; is not allowed to be uploaded to the server. (File: " . $local_file.")");
+				throw new Exception("Mime type " . $local_file->getMimeType() . " is not allowed to be uploaded to the server. (File: " . $local_file->getClientOriginalName().")");
 			}
-
-			// Validate size
-			$file_size = filesize($local_file) / 1024; // to kb
-
-			if($file_size > self::$validators['max_file_size'])
-			{
-				throw new Exception("The file is too big (".($file_size / 1024)." mb), max allowed file size: " .round(self::$validators['max_file_size'] / 1024) . "mb");
-			}
-
-			// If uploading a image, validate sizes
-			/*if($type == "image")
-			{
-				$image_data = getimagesize($local_file);
-
-				if( $image_data[0] > self::$validators['max_width'] || $image_data[1] < self::$validators['min_height'] || $image_data[1] > self::$validators['max_height'])
-				{
-					throw new Exception("The image is too big, max allowed size: " . self::$validators['max_width'] . "x" . self::$validators['min_height'] . " (is: " . $image_data[0] . "x" . $image_data[1].")");
-				}
-			}*/
 
 			return true;
 		}
@@ -135,37 +105,30 @@
 		/**
 		 *	Generate a new file name, which will be unique
 		 */
-		public static function generateFileName($file = null, $prepend_filename = null)
+		public static function generateFileName(File | string $file = null, string $prepend_filename = null): String
 		{
-			/**
-			 * Incase no destination_name were specified, we generate one.
-			 */
-			$file = (!empty($file) && is_array($file) && isset($file['name'])) ? $file['name'] : ((!empty($file)) ? $file : null);
+			$filename = time();
 
-			if(!empty($file))
+			if(!empty($file) && $file instanceof File)
 			{
-				$path_info = pathinfo($file);
-				
-				$extension = $path_info['extension'];
+				$filename = explode(".", $file->getClientOriginalName())[0];
+				$extension = $file->getClientOriginalExtension();
+			}
+			elseif(!empty($file))
+			{
+				$filename = explode(".", $file)[0];
+				$extension = pathinfo($filename)['extension'];
 			}
 
 			/* Give the filename a unique name */
-			$new_filename = time() . "_" . substr(md5(rand()), 0, 10);
-
-			if(isset($extension))
-			{
-				$new_filename .= "." . $extension;
-			}
-
-			$new_filename = str_replace(" ", "_", $new_filename);
-
+			$new_filename = slug($filename) . "-" . substr(md5(rand()), 0, 5) . ((isset($extension)) ? "." . $extension : "");
 			$new_filename = (!empty($prepend_filename)) ? $prepend_filename . $new_filename : $new_filename;
 
 			return $new_filename;
 		}
 
 		/* Upload image to S3 Bucket */
-		public static function uploadToS3($local_file, $s3_path = null, $new_filename = null)
+		public static function uploadToS3(File $local_file, string $s3_path = null, string $new_filename = null): String
 		{
 			if(!self::$initialized)
 			{
@@ -174,19 +137,18 @@
 
 			$new_filename = (empty($new_filename)) ? self::generateFileName($local_file) : $new_filename;
 
-			$finfo = finfo_open(FILEINFO_MIME_TYPE);
-			$mime = finfo_file($finfo, $local_file['tmp_name']);
-
 			$s3_root_path = (!empty($s3_path)) ? self::$config['bucket_images_root_path'] . "/". $s3_path : self::$config['bucket_images_root_path'];
 			$s3_root_path .= ($s3_root_path[strlen($s3_root_path) - 1] == "/") ? "" : "/"; // Append slash
 
 			// Is this an SVG image?
+			$mime = $local_file->getMimeType();
+
 			if(strpos($mime, "svg") !== false)
 			{
 				$mime .= "+xml";
 			}
 
-			$s3 = S3Client::factory(array(
+			$s3 = new S3Client(array(
 			    'version'	=> "latest",
 			    'region' 	=> self::$config['region'],
 			    'credentials'	=> array(
@@ -198,8 +160,8 @@
 			$s3->putObject(array(
 				'Bucket' 		=> self::$config['bucket'], 
 				'Key' 			=> $s3_root_path . $new_filename, 
-				'SourceFile' 	=> $local_file['tmp_name'], 
-				'ACL' 			=> "public-read", 
+				'SourceFile' 	=> (string) $local_file, 
+				//'ACL' 			=> "public-read", 
 				'ContentType' 	=> $mime
 			));
 
