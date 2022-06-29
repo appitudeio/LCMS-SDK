@@ -1792,6 +1792,7 @@
 			if($this->has("_flash.new"))
 			{
 				$this->forget($this->get("_flash.new"));
+				$this->forget("_flash.new");
 			}
 		}
 
@@ -1809,9 +1810,9 @@
 				return $this->set($key, $value);
 			}
 
-			$keys = (array) $this->get($key);
+			$values = (array) $this->get($key);
 
-			$this->set($key, array_merge($keys, array($key)));
+			$this->set($key, array_unique(array_merge($values, array($value))));
 		}
 
 		public function set($key, $value)
@@ -1827,7 +1828,7 @@
 			{
 				foreach($key AS $k)
 				{
-					unset($_SESSION[$k]);
+					$this->forget($k);
 				}
 			}
 			else
