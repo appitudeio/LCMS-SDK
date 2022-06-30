@@ -13,14 +13,14 @@
 
 		private $collection = array();
 
-		public function add($_identifier, Navigation $_menu): Self
+		public function add(string $_identifier, Navigation $_menu): Self
 		{
 			$this->getInstance()->collection[$_identifier] = $_menu;			
 
 			return $this->getInstance();
 		}
 
-		public function get($_identifier): Navigation
+		public function get(string $_identifier): Navigation
 		{
 			if(!isset($this->getInstance()->collection[$_identifier]))
 			{
@@ -28,6 +28,11 @@
 			}
 
 			return $this->getInstance()->collection[$_identifier];
+		}
+
+		public function has(string $_identifier): Bool
+		{
+			return isset($this->getInstance()->collection[$_identifier]);
 		}
 
 		public function getAll(): Array
@@ -40,7 +45,7 @@
 			return (empty($this->getInstance()->getAll())) ? array() : array_keys($this->getInstance()->collection);
 		}
 
-		public function merge($_menus): Self
+		public function merge(array $_menus): Self
 		{
 			foreach($_menus AS $menu_identifier => $menu_items)
 			{
