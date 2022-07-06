@@ -38,7 +38,7 @@
 		/**
 		 *
 		 */
-		public static function with($key, $value): Self
+		public static function with(string | array $key, $value = null): Self
 		{
 			if(is_array($key))
 			{
