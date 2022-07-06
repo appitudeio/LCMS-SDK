@@ -1812,7 +1812,7 @@
 
 			$values = (array) $this->get($key);
 
-			$this->set($key, array_unique(array_merge($values, array($value))));
+			$this->set($key, array_unique(array_merge($values, array($key, $value))));
 		}
 
 		public function set($key, $value)
