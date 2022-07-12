@@ -38,9 +38,19 @@
 		/**
 		 *
 		 */
-		public static function with($key, $value): Self
+		public static function with(string | array $key, $value = null): Self
 		{
-			Request::session()->flash($key, $value);
+			if(is_array($key))
+			{
+				foreach($key AS $k => $v)
+				{
+					Request::session()->flash($k, $v);
+				}
+			}
+			else
+			{
+				Request::session()->flash($key, $value);
+			}
 
 			return self::getInstance();
 		}
