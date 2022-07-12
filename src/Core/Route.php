@@ -467,7 +467,7 @@
 
 				foreach($matches[0] AS $pattern)
 				{
-					$match = preg_split('/[^[:alnum:]]+/', $pattern)[0];
+					$match = preg_split('/[^[:alnum:]\_]+/', $pattern)[0];
 
 					if(!isset($_arguments[$match]))
 					{
