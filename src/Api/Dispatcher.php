@@ -5,6 +5,8 @@
     namespace LCMS\Api;
 
     use GuzzleHttp\Client as Guzzle;
+    use GuzzleHttp\RequestOptions;
+    use GuzzleHttp\Psr7\Response;
     use GuzzleHttp\Exception\ClientException;
     use \Exception;
 
@@ -12,7 +14,7 @@
     {
         const CLIENT_NAME = 'LCMS-SDK';
         const CLIENT_VERSION = '0.1';
-        const CLIENT_URL = 'https://github.com/oakleaf/lcms-sdk';        
+        const CLIENT_URL = 'https://github.com/appitudeio/lcms-sdk';        
         const API_URL = "https://api.logicalcms.com";
         private $api_key;
         private $options = array(
@@ -57,7 +59,7 @@
             return $response_array;
         }
 
-        private function send(string $_method = "POST", string $_endpoint = "dispatch", array $_data = array()): GuzzleHttp\Psr7\Response
+        private function send(string $_method = "POST", string $_endpoint = "dispatch", array $_data = array()): Response
         {
             $query_data = array(
                 'headers' => array(
@@ -72,7 +74,7 @@
 
             if($_method == "POST")
             {
-                $query_data[GuzzleHttp\RequestOptions::JSON] = $_data;
+                $query_data[RequestOptions::JSON] = $_data;
             }
             else
             {
@@ -85,6 +87,6 @@
         public function setUserAgent(): string
         {
             return self::CLIENT_NAME.'/'.self::CLIENT_VERSION.' (+'.self::CLIENT_URL.')';
-        }        
+        }
     }
 ?>
