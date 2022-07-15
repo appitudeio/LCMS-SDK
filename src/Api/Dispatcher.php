@@ -30,13 +30,14 @@
         }
 
         /**
-         *  
+         *  Dispatches an event, e.g email or SMS
+         *      [string $to, string | int $from] || string $to
          */
-        public function dispatch(string $_event, array $_body): array
+        public function send(string $_event, array | string $_to_from = null, array $_body = null): array
         {
             try
             {
-                $request = $this->send("POST", "/dispatch", $_body + ['event' => $_event]);
+                $request = $this->request("POST", "/dispatch", $_body + ['event' => $_event, 'to' => (is_array($_to_from)) ? $_to_from[0] : $_to_from, 'from' => (is_array($_to_from)) ? $_to_from[1] ?? null : null]);
 
 				if(!$response_array = json_decode((string) $request->getBody(), true))
 				{
@@ -59,7 +60,7 @@
             return $response_array;
         }
 
-        private function send(string $_method = "POST", string $_endpoint = "dispatch", array $_data = array()): Response
+        private function request(string $_method = "POST", string $_endpoint = "dispatch", array $_data = array()): Response
         {
             $query_data = array(
                 'headers' => array(
