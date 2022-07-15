@@ -79,7 +79,7 @@
 			}
 			elseif($value instanceof \Closure)
 			{
-				self::getInstance()->data[$key] = $value();
+				self::getInstance()->data[$key] = $value; //();
 			}
 			else
 			{
