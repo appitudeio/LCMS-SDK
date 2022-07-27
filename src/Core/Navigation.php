@@ -13,6 +13,7 @@
 		private $params;
 		private $root;
 		private $sorted = true;
+		private $active = false;
 		public $items = array();
 
 		function __construct($_identifier)
@@ -66,6 +67,16 @@
 			}
 
 			return $this;
+		}
+
+		public function getActiveKey()
+		{
+			return $this->active;
+		}
+
+		public function setActiveKey(int $_key)
+		{
+			$this->active = $_key;
 		}
 
 		public function remove($_key = null): Void
