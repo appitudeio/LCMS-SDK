@@ -229,10 +229,10 @@
             {
                 return $this->trigger("callback", $response['callback'], $response['parameters'] ?? null);
             }
-            elseif(is_string($response))
+           /* elseif(is_string($response))
             {
                 return $this->trigger("string", $response);
-            }
+            }*/
 
             /**
              *	The Controller has told the View which Nodes to use-
@@ -319,6 +319,10 @@
             elseif($compilation instanceof Response)
             {
                 return $this->trigger("response", $compilation);
+            }
+            elseif(is_string($compilation))
+            {
+                return $this->trigger("string", $compilation);
             }
             
             // Prepare Meta
