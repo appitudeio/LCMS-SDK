@@ -132,14 +132,14 @@
 	    	/**
 	    	 *	Convert $_args('key' => 'value') into $key = 'value'
 	    	 */
-	    	if(!empty(self::getInstance()->data))
-	    	{
-	        	extract(self::getInstance()->data, EXTR_SKIP);
-	        }
-
 	        if(!empty($_data))
 	        {
 	        	extract($_data, EXTR_SKIP);
+	        }
+
+	    	if(!empty(self::getInstance()->data))
+	    	{
+	        	extract(self::getInstance()->data, EXTR_SKIP);
 	        }
 
 	        include self::getInstance()->view_file;
