@@ -139,6 +139,7 @@
 
 			$s3_root_path = (!empty($s3_path)) ? self::$config['bucket_images_root_path'] . "/". $s3_path : self::$config['bucket_images_root_path'];
 			$s3_root_path .= ($s3_root_path[strlen($s3_root_path) - 1] == "/") ? "" : "/"; // Append slash
+			$s3_root_path = ltrim($s3_root_path, "/"); // Remove first slash
 
 			// Is this an SVG image?
 			$mime = $local_file->getMimeType();
