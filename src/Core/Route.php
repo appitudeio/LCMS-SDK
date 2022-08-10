@@ -263,8 +263,8 @@
 	        // Convert the route to a regular expression: escape forward slashes
 	        $_pattern = preg_replace('/\//', '\\/', $_pattern);
 
-	        // Convert variables e.g. {controller} (Allows % for urlencoded strings)
-	        $_pattern = preg_replace('/\{([%a-z_]+)\}/', '(?P<\1>[%a-z0-9-]+)', $_pattern);
+	        // Convert variables e.g. {controller} (Allows %+. for urlencoded strings)
+	        $_pattern = preg_replace('/\{([%a-z_]+)\}/', '(?P<\1>[%a-z0-9-.]+)', $_pattern);
 
 	        // Convert variables with custom regular expressions e.g. {id:\d+}
 	      	//  $_pattern = preg_replace('/\{([a-z]+):([^\}]+)\}/', '(?P<\1>\2)', $_pattern);
