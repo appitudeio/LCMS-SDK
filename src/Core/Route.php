@@ -314,7 +314,7 @@
 			/**
 			 *	Check Middleware
 			 */
-			$middleware = $_route['controller']->middleware($_route['action'] ?? null);
+			$middleware = $_route['controller']->middleware($_route['action'] ?? null, $_route['parameters'] ?? array());
 
             if($middleware === false || ($middleware instanceof Response || $middleware instanceof Redirect || $middleware instanceof View))
             {
