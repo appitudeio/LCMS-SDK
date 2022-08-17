@@ -1290,9 +1290,6 @@
 		 */
 		public function __get($key)
 		{
-			pre($key);
-			die("Wo");
-
 			return array_flatten($this->all(), $key, function () use ($key)
 			{
 				return $this->route($key);
@@ -2738,6 +2735,11 @@
 	     */
 	    protected function convertUploadedFiles(array $files)
 	    {
+			if($this->is_multi($files))
+			{
+				return array_map([$this, "convertUploadedFiles"], $files);
+			}
+
 	        return array_map(function($file)
 	        {
 	            if (is_null($file) || (is_array($file) && empty(array_filter($file))))
@@ -2807,11 +2809,24 @@
 	     */
 	    protected function retrieveItem($source, $key, $default)
 	    {
-	        if (is_null($key)) {
+	        if (is_null($key)) 
+			{
 	            return $this->$source->all();
 	        }
 
 	        return $this->$source->get($key, $default);
 	    }
+
+		protected function is_multi(array $_array) {
+      
+			$rv = array_filter($_array, 'is_array');
+			  
+			if(count($rv) == 0)
+			{
+				return false;
+			}
+			  
+			return true;
+		}
 	}
 ?>
