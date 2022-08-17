@@ -1756,7 +1756,7 @@
 			$keys = array_keys($data);
 			sort($keys);
 
-			if (self::$fileKeys != $keys || !isset($data['name']) || !is_array($data['name']))
+			if (count(array_diff_key(self::$fileKeys, $keys)) > 0 || !isset($data['name']) || !is_array($data['name']))
 			{
 				return $data;
 			}
