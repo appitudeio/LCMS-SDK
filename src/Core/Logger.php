@@ -85,7 +85,7 @@
 		 * @param array $context
 		 * @return void
 		 */
-		public static function emergency($message, array $context = array()): Void
+		public static function emergency($message, array $context = array()): void
 		{
 			self::getInstance()->log(self::EMERGENCY, $message, $context);
 		}
@@ -100,7 +100,7 @@
 		 * @param array $context
 		 * @return void
 		 */
-		public static function alert($message, array $context = array()): Void
+		public static function alert($message, array $context = array()): void
 		{
 			self::getInstance()->log(self::ALERT, $message, $context);
 		}
@@ -114,7 +114,7 @@
 		 * @param array $context
 		 * @return void
 		 */
-		public static function critical($message, array $context = array()): Void
+		public static function critical($message, array $context = array()): void
 		{
 			self::getInstance()->log(self::CRITICAL, $message, $context);
 		}
@@ -127,7 +127,7 @@
 		 * @param array $context
 		 * @return void
 		 */
-		public static function error($message, array $context = array()): Void
+		public static function error($message, array $context = array()): void
 		{
 			self::getInstance()->log(self::ERROR, $message, $context);
 		}
@@ -142,7 +142,7 @@
 		 * @param array $context
 		 * @return void
 		 */
-		public static function warning($message, array $context = array()): Void
+		public static function warning($message, array $context = array()): void
 		{
 			self::getInstance()->log(self::WARNING, $message, $context);
 		}
@@ -154,7 +154,7 @@
 		 * @param array $context
 		 * @return void
 		 */
-		public static function notice($message, array $context = array()): Void
+		public static function notice($message, array $context = array()): void
 		{
 			self::getInstance()->log(self::NOTICE, $message, $context);
 		}
@@ -168,7 +168,7 @@
 		 * @param array $context
 		 * @return void
 		 */
-		public static function info($message, array $context = array()): Void
+		public static function info($message, array $context = array()): void
 		{
 			self::getInstance()->log(self::INFO, $message, $context);
 		}
@@ -180,7 +180,7 @@
 		 * @param array $context
 		 * @return void
 		 */
-		public static function debug($message, array $context = array()): Void
+		public static function debug($message, array $context = array()): void
 		{
 			self::getInstance()->log(self::DEBUG, $message, $context);
 		}
@@ -193,7 +193,7 @@
 		 * @param array $context
 		 * @return void
 		 */
-		public static function log($level, string|ErrorException $message, array $context = array()): Void
+		public static function log($level, string|ErrorException $message, array $context = array()): void
 		{
 			if(!in_array($level, self::getInstance()->levels))
 			{
@@ -279,7 +279,7 @@
         	)) . PHP_EOL;
 
 			// If 'to' still exists
-			if(self::getInstance()->to instanceof Database)
+			if(self::getInstance()->to instanceof Database || (is_object(self::getInstance()->to) && method_exists(self::getInstance()->to, "insert")))
 			{
 				self::getInstance()->to->insert(Env::get("db")['database'].".`lcms_log`", $params);
 			}
@@ -349,21 +349,21 @@
 			return self::getInstance();
 		}
 
-		public static function to(Database | string $_to = null): Self
+		public static function to(mixed $_to = null): self
 		{
 			self::getInstance()->to = $_to;
 
 			return self::getInstance();
 		}
 
-		public static function tag(string $_tag): Self
+		public static function tag(string $_tag): self
 		{
 			self::getInstance()->tag = $_tag;
 
 			return self::getInstance();
 		}
 
-		public static function user($_user): Self
+		public static function user($_user): self
 		{
 			self::getInstance()->user = $_user;
 

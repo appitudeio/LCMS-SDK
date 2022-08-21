@@ -12,6 +12,7 @@
 		protected $route;
 		protected $request;
 		protected $page;
+		private $magic_methods = ['middleware', 'before', 'after', 'first', 'last'];
 
 		function __construct($_route_array, Request $_request = null)
 		{
@@ -36,7 +37,16 @@
 	     */
 	    public function __call($_action, $args)
 	    {
-	        if(!method_exists($this, $_action))
+			if(in_array($_action, $this->magic_methods))
+			{
+				if(!method_exists($this, $_action))
+				{
+					return;
+				}
+
+				return $this->$_action(...$args);
+			}
+	        elseif(!method_exists($this, $_action))
 	        {
 	        	throw new \Exception("Method ".$_action." not found in controller " . get_class($this));
 	        }
@@ -47,25 +57,25 @@
 	     *
 	     * @return void
 	     */
-	    protected function middleware()
+	    /*protected function middleware()
 	    {
-	    }
+	    }*/
 
 	    /**
 	     * After filter - called after an action method.
 	     *
 	     * @return void
 	     */
-	    protected function after()
+	    /*protected function after()
 	    {
-	    }
+	    }*/
 
 	    /**
 	     *
 	     */
-	    protected function first()
+	    /*protected function first()
 	    {	
-	    }
+	    }*/
 
 		public function setPage(Page $_page): Void
 		{

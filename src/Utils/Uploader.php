@@ -28,7 +28,7 @@
 		);
 
 		private static $allowed_mimes = array(
-			'image'	=> array("image/gif", "image/jpeg", "image/jpg", "image/png", "image/svg", "image/webp"),
+			'image'	=> array("image/gif", "image/jpeg", "image/jpg", "image/png", "image/svg", "image/svg+xml", "image/webp"),
 			'file'	=> array(
 				// Basic
 				'text/plain',
@@ -41,7 +41,18 @@
 				'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 				'application/vnd.ms-powerpoint',
 				'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-			)
+			),
+			'font' => array(
+				'font/sfnt', 
+				'application/x-font-ttf',
+				'application/x-font-truetype',
+				'application/x-font-opentype',
+				'application/octet-stream', 
+				'application/vnd.ms-fontobject',
+				'application/vnd.ms-opentype',
+				'application/font-woff',
+				'application/font-woff2'
+			)			
 		);
 
 		public static function init($config)
@@ -70,16 +81,19 @@
 		/** 
 		 *
 		 */
-		public static function file($local_file, $to_path = null, $new_filename = null)
+		public static function file(File $local_file, $to_path = "files", $new_filename = null)
 		{
-			$to = (empty($to_path)) ? "files" : $to_path;
-			$to = ($to[0] == "/") ? substr($to, 1) : $to;
-			$to = ($to[strlen($to) - 1] == "/") ? substr($to, 0, -1) : $to;
+			self::validate("file", $local_file);
 
-			self::validate("file", $local_file['tmp_name']);
-
-			return self::uploadToS3($local_file, $to, $new_filename);
+			return self::uploadToS3($local_file, $to_path, $new_filename);
 		}
+
+		public static function font(File $local_file, $to_path = "fonts", $new_filename = null)
+		{
+			self::validate("font", $local_file);
+
+			return self::uploadToS3($local_file, $to_path, $new_filename);
+		}		
 
 		/**
 		 *	Type is either file || image
@@ -96,7 +110,7 @@
 			}
 			elseif(!in_array($local_file->getMimeType(), self::$allowed_mimes[$type]))
 			{
-				throw new Exception("Mime type " . $local_file->getMimeType() . " is not allowed to be uploaded to the server. (File: " . $local_file->getClientOriginalName().")");
+				throw new Exception("Mime type " . $local_file->getMimeType() . " is not allowed to be uploaded to the server as ".$type." (File: " . $local_file->getClientOriginalName().")");
 			}
 
 			return true;
