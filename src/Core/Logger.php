@@ -33,6 +33,7 @@
 	
 	use \ReflectionClass;
 	use \Exception;
+	use \Error;
 
 	class Logger extends LogLevel
 	{
@@ -392,7 +393,7 @@
 
 		public static function ErrorHandler()
 		{
-			self::getInstance()->error(new ErrorException(func_get_args()));
+			self::getInstance()->critical(new ErrorException(func_get_args()[0]));
 		}
 
 		public static function ExceptionHandler(\Exception | \Error $e)
@@ -423,9 +424,9 @@
 
 		function __construct($error_exception)
 		{
-			if($error_exception instanceof Exception)
+			if($error_exception instanceof Exception || $error_exception instanceof Error)
 			{
-				$this->type 	= "exception";
+				$this->type 	= ($error_exception instanceof Error) ? "error" : "exception";
 				$this->code 	= $error_exception->getCode();
 				$this->message 	= $error_exception->getMessage();
 				$this->file 	= $error_exception->getFile();
