@@ -93,6 +93,12 @@
 			}
 
 			return false;
-		}	
+		}
+
+		public static function isMultidimensionalArray(array $arr): bool
+		{
+			rsort($arr); 
+			return isset($arr[0]) && is_array($arr[0]); 
+		}
 	}
 ?>
