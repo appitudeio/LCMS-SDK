@@ -30,7 +30,6 @@
 	use LCMS\Core\Env;
 	use LCMS\Core\Request;
 	use LCMS\Utils\Singleton;
-	use LCMS\Utils\Toolset;
 	
 	use \ReflectionClass;
 	use \Exception;
@@ -395,11 +394,7 @@
 		public static function ErrorHandler()
 		{
 			$args = func_get_args();
-
-			if(Toolset::isMultidimensionalArray($args))
-			{
-				$args = $args[0];
-			}
+			$args = (isset($args[0]) && $args[0] instanceof Error) ? $args[0] : $args;
 
 			self::getInstance()->error(new ErrorException($args));
 		}
