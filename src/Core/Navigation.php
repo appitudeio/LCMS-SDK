@@ -4,10 +4,13 @@
 	 */
 	namespace LCMS\Core;
 
+	use LCMS\Core\Route;
+
 	use \Exception;
 
 	class Navigation implements \Iterator
 	{
+		private Route $route;
 		private $index = 0;
 		private $currents;
 		private $params;
@@ -21,7 +24,17 @@
 			$this->params = array('identifier' => $_identifier);
 		}
 
-		public function add($_title = null, $_route = null, $_params = null): Self
+		function __invoke(Route $_route = null): self
+		{
+			if(!empty($_route))
+			{
+				$this->route = $_route;
+			}
+
+			return $this;
+		}
+
+		public function add($_title = null, $_route = null, $_params = null): self
 		{
 			$item = array(
 				'key'	=> $this->getCurrentKey() + 1,
@@ -79,13 +92,13 @@
 			$this->active = $_key;
 		}
 
-		public function remove($_key = null): Void
+		public function remove($_key = null): void
 		{
 			$_key = (!empty($_key)) ? $_key : $this->index; 
 			unset($this->items[$_key]);
 		}
 
-		public function group($_callback): Void
+		public function group($_callback): void
 		{
 			$this->currents[] = $this->items[$this->getCurrentKey()];
 
@@ -96,7 +109,7 @@
 			$this->currents = array_values($this->currents);
 		}
 
-		private function getCurrentKey(): Int
+		private function getCurrentKey(): int
 		{
 			return count($this->items) - 1;
 		}
@@ -118,6 +131,11 @@
 				$this->sort();
 			}
 
+			if($this->route)
+			{
+				$this->setActive();
+			}
+
 			$this->index = 0;
 		}
 
@@ -131,7 +149,63 @@
 			return isset($this->root[$this->key()]);
 		}
 
-		public function children($_key = null): Array
+		private function setActive()
+		{
+			// Get whole Route Tree aliases
+			if(!$current_route = $this->route->getCurrentMatched())
+			{
+				return;
+			}
+
+			$current_route_aliases = $this->route->asTreeAliases($current_route);
+
+			foreach(array_filter($this->items, fn($i) => isset($i['route'])) AS $item)
+			{
+				// If direct hit
+				if(!in_array($item['route'], $current_route_aliases))
+				{
+					// Try to grab from children
+					if(!isset($item['children']))
+					{
+						continue;
+					}
+
+					foreach(array_filter(array_map(fn($k) => $this->items[$k], $item['children']), fn($i) => isset($i['route'])) AS $child_item)
+					{
+						if(!in_array($child_item['route'], $current_route_aliases))
+						{
+							continue;
+						}
+
+						$this->items[$child_item['key']]['active'] = true;
+
+						// All parents to become active
+						foreach($this->asTreeParents($child_item['key']) AS $parent_key)
+						{
+							$this->items[$parent_key]['active'] = true;
+						}
+					}
+
+					continue;
+				}
+
+				$this->items[$item['key']]['active'] = true;
+			}
+		}
+
+		private function asTreeParents(int $child_key, array $parents = array()): array // Recursive
+		{
+			$parents[] = $this->items[$child_key]['parent'];
+
+			if(isset($this->items[$this->items[$child_key]['parent']]['parent']))
+			{
+				return $this->asTreeParents($this->items[$child_key]['key'] , $parents);
+			}
+
+			return $parents;
+		}
+
+		public function children($_key = null): array
 		{
 			$_key = (empty($_key)) ? $this->item($this->index)['key'] : $_key;
 
@@ -143,24 +217,57 @@
 			return array_map(fn($k) => $this->item($k), $this->item($_key)['children']);
 		}
 
-		public function items(): Array
+		public function items(): array
 		{
 			return $this->items;
 		}
 
-		public function item($_key): Array | Null
+		public function item($_key): array | null
 		{
-			return $this->items[$_key] ?? null;
+			// Current MenuItem aliases
+			if(!$this->items[$_key] ?? false)
+			{
+				return null;
+			}
+
+			if(isset($this->items[$_key]['parent']))
+			{
+				if($aliases = $this->recursiveParentAlias($this->items[$this->items[$_key]['parent']], (isset($this->items[$_key]['route'])) ? array($this->items[$_key]['route']) : array()))
+				{
+					$this->items[$_key]['aliases'] = $aliases;
+				}
+			}
+			elseif(isset($this->items[$_key]['route']))
+			{
+				$this->items[$_key]['aliases'] = array($this->items[$_key]['route']);
+			}
+
+			return $this->items[$_key];
 		}
 
-		private function sort(): Void
+		private function recursiveParentAlias(array $menu_item, array $aliases): array
+		{
+			if(isset($menu_item['route']))
+			{
+				$aliases[] = $menu_item['route'];
+			}
+
+			if(isset($menu_item['parent']))
+			{
+				return $this->recursiveParentAlias($this->items[$menu_item['parent']], $aliases);
+			}
+
+			return $aliases;
+		}
+
+		private function sort(): void
 		{
 			$this->sorted = true;
 
 			$this->root = $this->sortRecursive($this->root);
 		}
 
-		public function merge($_items): Self
+		public function merge($_items): self
 		{
 			foreach($_items AS $k => $v)
 			{
@@ -196,12 +303,12 @@
 			return $this;
 		}
 
-		public function asArray(): Array
+		public function asArray(): array
 		{
 			return array_merge($this->params, array('items' => $this->items));
 		}
 
-		private function sortRecursive($keys): Array
+		private function sortRecursive($keys): array
 		{
 			$items = array_map(function($key)
 			{
