@@ -5,6 +5,7 @@
 	namespace LCMS\Core;
 
 	use LCMS\Core\Navigation;
+	use LCMS\Core\Route;
 	use \Exception;
 
 	class Navigations
@@ -12,10 +13,11 @@
 		use \LCMS\Utils\Singleton;
 
 		private $collection = array();
+		private $route;
 
 		public function add(string $_identifier, Navigation $_menu): Self
 		{
-			$this->getInstance()->collection[$_identifier] = $_menu;			
+			$this->getInstance()->collection[$_identifier] = $_menu;
 
 			return $this->getInstance();
 		}
@@ -27,7 +29,7 @@
 				throw new Exception("Menu ".$_identifier." does not exist among " . implode(", ", array_keys($this->collection)));
 			}
 
-			return $this->getInstance()->collection[$_identifier];
+			return $this->getInstance()->collection[$_identifier]($this->route);
 		}
 
 		public function has(string $_identifier): Bool
@@ -53,6 +55,11 @@
 			}
 
 			return $this->getInstance();
+		}
+
+		public function setRoute(Route $_route)
+		{
+			$this->route = $_route;
 		}
 	}
 ?>
