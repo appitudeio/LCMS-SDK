@@ -4,34 +4,27 @@
 	 */
 	namespace LCMS\Core;
 
+	use LCMS\Utils\Singleton;
+
 	use \Exception;
 
 	class Env
 	{
+		use Singleton;
+
 		const TYPE_INPUT		= 1;
 		const TYPE_BOOL 		= 2;
 		const TYPE_PROTECTED 	= 999;
 
-		private static $instance;
 		private $parameters = array();
 
-		public static function getInstance(): Self
-		{
-			if(self::$instance == null)
-			{
-				self::$instance = new static();
-			}
-
-			return self::$instance;
-		}
-
-		public static function get($_key): String | Array
+		public static function get($_key, $_default_value = null): mixed
 		{
 			$_key = strtolower($_key);
 			
 			if(!isset(self::getInstance()->parameters[$_key]))
 			{
-				return "";
+				return $_default_value;
 			}
 
 			if(is_string(self::getInstance()->parameters[$_key]))
@@ -50,16 +43,14 @@
 			}
 
 			return self::getInstance()->parameters[$_key];
-
-			//return (isset(self::getInstance()->parameters[$_key][0]) && is_array(self::getInstance()->parameters[$_key][0])) ? self::getInstance()->parameters[$_key][0] : self::getInstance()->parameters[$_key];
 		}
 
-		public static function set($_key, $_value): Void
+		public static function set($_key, $_value): void
 		{
 			self::getInstance()->parameters[strtolower($_key)] = $_value;
 		}
 
-		public function merge($_params): Self
+		public function merge(array $_params): self
 		{
 			foreach($_params AS $k => $v)
 			{
@@ -72,7 +63,7 @@
 		/**
 		 *	Never return DB nor protected assets
 		 */
-		public static function getAll(): Array
+		public static function getAll(): array
 		{
 			$return = array_filter(self::getInstance()->parameters, fn($e) => !isset($e[1]) || $e[1] != 999);
 
