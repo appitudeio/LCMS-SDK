@@ -12,35 +12,21 @@
 
     class Dispatcher
     {
+        const CLIENT_NAME = "LCMS-SDK";
+        const CLIENT_VERSION = "0.1-beta";
+        const CLIENT_URL = "https://github.com/appitudeio/lcms-sdk";
+        
         private $methods = array("send", "email", "sms", "slack"); //, "push");
         private $urls = array(
             'production' => "https://api.logicalcms.com",
             'sandbox' => "https://api-sandbox.logicalcms.com"
         );
-        private $mode = "sandbox";
-
-        const CLIENT_NAME = "LCMS-SDK";
-        const CLIENT_VERSION = "0.1-beta";
-        const CLIENT_URL = "https://github.com/appitudeio/lcms-sdk";
-        
         private $api_key;
         private $options = array();
-        private $client;
-
+    
         function __construct(string $_api_key, array $_options = array())
         {
-            // Depending on which api_key that comes in, decides mode
-            if(!str_starts_with($_api_key, "live_") && !str_starts_with($_api_key, "test"))
-            {
-                throw new Exception("Dispatcher ApiKey requires to start with test_ || live_");
-            }
-            else if(str_starts_with($_api_key, "live_"))
-            {
-                $this->mode = "production";
-            }
-
             $this->api_key = $_api_key;
-            $this->client = new Guzzle(['base_uri' => $this->urls[$this->mode]]);
             $this->options = array_replace_recursive($this->options, $_options, ['headers' => ['User-Agent' => $this->setUserAgent()]]);
         }
 
@@ -48,8 +34,14 @@
         {
             $time_start = microtime(true);
             $_method = strtolower($_method);
+            $mode = "sandbox";
 
-            if(!in_array($_method, $this->methods))
+            // Depending on which api_key that comes in, decides mode
+            if(!str_starts_with($this->api_key, "live_") && !str_starts_with($this->api_key, "test"))
+            {
+                throw new Exception("Dispatcher ApiKey requires to start with test_ || live_");
+            }
+            elseif(!in_array($_method, $this->methods))
             {
                 throw new Exception("Dispatch method ".$_method." not allowed (".implode(", ", $this->methods).")");
             }
@@ -60,6 +52,10 @@
             elseif(false == preg_match("/^[A-Za-z0-9_]*$/", $event))
             {
                 throw new Exception("Event [".$event."] contains non alpha-numeric(_) characters");
+            }
+            else if(str_starts_with($this->api_key, "live_"))
+            {
+                $mode = "production";
             }
 
             $query_data = array_replace_recursive(array(
@@ -80,7 +76,9 @@
 
             try
             {
-                $request = $this->client->post("dispatch/" . $event . (($_method == "send") ? null : "/" . $_method), $query_data);
+                $client     = new Guzzle(['base_uri' => $this->urls[$mode]]);
+                $endpoint   = "dispatch/" . $event . (($_method == "send") ? null : "/" . $_method);
+                $request    = $client->post($endpoint, $query_data);
 
 				if(!$response_array = json_decode((string) $request->getBody(), true))
 				{
@@ -116,6 +114,7 @@
         public function debug(): self
         {
             $this->options['debug'] = true;
+            
             return $this;
         }
     }
