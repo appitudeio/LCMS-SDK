@@ -501,12 +501,9 @@
 			
 			$url = rtrim("/" . implode("/", $url_parts), "/");
 
-			if(!empty($_arguments) && $_arguments = array_filter($_arguments, fn($value) => !is_null($value) && $value !== ""))
+			if(!empty($_arguments) && $_arguments = array_filter($_arguments))
 			{
-				if(!empty($_arguments))
-				{
-					$url .= "?" . http_build_query($_arguments);
-				}
+				$url .= "?" . http_build_query($_arguments);
 			}
 
 			if(!$_absolute)
@@ -514,7 +511,7 @@
 				return $url;
 			}
 
-			return self::getInstance()->request->root() . $url;
+			return self::getInstance()->request->root() . "/" . ltrim($url, "/");
 		}
 
 		/**
