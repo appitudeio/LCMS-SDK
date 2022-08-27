@@ -186,6 +186,7 @@
 				}
 				elseif(!is_array($data) && strpos(strtolower($data ?? ""), "uuid") === 0)
 				{
+					preg_match('#\((.*?)\)#', $data, $match);
 					$column_value = (in_array(strtolower($data ?? ""), ["uuid", "uuid()"])) ? "UUID_TO_BIN('".Uuid::generate()."')" : "UUID_TO_BIN('".$match[1]."')";
 				}
 				elseif(!is_array($data) && strpos(strtolower($data ?? ""), "point(") === 0)
@@ -447,7 +448,7 @@
 				return self::$connections[0]; //count(self::$connections) - 1];
 			}
 			
-			return $connection;
+			throw new Exception("No counntions found (last");
 		}
 
 		public function isConnected()
@@ -477,7 +478,7 @@
 
 	class PDOStatement extends \PDOStatement
 	{
-		public function as(String $obj) : Array
+		public function as(string $obj): array
 		{
 			$rows = $this->fetchAll(PDO::FETCH_ASSOC|PDO::FETCH_UNIQUE);
 
@@ -486,15 +487,21 @@
 				return array();
 			}
 
-			return array_combine(array_keys($rows), array_map(fn($row, $id) => (new $obj(['id' => $id] + $row)), $rows, array_keys($rows)));
+			// Return as a built in static function
+			if(str_contains($obj, "::"))
+			{
+				return array_combine(array_keys($rows), array_map(fn($row, $id) => $obj(['id' => $id] + $row), $rows, array_keys($rows)));
+			}
+
+			return array_combine(array_keys($rows), array_map(fn($row, $id) => new $obj(['id' => $id] + $row), $rows, array_keys($rows)));
 		}
 
-		public function asArray() : Array
+		public function asArray(): array
 		{
 			return $this->fetchAll(PDO::FETCH_ASSOC);
 		}
 
-		public function asKeyValue() : Array
+		public function asKeyValue(): array
 		{
 			return $this->fetchAll(PDO::FETCH_KEY_PAIR);
 		}
