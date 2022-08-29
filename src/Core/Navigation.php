@@ -10,7 +10,7 @@
 
 	class Navigation implements \Iterator
 	{
-		private Route $route;
+		private $route;
 		private $index = 0;
 		private $currents;
 		private $params;
