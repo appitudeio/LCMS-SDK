@@ -145,10 +145,10 @@
              *  Set language
              *  - If we successfully set a new language through the URL, remove it from the Request
              */
-            if(isset($this->settings['env']))
+            if(isset($this->settings['env'], $this->settings['paths'], $this->settings['paths']['i18n']))
             {
                 $self = $this;
-                $this->settings['locale']->setFrom($this->settings['request'], function($new_language) use ($self)
+                $this->settings['locale']->setFrom($this->settings['request'], $this->settings['paths']['i18n'], function($new_language) use ($self)
                 {
                     if($new_language == $self->settings['env']->get("default_language"))
                     {

@@ -22,11 +22,11 @@
 		/**
 		 *	Parse Locale from URL
 		 */
-		public static function setFrom(Request $_request, $_callback = null)
+		public static function setFrom(Request $_request, string $i18n_path, \Closure $_callback = null)
 		{
 			$segments = $_request->segments();
 
-			if(!empty($segments) && strlen($segments[0]) == 2 && is_file(ROOT_PATH . "/i18n/" . strtolower($segments[0]).".ini"))
+			if(!empty($segments) && strlen($segments[0]) == 2 && is_file($i18n_path . "/" . strtolower($segments[0]).".ini"))
 			{
 				self::getInstance()->language = strtolower($segments[0]);
 
