@@ -16,7 +16,7 @@
 		private $params;
 		private $root;
 		private $sorted = true;
-		private $active = false;
+		private $active_keys = array();
 		public $items = array();
 
 		function __construct($_identifier)
@@ -82,14 +82,19 @@
 			return $this;
 		}
 
-		public function getActiveKey()
+		public function getActiveKey(): int
 		{
-			return $this->active;
+			return $this->active_keys[array_key_last($this->active_keys)];
 		}
 
-		public function setActiveKey(int $_key)
+		public function getActiveKeys(): array
 		{
-			$this->active = $_key;
+			return $this->active_keys;	
+		}
+
+		public function setActiveKey(int $_key): void
+		{
+			$this->active_keys[] = $_key;
 		}
 
 		public function remove($_key = null): void
@@ -133,9 +138,9 @@
 
 			if($this->route)
 			{
-				$this->setActive();
+				$this->sortActive();
 			}
-
+			
 			$this->index = 0;
 		}
 
@@ -149,7 +154,7 @@
 			return isset($this->root[$this->key()]);
 		}
 
-		private function setActive()
+		private function sortActive()
 		{
 			// Get whole Route Tree aliases
 			if(!$current_route = $this->route->getCurrentMatched())
@@ -178,6 +183,7 @@
 						}
 
 						$this->items[$child_item['key']]['active'] = true;
+						$this->setActiveKey($child_item['key']);
 
 						// All parents to become active
 						foreach($this->asTreeParents($child_item['key']) AS $parent_key)
@@ -190,6 +196,7 @@
 				}
 
 				$this->items[$item['key']]['active'] = true;
+				$this->setActiveKey($item['key']);
 			}
 		}
 
@@ -205,7 +212,7 @@
 			return $parents;
 		}
 
-		public function children($_key = null): array
+		public function children(int $_key = null): array
 		{
 			$_key = (empty($_key)) ? $this->item($this->index)['key'] : $_key;
 
@@ -222,10 +229,10 @@
 			return $this->items;
 		}
 
-		public function item($_key): array | null
+		public function item(int $_key): array | null
 		{
 			// Current MenuItem aliases
-			if(!$this->items[$_key] ?? false)
+			if(!($this->items[$_key] ?? false))
 			{
 				return null;
 			}
