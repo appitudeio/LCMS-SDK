@@ -94,7 +94,7 @@
 			$this->instance = $_instance;		
 		}
 
-		protected function prepare($_storage): Self
+		protected function prepare($_storage): self
 		{
 			$this->storage = $_storage;
 
@@ -114,18 +114,18 @@
 			throw new Exception("Invalid preparation storage: " . $_storage);
 		}
 
-		protected function prepareFromDatabase(DB $db): Self
+		protected function prepareFromDatabase(DB $db): self
 		{}
 
-		protected function prepareFromArray($_array): Self
+		protected function prepareFromArray($_array): self
 		{}		
 
-		protected function prepareFromFile($_file): Self
+		protected function prepareFromFile($_file): self
 		{
 			throw new Exception(get_class($this) . " cant prepare from File");
 		}
 
-		protected function store($_what, $_into = null): Self
+		protected function store($_what, $_into = null): self
 		{
 			throw new Exception(get_class($this) . " does not support storage");
 		}
@@ -135,7 +135,7 @@
 			return $this->prepare($_storage)->execute($_storage);
 		}
 
-		protected function execute($_storage): Mixed
+		protected function execute($_storage): mixed
 		{
 			return $this->instance;
 		}	
@@ -147,7 +147,7 @@
 		public $properties;
 		private $unmergers;
 		
-		protected function prepareFromFile($_file): Self
+		protected function prepareFromFile($_file): self
 		{
 			$this->nodes = array();
 			$this->properties = array();
@@ -156,7 +156,7 @@
 			return $this->prepareFromIni($_file);
 		}
 
-		protected function prepareFromDatabase(DB $db): Self
+		protected function prepareFromDatabase(DB $db): self
 		{
 			$this->nodes = array();
 			$this->properties = array();
@@ -192,7 +192,18 @@
 
 				if(empty($node['route_id']))
 				{
-					$identifier = array("global" => array($identifier => $value));
+					if(str_contains($identifier, "."))
+					{
+						$array = array();
+						Arr::unflatten($array, $identifier, $value);
+
+						$identifier = array("global" => $array);
+						unset($array);
+					}
+					else
+					{
+						$identifier = array("global" => array($identifier => $value));
+					}
 				}
 				elseif($this->instance::$namespace != null)
 				{
@@ -201,7 +212,7 @@
 
 					$identifier = array(($this->instance::$namespace['alias'] ?? $this->instance::$namespace['pattern']) => $array);
 					unset($array);
-				}				
+				}
 
 				if(!empty($node['loop_id']))
 				{
@@ -287,7 +298,7 @@
 			return $db::fetch_assoc($query);
 		}		
 
-		public function store($_what, $_into = null): Self
+		public function store($_what, $_into = null): self
 		{
 			if($_into instanceof DB || (!empty($this->storage) && $this->storage instanceof DB))
 			{
@@ -301,7 +312,7 @@
 			throw new Exception("Unexpected storage: " . ($_into ?? "No storage-file defined"));
 		}
 
-		private function storeToDatabase(DB $db, $_nodes): Self
+		private function storeToDatabase(DB $db, $_nodes): self
 		{
 			/**
 			 *	Find out if a loop
@@ -374,7 +385,7 @@
 			return $this;
 		}
 
-		private function storeToIni($_nodes): Self
+		private function storeToIni($_nodes): self
 		{
 			if(!is_writable($this->storage['filename']))
 			{
@@ -507,7 +518,7 @@
 			return true;
 		}
 
-		private function prepareFromIni($_file): Self
+		private function prepareFromIni($_file): self
 		{
 			$file_content = parse_ini_file($_file, true);
 
@@ -541,7 +552,7 @@
 			return $this;
 		}
 
-		protected function prepareFromArray($_array): Self
+		protected function prepareFromArray($_array): self
 		{
 			$flattened_array = Arr::flatten($_array);
 
@@ -605,7 +616,7 @@
 			});*/
 		}
 
-		private function buildNode($row)
+		private function buildNode($row): array
 		{
 			return array_merge($row, array(
 				'content'		=> (!empty($row['content'])) ? json_decode($row['content'], true) : null,
@@ -624,7 +635,7 @@
 		/**
 		 *	Only GET-routes
 		 */
-		protected function prepareFromDatabase(DB $db): Self
+		protected function prepareFromDatabase(DB $db): self
 		{
 			$this->instance::bindControllerRoutes();
 
@@ -645,7 +656,7 @@
 			return $this;
 		}
 
-		private function pair($system_route)
+		private function pair($system_route): array
 		{
 			foreach($this->database_routes AS $k => $lcms_route)
 			{
@@ -661,7 +672,7 @@
 			return $system_route;
 		}
 
-		private function createRoute(DB $db, $_route)
+		private function createRoute(DB $db, $_route): int
 		{
 			$snapshot = array(
 				'pattern' => $_route['org_pattern'] ?? $_route['pattern']
@@ -695,7 +706,7 @@
 			return $db::last_insert_id();
 		}
 
-		private function buildRoute($row)
+		private function buildRoute($row): array
 		{
 			if(isset($row['parameters']) && !empty($row['parameters']) && !is_array($row['parameters']))
 			{
@@ -872,7 +883,7 @@
 			return $this->instance->merge($this->system_routes);
 		}
 
-		private function storeToDatabase(DB $db, $_settings): Self
+		private function storeToDatabase(DB $db, $_settings): self
 		{
 			$settings = array(Locale::getLanguage() => array());
 
@@ -894,7 +905,7 @@
 			return $this;
 		}
 
-		public function store($_what, $_into = null): Self
+		public function store($_what, $_into = null): self
 		{
 			$_into = $_into ?? $this->storage;
 
@@ -912,7 +923,7 @@
 		private $database_navs = array();
 		private $system_navs = array();
 
-		protected function prepareFromDatabase(DB $db): Self
+		protected function prepareFromDatabase(DB $db): self
 		{
 			$this->system_navs = $this->instance->getAll();
 
@@ -969,7 +980,7 @@
 			return $system_nav_item;
 		}
 
-		private function createNavItem(DB $db, $_nav_identifier, $_nav_item, $_parent_id = null)
+		private function createNavItem(DB $db, $_nav_identifier, $_nav_item, $_parent_id = null): array
 		{
 			$db::insert(Env::get("db")['database'].".`lcms_navigations`", array(
 				'navigation' 	=> $_nav_identifier,
@@ -1091,7 +1102,7 @@
 			return $this->instance->merge($system_items);
 		}
 
-		private function buildNavItem($row)
+		private function buildNavItem($row): array
 		{
 			if(isset($row['title']) && !empty($row['title']) && !is_array($row['title']))
 			{
@@ -1267,21 +1278,21 @@
 		private $excluded_keys = ['is_dev', 'db'];
 		private $items;
 
-		protected function prepareFromFile($_file): Self
+		protected function prepareFromFile($_file): self
 		{
 			$this->items = require($_file);
 
 			return $this;
 		}
 
-		protected function prepareFromArray($_array): Self
+		protected function prepareFromArray($_array): self
 		{
 			$this->items = (empty($this->items)) ? $_array : array_merge($this->items, $_array);
 
 			return $this;
 		}
 
-		protected function prepareFromDatabase(DB $db): Self
+		protected function prepareFromDatabase(DB $db): self
 		{
 			$query = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_settings` WHERE `key` NOT IN('".implode("', '", $this->excluded_keys)."')");
 

@@ -86,8 +86,8 @@
                 'type'         => $this->identifyNodeType($el->attr['type'] ?? $el->tag ?? null),
                 'properties'   => $this->getPropertiesFromNode($el),
                 'identifier'   => $key,
-                'content'      => $el->attr['src'] ?? $el->innertext ?? null, // Fallback text from document
-                'global'       => $el->attr['global'] ?? false
+                'content'      => $el->attr['src'] ?? (string) $el->innertext ?? "", // Fallback text from document
+                'global'       => array_key_exists("global", $el->attr)
             ));
 
 			foreach($this->elements[self::ELEMENT_UNIDENTIFIED] AS $key => $element)
