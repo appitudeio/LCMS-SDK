@@ -269,7 +269,7 @@
 
 	        // Convert variables with custom regular expressions e.g. {id:\d+}
 	      	//  $_pattern = preg_replace('/\{([a-z]+):([^\}]+)\}/', '(?P<\1>\2)', $_pattern);
-	        $_pattern = preg_replace('/\{([a-z]+):([^\']+)\}/', '(?P<\1>\2)', $_pattern);
+	        $_pattern = preg_replace('/\{([a-z_]+):([^\']+)\}/', '(?P<\1>\2)', $_pattern);
 
 	        // Add start and end delimiters, and case insensitive flag
 	      	return '/^' . $_pattern . '$/i';
