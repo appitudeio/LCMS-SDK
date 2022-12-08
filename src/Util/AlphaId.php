@@ -17,7 +17,7 @@
  *
  * @return mixed string or long
  */
-  namespace LCMS\Utils;
+  namespace LCMS\Util;
 
   class AlphaId
   {

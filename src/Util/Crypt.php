@@ -7,7 +7,7 @@
 	 * 	@author     Mathias Eklöf <mathias@appitude.io>
 	 *	@created 	2019-04-16
 	 */
-	namespace LCMS\Utils;
+	namespace LCMS\Util;
 
 	use \Exception;
 	use \RangeException;

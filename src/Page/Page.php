@@ -2,14 +2,15 @@
 	/**
 	 *
 	 */
-	namespace LCMS\Backbone;
+	namespace LCMS\Page;
 
+	use LCMS\DI;
 	use LCMS\Core\Request;
 	use LCMS\Core\Node;
 	use LCMS\Core\Locale;
-	use LCMS\Backbone\View;
-	use LCMS\Backbone\SEO;
-	use LCMS\Utils\Arr;
+	use LCMS\View;
+	use LCMS\Page\SEO;
+	use LCMS\Util\Arr;
 	use \Exception;
 
 	class Page
@@ -19,13 +20,21 @@
 		public $action;
 		private $compilation;
 		private $route;
+		private $locale;
 		private $settings = array();
 		private $meta = array(
 			'title'			=> null,
 			'description'	=> null
 		);
 
-		function __construct($_route_array)
+		function __construct(Locale $locale)
+		{
+			$this->locale = $locale;
+
+			DI::injectOn($this);
+		}
+
+		public function init(array $_route_array): self
 		{
 			$this->controller 	= $_route_array['controller'];
 			$this->action 		= $_route_array['action'];
@@ -46,20 +55,22 @@
 			{
 				$this->settings($_route_array['settings']);
 			}
+
+			return $this;
 		}
 
 		/**
 		 * 	
 		 */
-		private function initMeta(View $_view): Self
+		public function initMeta(View $_view, SEO $seo, Node $node, Request $request): Self
 		{
 			// Meta built by Controller -> i18n -> DB 
-			$meta = array_replace_recursive(Node::get("meta") ?: array(), array_filter($this->meta));
-			$meta['canonical_url'] = $meta['canonical_url'] ?? Request::getInstance()->url();
+			$meta = array_replace_recursive($node->get("meta") ?: array(), array_filter($this->meta));
+			$meta['canonical_url'] = $meta['canonical_url'] ?? $request->url();
 
 			if(isset($meta['robots']))
 			{
-				SEO::metatags()->setRobots((is_array($meta['robots'])) ? implode(", ", $meta['robots']) : $meta['robots']);
+				$seo->metatags()->setRobots((is_array($meta['robots'])) ? implode(", ", $meta['robots']) : $meta['robots']);
 				unset($meta['robots']);
 			}
 
@@ -73,48 +84,48 @@
 					return (empty($viewData)) ? array() : (($viewData = Arr::flatten($viewData)) ? array_combine(array_map(fn($k) => "{{" . $k . "}}", array_keys($viewData)), $viewData) : array());
 				})();
 
-				array_walk($meta, fn($v, $k) => Node::set("meta." . $k, ((!empty($extendable_data) && !empty($v) && str_contains($v, "{{")) ? strtr($v, $extendable_data) : ((is_null($v) && $node = Node::get("meta." . $k)) ? Node::get("meta." . $k)->text() : (string) $v))));
+				array_walk($meta, fn($v, $k) => $node->set("meta." . $k, ((!empty($extendable_data) && !empty($v) && str_contains($v, "{{")) ? strtr($v, $extendable_data) : ((is_null($v) && $node = $node->get("meta." . $k)) ? $node->get("meta." . $k)->text() : (string) $v))));
 		
 				foreach($meta AS $key => $value)
 				{
 					if(match($key)
 					{
-						"title" 		=> SEO::setTitle($value),
-						"description" 	=> SEO::setDescription($value),
-						"canonical_url" => SEO::setCanonical($value) && SEO::openGraph()->addProperty("url", $value),
+						"title" 		=> $seo->setTitle($value),
+						"description" 	=> $seo->setDescription($value),
+						"canonical_url" => $seo->setCanonical($value) && $seo->openGraph()->addProperty("url", $value),
 						default 		=> "unhandled"
 					} == "unhandled" && str_starts_with($key, "og:"))
 					{
 						if($key == "og:image")
 						{
-							SEO::setImage($value);
+							$seo->setImage($value);
 						}
 						else
 						{
-							SEO::openGraph()->addProperty(str_replace("og:", "", $key), $value);
+							$seo->openGraph()->addProperty(str_replace("og:", "", $key), $value);
 						}
 					}
 				}
 
-				if(!isset(SEO::openGraph()->getProperties()['type']))
+				if(!isset($seo->openGraph()->getProperties()['type']))
 				{
-					SEO::openGraph()->addProperty("type", "website");
+					$seo->openGraph()->addProperty("type", "website");
 				}
 			}
 			
 			return $this;
 		}
 
-		public function setParameters(Array $_params): Self
+		public function setParameters(array $_params): self
 		{
 			$this->parameters = (!empty($this->parameters)) ? array_merge($this->parameters, $_params) : $_params;
 
 			return $this;
 		}
 
-		public function meta(Array $_meta): Self
+		public function meta(array $_meta): self
 		{
-			$_meta = array_filter($_meta[Locale::getLanguage()] ?? $_meta);
+			$_meta = array_filter($_meta[$this->locale->getLanguage()] ?? $_meta);
 
 			if(!empty($_meta))
 			{
@@ -124,9 +135,9 @@
 			return $this;
 		}
 
-		public function settings(Array $_settings)
+		public function settings(array $_settings): self
 		{
-			$_settings = (!isset($_settings[Locale::getLanguage()])) ? array(Locale::getLanguage() => $_settings) : $_settings;
+			$_settings = (!isset($_settings[$this->locale->getLanguage()])) ? array($this->locale->getLanguage() => $_settings) : $_settings;
 			
 			if(!empty($this->settings))
 			{
@@ -140,61 +151,61 @@
 			return $this;
 		}
 
-		public function setting(string $_key, $_value = null)
+		public function setting(string $_key, mixed $_value = null): mixed
 		{
 			if(!empty($_value))
 			{
 				// Set
-				if(!isset($this->settings[Locale::getLanguage()]))
+				if(!isset($this->settings[$this->locale->getLanguage()]))
 				{
-					$this->settings[Locale::getLanguage()] = array();
+					$this->settings[$this->locale->getLanguage()] = array();
 				}
 
-				if(isset($this->settings[Locale::getLanguage()][$_key], $this->settings[Locale::getLanguage()][$_key]['value']))
+				if(isset($this->settings[$this->locale->getLanguage()][$_key], $this->settings[$this->locale->getLanguage()][$_key]['value']))
 				{
-					$this->settings[Locale::getLanguage()][$_key]['value'] = $_value;
+					$this->settings[$this->locale->getLanguage()][$_key]['value'] = $_value;
 				}
 				else
 				{
-					$this->settings[Locale::getLanguage()][$_key] = $_value;
+					$this->settings[$this->locale->getLanguage()][$_key] = $_value;
 				}
 
 				return true;
 			}
 			
 			// Get ('value' == coming from db, w/o value, coming from Page)
-			if(!$setting = $this->settings[Locale::getLanguage()][$_key]['value'] ?? $this->settings[Locale::getLanguage()][$_key] ?? false)
+			if(!$setting = $this->settings[$this->locale->getLanguage()][$_key]['value'] ?? $this->settings[$this->locale->getLanguage()][$_key] ?? false)
 			{
-				$this->settings[Locale::getLanguage()][$_key] = false;
+				$this->settings[$this->locale->getLanguage()][$_key] = false;
 			}
 
 			return $setting;
 		}
 
-		public function getSettings(): Array
+		public function getSettings(): array
 		{
-			return $this->settings[Locale::getLanguage()] ?? $this->settings;
+			return $this->settings[$this->locale->getLanguage()] ?? $this->settings;
 		}
 
-		public function compile()
+		public function compile(): mixed
 		{
             $action = $this->action;
 
 			// Returns HTML from View
-			$this->controller->setPage($this);
-			
+			//$this->controller->setPage($this);
+
            	$this->compilation = $this->controller->$action(...array_values($this->parameters));
 
            	if(empty($this->compilation))
            	{
            		throw new Exception("Return value from controller cant be Void");
            	}
-
+			
 			// Since this is a HTML-rendered page
-           	if($this->compilation instanceof View)
+           	/*if($this->compilation instanceof View)
            	{
            		$this->compilation->setPage($this);
-			}
+			}*/
 
             $this->controller->after(); // Cleanup
 
@@ -233,7 +244,7 @@
 
 			if($this->compilation instanceof View)
 			{
-				$this->initMeta($this->compilation); // After Local, then Page and lastly DB	
+				DI::call([$this, "initMeta"], [$this->compilation]); // After Local, then Page and lastly DB	
 			}
 
 			// If any meta-data to take care about (Before the Controller may overwrite it)

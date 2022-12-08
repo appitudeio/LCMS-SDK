@@ -7,7 +7,7 @@
 	 * 
 	 * 	Comes from: https://github.com/Romano83/akismet
 	 */
-	namespace LCMS\Utils;
+	namespace LCMS\Util;
 
 	use LCMS\Core\Request;
 	use GuzzleHttp\Client;

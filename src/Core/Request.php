@@ -9,11 +9,12 @@
 	namespace LCMS\Core;
 
 	use LCMS\Core\File;
+	use LCMS\Util\Singleton;
 	use \Exception;
 
 	class Request
 	{
-		use InteractsWithInput, \LCMS\Utils\Singleton;
+		use InteractsWithInput, Singleton;
 
 		const METHOD_HEAD 		= "HEAD";
 		const METHOD_GET 		= "GET";
@@ -161,9 +162,14 @@
 		/**
 		 *	Strip first part of the segment
 		 */
-		public function setLanguage($_language)
+		public function setLanguage(string $_language): void
 		{
-			$this->server->set('REQUEST_URI', "/" . ltrim($this->server->get("REQUEST_URI"), "/" . $_language));
+			$this->appendUrl($_language);
+		}
+
+		public function appendUrl(string $_string): void
+		{
+			$this->server->set('REQUEST_URI', str_replace("/" . $_string, "", $this->server->get("REQUEST_URI")));
 
 			$this->pathInfo = null; // So the pathInfo gets re-used
 			$this->requestUri = null;

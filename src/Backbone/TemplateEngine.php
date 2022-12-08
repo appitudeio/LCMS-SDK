@@ -5,7 +5,7 @@
 	namespace LCMS\Backbone;
 
 	use LCMS\Core\Node;
-    use LCMS\Utils\SimpleHtmlDom;
+    use LCMS\Util\SimpleHtmlDom;
 
     use \Closure;
 	use \Exception;
@@ -18,7 +18,7 @@
         private $elements;
         private $document;
 
-		public function parse(String $_string, Closure $_unidentfied_nodes_collector = null): SimpleHtmlDom | String
+		public function parse(string $_string, Closure $_unidentfied_nodes_collector = null): SimpleHtmlDom | string
 		{
             if(!$this->document = SimpleHtmlDom::string($_string))
             {
@@ -120,9 +120,9 @@
 		}
 
         /**
-         *  Handles \LCMS\Utils\SimpleHtmlDom subclass HtmlNode
+         *  Handles \LCMS\Util\SimpleHtmlDom subclass HtmlNode
          */
-        private function handleLoop(Object $loop_element): Void
+        private function handleLoop(object $loop_element): void
         {
             // Items found, let's put them into the loop (Merge with nodes)
             if(false === $node = Node::get($loop_element->attr['name']))
@@ -177,11 +177,11 @@
         }
 
         /**
-         *  Handles \LCMS\Utils\SimpleHtmlDom subclass HtmlNode
+         *  Handles \LCMS\Util\SimpleHtmlDom subclass HtmlNode
          *  
          *  @return HtmlNode with modified content
          */
-        private function parseElement(Object $element, String $parent = null, Int $key = null): Void
+        private function parseElement(object $element, string $parent = null, int $key = null): void
         {
             $is_meta = (in_array($element->tag, ["meta", "title"]) || str_starts_with($element->attr['name'], "meta.")) ? true : false;
 
@@ -291,7 +291,7 @@
             }
         }        
 
-        private function getPropertiesFromNode(Object $_element): Null | Array
+        private function getPropertiesFromNode(object $_element): null | array
         {
             $type = $this->identifyNodeType($_element->attr['type'] ?? $_element->tag ?? null);
 
@@ -310,7 +310,7 @@
            return $self;
         }
 
-		private function identifyNodeType(String $_type = null): String
+		private function identifyNodeType(string $_type = null): string
 		{
             return match($_type)
             {
@@ -326,7 +326,7 @@
             };
 		}
 
-		private function handle(String $identifier, Array $properties, String $fallback): Array | String
+		private function handle(string $identifier, array $properties, string $fallback): array | string
 		{
             $stored = true;
             $type = $properties['type'] ?? $properties['as'] ?? null;

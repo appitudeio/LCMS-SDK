@@ -18,7 +18,7 @@
  *
  * Version 2.0-RC2
  */
-namespace LCMS\Utils;
+namespace LCMS\Util;
 
 use \Exception;
 

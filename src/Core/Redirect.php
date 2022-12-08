@@ -5,40 +5,41 @@
 	namespace LCMS\Core;
 
 	use LCMS\Core\Request;
+	use LCMS\Util\Singleton;
 	use \Exception;
 
 	class Redirect
 	{
-		use \LCMS\Utils\Singleton;
+		use Singleton;
 
-		private static $to;
-		private static $code;
+		private $to;
+		private $code;
 
-		public static function to($_url = null): Self
+		protected function to($_url = null): self
 		{
-			self::$to = (isset(parse_url($_url)['scheme'])) ? $_url : "/" . ltrim($_url, "/");
+			$this->to = (isset(parse_url($_url)['scheme'])) ? $_url : "/" . ltrim($_url, "/");
 
-			return self::getInstance($_url);
+			return $this;
 		}
 
-		public static function route($_route_alias, $_arguments = null): Self
+		protected function route($_route_alias, $_arguments = null): self
 		{
-			self::$to = Route::url($_route_alias, $_arguments);
+			$this->to = Route::url($_route_alias, $_arguments);
 
-			return self::getInstance();
+			return $this;
 		}
 
-		public static function back(): Self
+		protected function back(): self
 		{
-			self::$to = Request::headers()->get('referer') ?? Env::get("app_path");
+			$this->to = Request::headers()->get('referer') ?? Env::get("app_path");
 
-			return self::getInstance();
+			return $this;
 		}
 
 		/**
-		 *
+		 *	This method requires to be static
 		 */
-		public static function with(string | array $key, $value = null): Self
+		public static function with(string | array $key, $value = null): self
 		{
 			if(is_array($key))
 			{
@@ -55,27 +56,22 @@
 			return self::getInstance();
 		}
 
-		public static function code(int $_code): Self
+		protected function code(int $_code): self
 		{
-			self::$code = $_code;
+			$this->code = $_code;
 
-			return self::getInstance();
+			return $this;
 		}
 
-		public static function dispatch()
+		public static function dispatch(): void
 		{
-			if(self::$code)
+			if(self::getInstance()->code)
 			{
-				http_response_code(self::$code);
+				http_response_code(self::getInstance()->code);
 			}
 
-			Header("Location: " . self::$to);
+			Header("Location: " . self::getInstance()->to);
 			exit();
-		}
-
-		function __toString()
-		{
-			return "__toString() -> FromWithinRedirectClass";
 		}
 	}
 ?>

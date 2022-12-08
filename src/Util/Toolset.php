@@ -1,5 +1,5 @@
 <?php
-	namespace LCMS\Utils;
+	namespace LCMS\Util;
 
 	class Toolset
 	{

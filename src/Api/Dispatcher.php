@@ -51,7 +51,7 @@
             return $this->sendRequest($mode, $_method, $request_data);
         }
 
-        private function sendRequest(string $mode = "sandbox", string $_method = "send", array $_request_data): array
+        private function sendRequest(string $mode = "sandbox", string $_method = "send", array $_request_data = array()): array
         {
             $query_data = array_replace_recursive(array(
                 'headers' => array(
