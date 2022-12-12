@@ -20,7 +20,7 @@
     "require": {
         "php": ">=8.0",
         "guzzlehttp/guzzle": "^7.3",
-        "woohoolabs/zen": "^3.0"
+        "php-di/php-di": "^6.4"
     },
     "minimum-stability": "dev",
     "prefer-stable": true,
