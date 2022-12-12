@@ -5,7 +5,7 @@
 	 * 	@author     Mathias Eklöf <mathias@appitude.io>
 	 *	@created 	2021-09-06
 	 */
-	namespace LCMS\Utils;
+	namespace LCMS\Util;
 
 	use LCMS\Core\Request;
 	use GuzzleHttp\Client;

@@ -9,7 +9,7 @@
 	 * 	@author     Mathias Eklöf <mathias@appitude.io>
 	 *	@created 	2020-09-12
 	 */
-	namespace LCMS\Utils;
+	namespace LCMS\Util;
 	
 	use LCMS\Core\File;
 	use \Exception;

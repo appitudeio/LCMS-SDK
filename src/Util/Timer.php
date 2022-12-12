@@ -5,7 +5,7 @@
 	 * 	@author     Mathias Eklöf <mathias@appitude.io>
 	 *	@created 	2021-05--12
 	 */
-	namespace LCMS\Utils;
+	namespace LCMS\Util;
 
 	use \Exception;
 

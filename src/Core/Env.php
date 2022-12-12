@@ -4,7 +4,7 @@
 	 */
 	namespace LCMS\Core;
 
-	use LCMS\Utils\Singleton;
+	use LCMS\Util\Singleton;
 
 	use \Exception;
 
@@ -18,7 +18,7 @@
 
 		private $parameters = array();
 
-		public static function get($_key, $_default_value = null): mixed
+		public static function get(string $_key, mixed $_default_value = null): mixed
 		{
 			$_key = strtolower($_key);
 			
@@ -45,16 +45,16 @@
 			return self::getInstance()->parameters[$_key];
 		}
 
-		public static function set($_key, $_value): void
+		public static function set(string $_key, mixed $_value): void
 		{
 			self::getInstance()->parameters[strtolower($_key)] = $_value;
 		}
 
-		public function merge(array $_params): self
+		public static function merge(array $_params): self
 		{
 			foreach($_params AS $k => $v)
 			{
-				self::set($k, $v);
+				self::getInstance()->set($k, $v);
 			}
 			
 			return self::getInstance();
@@ -70,6 +70,11 @@
 			unset($return['db']);
 
 			return $return;
+		}
+
+		public function __invoke(string $_key, mixed $_default_value = null)
+		{
+			return $this->get($_key, $_default_value);
 		}
 	}
 ?>

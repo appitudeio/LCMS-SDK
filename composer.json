@@ -1,5 +1,5 @@
 {
-    "name": "oakleaf/LCMS-SDK",
+    "name": "appitudeio/lcms-sdk",
     "description": "Core LCMS SDK",
     "type": "library",
     "license": "Appitude.io",
@@ -18,8 +18,9 @@
         }
     ],
     "require": {
-        "php": ">=7.4",
-        "guzzlehttp/guzzle": "^7.3"
+        "php": ">=8.0",
+        "guzzlehttp/guzzle": "^7.3",
+        "woohoolabs/zen": "^3.0"
     },
     "minimum-stability": "dev",
     "prefer-stable": true,

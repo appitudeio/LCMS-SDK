@@ -1,31 +1,38 @@
 <?php
-    namespace LCMS\Backbone;
+    namespace LCMS\Page;
 
-    use LCMS\Utils\Singleton;
-    use LCMS\Utils\Arr;
+    use LCMS\Util\Singleton;
+    use LCMS\Util\Arr;
     use \Exception;
 
     class SEO
     {
-        use Singleton;
+		use Singleton {
+			Singleton::__construct as private SingletonConstructor;
+		}
 
-    	private static $handlers = array();
-        private static $methods = array(
+    	private $handlers = array();
+        private $methods = array(
             "metatags", "opengraph", "twitter", "jsonld", "jsonldmulti"
-        ); 
+        );
 
-        public static function __callStatic(string $method, array $parameters)
+        function __construct()
         {
-            $method = strtolower($method);
+            $this->SingletonConstructor();
+        }
 
-            if (!in_array($method, self::$methods)) 
+        public static function __callStatic(string $_method, array $_parameters)
+        {
+            $method = strtolower($_method);
+
+            if (!in_array($_method, get_class_methods(__CLASS__)) && !in_array($method, self::getInstance()->methods)) 
             {
                 throw new Exception('The ' . $method . ' is not supported.');
             }
 
-            if(!isset(self::$handlers[$method]))
+            if(in_array($method, self::getInstance()->methods) && !isset(self::getInstance()->handlers[$method]))
             {
-                self::$handlers[$method] = match($method)
+                self::getInstance()->handlers[$method] = match($method)
                 {
                     "metatags"  => new SEOMeta(),
                     "opengraph" => new OpenGraph(),
@@ -35,81 +42,85 @@
                 };
             }
 
-            return self::$handlers[$method];
+            return (in_array($method, self::getInstance()->methods)) ? self::getInstance()->handlers[$method] : self::getInstance()->$_method(...$_parameters);
+        }
+
+        public function __call(string $_method, array $_parameters)
+        {
+            return $this->__callStatic($_method, $_parameters);
         }
 
         /**
          * {@inheritdoc}
          */
-        public static function setTitle($title, $appendDefault = false)
+        protected function setTitle(string $_title, bool $_append_default = false): self
         {
-            self::metatags()->setTitle($title, $appendDefault);
-            self::opengraph()->setTitle($title);
-            self::twitter()->setTitle($title);
-            self::jsonLd()->setTitle($title);
+            self::metatags()->setTitle($_title, $_append_default);
+            self::opengraph()->setTitle($_title);
+            self::twitter()->setTitle($_title);
+            self::jsonLd()->setTitle($_title);
 
-            return self::getInstance();
+            return $this;
         }
 
         /**
          * {@inheritdoc}
          */
-        public static function setDescription($description)
+        protected function setDescription(string $_description): self
         {
-            self::metatags()->setDescription($description);
-            self::opengraph()->setDescription($description);
-            self::twitter()->setDescription($description);
-            self::jsonLd()->setDescription($description);
+            self::metatags()->setDescription($_description);
+            self::opengraph()->setDescription($_description);
+            self::twitter()->setDescription($_description);
+            self::jsonLd()->setDescription($_description);
 
-            return self::getInstance();
+            return $this;
         }
 
         /**
          * {@inheritdoc}
          */
-        public static function setCanonical($url)
+        protected function setCanonical(string $_url): self
         {
-            self::metatags()->setCanonical($url);
+            self::metatags()->setCanonical($_url);
 
-            return self::getInstance();
+            return $this;
         }
 
         /**
          * {@inheritdoc}
          */
-        public static function addImages($urls)
+        protected function addImages(array | string $_urls): self
         {
-            if (is_array($urls)) 
+            if (is_array($_urls)) 
             {
-                self::openGraph()->addImages($urls);
+                self::openGraph()->addImages($_urls);
             } 
             else 
             {
-                self::openGraph()->addImage($urls);
+                self::openGraph()->addImage($_urls);
             }
 
-            self::twitter()->setImage($urls);
+            self::twitter()->setImage($_urls);
+            self::jsonLd()->setImages($_urls);
 
-            self::jsonLd()->setImages($urls);
-
-            return self::getInstance();
+            return $this;
         }
 
-        public static function setImage($url)
+        protected function setImage($url): self
         {
             self::openGraph()->setImage($url);
             self::twitter()->setImage($url);
             self::jsonLd()->setImages($url);       
             
-            return self::getInstance();
+            return $this;
         }
 
         /**
          * {@inheritdoc}
          */
-        public static function getTitle($session = false)
+        protected function getTitle(bool $_session = false): string
         {
-            if ($session) 
+            if ($_session) 
             {
                 return self::metatags()->getTitleSession();
             }
@@ -120,7 +131,7 @@
         /**
          * {@inheritdoc}
          */
-        public static function generate($minify = false)
+        protected function generate(bool $_minify = false): string
         {
             $html = self::metatags()->generate();
             $html .= PHP_EOL;
@@ -132,7 +143,7 @@
             // if json ld multi is use don't show simple json ld
             $html .= self::jsonLdMulti()->generate() ?? self::jsonLd()->generate();
 
-            return ($minify) ? str_replace(PHP_EOL, '', $html) : $html;
+            return ($_minify) ? str_replace(PHP_EOL, '', $html) : $html;
         }
     }
 

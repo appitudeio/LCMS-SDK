@@ -4,51 +4,48 @@
 	 */
 	namespace LCMS\Core;
 
+	use LCMS\DI;
 	use LCMS\Core\Request;
 	use LCMS\Core\Response;
 	use LCMS\Core\Redirect;
 	use LCMS\Core\Locale;
 	use LCMS\Backbone\View;
+	use LCMS\Util\Singleton;
 	use \Exception;
 
 	class Route
 	{
-		use \LCMS\Utils\Singleton;
-
-		public static $routes = array();
-		public static $map = array();
-		public static $current;
-
-		private static $namespace = "App\\";
-		private static $parent;
-		private static $relations = array();
-		private static $db_relations = array();
-		private static $mapped = array();
-		private static $has_mapped = false;
-		private static $current_matched;
-		private $request;
-
-		function __construct(Request $_request = null)
-		{
-			self::$instance = $this;
-
-			if(!empty($_request))
-			{
-				self::$instance->request = $_request;
-			}
-			else
-			{
-				self::$instance->request = new Request();
-			}
+		use Singleton {
+			Singleton::__construct as private SingletonConstructor;
 		}
 
-		private static function add($_url_pattern, $_caller): string
+		public $routes = array();
+		public $map = array();
+		public $current;
+
+		private $namespace = "App\\";
+		private $parent;
+		private $relations = array();
+		private $db_relations = array();
+		private $mapped = array();
+		private $has_mapped = false;
+		private $current_matched;
+		private $request;
+
+		function __construct(Request $_request)
+		{
+			$this->SingletonConstructor();
+
+			$this->request = $_request;
+		}
+
+		public static function add($_url_pattern, $_caller): string
 		{
 			/**
 			 *	Determine what to do when this Route is in use
 			 */
 			$route = array(
-				'key'		=> count(self::$routes),
+				'key'		=> count(self::getInstance()->routes),
 				'pattern' 	=> $_url_pattern
 			);
 
@@ -75,29 +72,29 @@
 			/**
 			 *	Inherit parent settings
 			 */
-			if(self::$parent)
+			if(self::getInstance()->parent)
 			{
-				$route['parent'] = self::$parent['key'];
+				$route['parent'] = self::getInstance()->parent['key'];
 
-				if(!isset(self::$routes[self::$parent['key']]['children']))
+				if(!isset(self::getInstance()->routes[self::getInstance()->parent['key']]['children']))
 				{
-					self::$routes[self::$parent['key']]['children'] = array();
+					self::getInstance()->routes[self::getInstance()->parent['key']]['children'] = array();
 				}
 
-				self::$routes[self::$parent['key']]['children'][] = $route['key'];
+				self::getInstance()->routes[self::getInstance()->parent['key']]['children'][] = $route['key'];
 
 				if(empty($_url_pattern))
 				{
-					$route['pattern'] = self::$parent['pattern'];
+					$route['pattern'] = self::getInstance()->parent['pattern'];
 				}
 				else
 				{
-					$route['pattern'] = self::$parent['pattern'] . "/" . $route['pattern'];
+					$route['pattern'] = self::getInstance()->parent['pattern'] . "/" . $route['pattern'];
 				}
 			}
 
 			// Add to queue
-			self::$routes[] = $route;
+			self::getInstance()->routes[] = $route;
 
 			return $route['key'];
 		}
@@ -105,138 +102,138 @@
 		/**
 		 *	Register subRoutes from within the Controller
 		 */
-		private static function addControllerRoutes($_parent_key)
+		private function addControllerRoutes($_parent_key)
 		{
-			$route = self::$routes[$_parent_key];
+			$route = $this->routes[$_parent_key];
 
-			if(!isset($route['controller']) || !class_exists($route['controller']) || !method_exists($route['controller'], "router") || /*(isset($route['parent']) &&*/ in_array($route['controller'], self::$mapped))
+			if(!isset($route['controller']) || !class_exists($route['controller']) || !method_exists($route['controller'], "router") || /*(isset($route['parent']) &&*/ in_array($route['controller'], $this->mapped))
 			{
 				return;
 			}
 
-			$class = self::$routes[$_parent_key]['controller'];
+			$class = $this->routes[$_parent_key]['controller'];
 
-			self::$mapped[] = $class;
+			$this->mapped[] = $class;
 
 			// Store current parent (May be null)
-			$last_current = self::$current;
+			$last_current = $this->current;
 
-			self::$current = self::$routes[$_parent_key];
+			$this->current = $this->routes[$_parent_key];
 
-			self::getInstance()->group(fn($self) => $class::router($self));
+			$this->group(fn($self) => $class::router($self));
 
-			self::$current = $last_current;
+			$this->current = $last_current;
 
 			return $_parent_key;
 		}
 
 		public static function bindControllerRoutes()
 		{
-			if(self::$has_mapped)
+			if(self::getInstance()->has_mapped)
 			{
 				return;
 			}
 
-			array_walk_recursive(self::$map, fn($key) => self::addControllerRoutes(self::$routes[$key]['key']));
+			array_walk_recursive(self::getInstance()->map, fn($key) => self::getInstance()->addControllerRoutes(self::getInstance()->routes[$key]['key']));
 
-			self::$has_mapped = true;
+			self::getInstance()->has_mapped = true;
 		}		
 
-		private static function getCurrent(): array
+		private function getCurrent(): array
 		{
-			return self::$routes[self::getCurrentKey()];
+			return $this->routes[$this->getCurrentKey()];
 		}
 
-		private static function getCurrentKey(): int
+		private function getCurrentKey(): int
 		{
-			if(self::$current)
+			if($this->current)
 			{
-				return self::$current['key'];
+				return $this->current['key'];
 			}
 
-			return self::getLastKey();
+			return $this->getLastKey();
 		}
 
-		private static function getLastKey(): int
+		private function getLastKey(): int
 		{
-			return count(self::$routes) - 1;
+			return count($this->routes) - 1;
 		}
 
 		/**
 		 *
 		 */
-		public function alias($_alias): self
+		public static function alias(string $_alias): self
 		{
-			self::$routes[self::$current['key']]['alias'] = $_alias;
+			self::getInstance()->routes[self::getInstance()->current['key']]['alias'] = $_alias;
 
-			self::$relations[$_alias] = self::$current['key'];
+			self::getInstance()->relations[$_alias] = self::getInstance()->current['key'];
 
-			return $this->getInstance();
+			return self::getInstance();
 		}
 
-		public static function get($_url_pattern, $_caller): self
+		public static function get(string | null $_url_pattern, string | array $_caller): self
 		{
-			return self::map($_url_pattern, $_caller, Request::METHOD_GET);
+			return self::getInstance()->map($_url_pattern, $_caller, Request::METHOD_GET);
 		}
 
-		public static function post($_url_pattern, $_caller): self
+		public static function post(string | null $_url_pattern, string | array $_caller): self
 		{
-			return self::map($_url_pattern, $_caller, Request::METHOD_POST);
+			return self::getInstance()->map($_url_pattern, $_caller, Request::METHOD_POST);
 		}
 
-		public static function ajax($_url_pattern, $_caller): self
+		public static function ajax(string | null $_url_pattern, string | array $_caller): self
 		{
-			return self::map($_url_pattern, $_caller, Request::METHOD_AJAX);
+			return self::getInstance()->map($_url_pattern, $_caller, Request::METHOD_AJAX);
 		}
 
-		public static function any($_methods, $_url_pattern, $_caller): self
+		public static function any(array $_methods, string $_url_pattern, string | array $_caller): self
 		{
-			$key = self::add($_url_pattern, $_caller);
+			$key = self::getInstance()->add($_url_pattern, $_caller);
 
 			$_methods = (empty(!$_methods)) ? $_methods : array(Request::METHOD_GET, Request::METHOD_POST);
 
 			foreach($_methods AS $method)
 			{
-				if(!isset(self::$map[$method]))
+				if(!isset(self::getInstance()->map[$method]))
 				{
-					self::$map[$method] = array();
+					self::getInstance()->map[$method] = array();
 				}
 
-				self::$map[$method][] = $key;
+				self::getInstance()->map[$method][] = $key;
 			}
 
 			return self::getInstance();
 		}
 
-		private static function map($_url_pattern, $_caller, $_method): self
+		private function map(string | null $_url_pattern, string | array $_caller, string $_method): self
 		{
-			$key = self::add($_url_pattern, $_caller);
+			$key = $this->add($_url_pattern, $_caller);
 
-			if(!isset(self::$map[$_method]))
+			if(!isset($this->map[$_method]))
 			{
-				self::$map[$_method] = array();
+				$this->map[$_method] = array();
 			}
 
-			self::$map[$_method][] = $key;
+			$this->map[$_method][] = $key;
 
-			self::$current = self::$routes[$key];
+			$this->current = $this->routes[$key];
 
-			return self::getInstance();
+			return $this;
 		}
 
-		public function group($_callback): self
+		public function group(mixed $_callback): self
 		{
-			$last_current = self::$current;
-			$last_parent = self::$parent;
+			$last_current = $this->current;
+			$last_parent = $this->parent;
 
-			self::$parent = $last_current;
+			$this->parent = $last_current;
 
-			$_callback(self::getInstance());
+			$_callback($this);
 
-			self::$current = $last_current; // go back
-			self::$parent = $last_parent;
+			$this->current = $last_current; // go back
+			$this->parent = $last_parent;
 
-			return self::getInstance();
+			return $this;
 		}
 
 		/**
@@ -244,22 +241,22 @@
 		 */
 		public function require(array $_inputs): self
 		{
-			self::$routes[self::getLastKey()]['required_parameters'] = array();
+			$this->routes[$this->getLastKey()]['required_parameters'] = array();
 
 			foreach($_inputs AS $key => $value)
 			{
-				self::$routes[self::getLastKey()]['required_parameters'][] = (is_numeric($key)) ? $value : $key;
+				$this->routes[$this->getLastKey()]['required_parameters'][] = (is_numeric($key)) ? $value : $key;
 
 				if(!is_numeric($key))
 				{
-					self::$routes[self::getLastKey()]['required_specific_parameters'][$key] = $value;
+					$this->routes[$this->getLastKey()]['required_specific_parameters'][$key] = $value;
 				}
 			}
 
-			return self::getInstance();
+			return $this;
 		}
 
-		private static function parsePattern($_pattern): string
+		private function parsePattern(string $_pattern): string
 		{
 	        // Convert the route to a regular expression: escape forward slashes
 	        $_pattern = preg_replace('/\//', '\\/', $_pattern);
@@ -278,12 +275,17 @@
 		/**
 		 *
 		 */
-		public static function compile($_route): array | Response | Redirect | View
+		public function compile(mixed $_route): array | Response | Redirect | View
 		{
+			if(!$_route)
+			{
+				throw new Exception("No routes initialized");
+			}
+
 			// If the route doesnt have any controller, get it from the parent
 			if(isset($_route['parent']) && !empty($_route['parent']))
 			{
-				$parent = self::$routes[$_route['parent']];
+				$parent = $this->routes[$_route['parent']];
 			}
 
 			if(empty($_route['controller']))
@@ -301,21 +303,21 @@
 			{
 				throw new Exception("Controller class " . $_route['controller'] . " not found");
 			}
-
+			
 			/**
 			 *	Create the Controller
 			 */
-			$_route['controller'] = new $_route['controller']($_route, self::getInstance()->request);
+			$_route['controller'] = DI::get($_route['controller']);
 
 			/**
 			 *	Prepare Nodes to be used
 			 */
-            $_route['controller']->first();
+			DI::call([$_route['controller'], "first"]);
 
 			/**
 			 *	Check Middleware
 			 */
-			$middleware = $_route['controller']->middleware($_route['action'] ?? null, $_route['parameters'] ?? array());
+			$middleware = DI::call([$_route['controller'], "middleware"], [$_route['action'] ?? null, $_route['parameters'] ?? array()]);
 
             if($middleware === false || ($middleware instanceof Response || $middleware instanceof Redirect || $middleware instanceof View))
             {
@@ -333,14 +335,16 @@
 		 *
 		 * @return void
 		 */
-		public static function dispatch(Request $_request): array
+		public function dispatch(Request $_request): mixed
 		{
-			if(!$route_array = self::match($_request->path(), $_request->getMethod(), $_request->ajax()))
+			if(!$route_array = $this->match($_request->path(), $_request->getMethod(), $_request->ajax()))
 			{
 				throw new Exception('No route matched', 404);
 			}
 
-			return self::$current = $route_array;
+			$this->current = $route_array;
+
+			return $this->current;
 		}
 
 		/**
@@ -351,26 +355,26 @@
 		 *
 		 * @return boolean  true if a match found, false otherwise
 		 */
-		public static function match($_url, $_method = "GET", $_is_ajax_request = false): bool | array
+		public function match(string $_url, string $_method = "GET", bool $_is_ajax_request = false): bool | array
 		{
 			/**
 			 *	Map all children routes, now when the rest is done
 			 */
-			self::bindControllerRoutes();
+			$this->bindControllerRoutes();
 
-			if(!isset(self::$map[$_method]) && ($_is_ajax_request && !isset(self::$map[Request::METHOD_AJAX])))
+			if(!isset($this->map[$_method]) && ($_is_ajax_request && !isset($this->map[Request::METHOD_AJAX])))
 			{
 				return false;
 			}
 
-			$maps = (isset(self::$map[$_method])) ? array($_method => self::$map[$_method]) : array();
-			$maps += ($_is_ajax_request && isset(self::$map[Request::METHOD_AJAX])) ? array(Request::METHOD_AJAX => self::$map[Request::METHOD_AJAX]) : array();
+			$maps = (isset($this->map[$_method])) ? array($_method => $this->map[$_method]) : array();
+			$maps += ($_is_ajax_request && isset($this->map[Request::METHOD_AJAX])) ? array(Request::METHOD_AJAX => $this->map[Request::METHOD_AJAX]) : array();
 			$maps = array_reverse($maps); // Ajax first
 
 			foreach($maps AS $map_group => $map_keys)
 			{
 				// Prioritizes routes from Controllers (Based on if having requirements)
-				$routes = array_combine($map_keys, array_map(fn($route_key) => self::$routes[$route_key], $map_keys));
+				$routes = array_combine($map_keys, array_map(fn($route_key) => $this->routes[$route_key], $map_keys));
 				$routes = array_filter($routes, fn($r) => !empty($r['pattern'])); // Remove all empty pattern-routes (Probably wrong because of merge)
 
 				if(empty($routes))
@@ -392,19 +396,19 @@
 
 				foreach($routes AS $route_key => $route)
 				{
-					$pattern = self::parsePattern($route['pattern']);
+					$pattern = $this->parsePattern($route['pattern']);
 
 					if(!in_array($route['key'], $map_keys) || !preg_match($pattern, $_url, $matches))
 					{
 						continue;
 					}
-					elseif(isset($route['required_parameters']) && array_diff($route['required_parameters'], array_keys(self::getInstance()->request->all())))
+					elseif(isset($route['required_parameters']) && array_diff($route['required_parameters'], array_keys($this->request->all())))
 					{
 						continue;
 					}
 					elseif(isset($route['required_specific_parameters']))
 					{
-						$findings = array_filter($route['required_specific_parameters'], fn($v, $k) => (self::getInstance()->request->all()[$k] == $v), ARRAY_FILTER_USE_BOTH);
+						$findings = array_filter($route['required_specific_parameters'], fn($v, $k) => ($this->request->all()[$k] == $v), ARRAY_FILTER_USE_BOTH);
 
 						if(count($findings) < count($route['required_specific_parameters']))
 						{
@@ -415,48 +419,50 @@
 					// If we captured any value from e.g {product_id}, store the catch for this matched route ['parameters' => ['product_id' => {product_id}]]
 					if($params = array_map(fn($m) => $m, array_filter($matches, fn($key) => is_string($key), ARRAY_FILTER_USE_KEY)))
 					{
-						self::$routes[$route_key]['parameters'] = (isset(self::$routes[$route_key]['parameters'])) ? array_merge(self::$routes[$route_key]['parameters'], $params) : $params;
+						$this->routes[$route_key]['parameters'] = (isset($this->routes[$route_key]['parameters'])) ? array_merge($this->routes[$route_key]['parameters'], $params) : $params;
 					}
 
-					return self::$current_matched = self::$routes[$route_key];
+					return $this->current_matched = $this->routes[$route_key];
 				}
 			}
 
 			return false;
 		}
 
-		public static function getCurrentMatched(): array | bool
+		public function getCurrentMatched(): array | bool
 		{
-			return self::$current_matched ?? false;
+			return $this->current_matched ?? false;
 		}
 
-		private static function getNamespace(): string
+		public function getNamespace(): string
 		{
-			return self::$namespace;
+			return $this->namespace;
 		}
 
-		public function setNamespace($_namespace): string
+		public function setNamespace(string $_namespace): string
 		{
-			return self::$namespace = rtrim($_namespace, "\\") . "\\";
+			return $this->namespace = rtrim($_namespace, "\\") . "\\";
 		}
 
 		/**
 		 *
 		 */
-		public static function url($_to_alias, $_arguments = null, $_absolute = true): string
+		public static function url(string $_to_alias, array $_arguments = null, bool $_absolute = true): string
 		{
 			// Search Database-routes
-			if(is_numeric($_to_alias) && !isset(self::$db_relations[$_to_alias]) && !isset(self::$relations[$_to_alias]))
+			if(is_numeric($_to_alias) && !isset(self::getInstance()->db_relations[$_to_alias]) && !isset(self::getInstance()->relations[$_to_alias]))
 			{
 				throw new Exception("No RouteAliasId found (" . $_to_alias . ")");
 			}
-			elseif(!is_numeric($_to_alias) && !isset(self::$relations[$_to_alias]))
+			elseif(!is_numeric($_to_alias) && !isset(self::getInstance()->relations[$_to_alias]))
 			{
 				throw new Exception("No RouteAlias found (" . $_to_alias . ")");
 			}
 
 			// Fallback, Route probably deleted from LCMS
-			if(!$url = (is_numeric($_to_alias) && isset(self::$db_relations[$_to_alias], self::$routes[self::$db_relations[$_to_alias]])) ? self::$routes[self::$db_relations[$_to_alias]]['pattern'] : self::$routes[self::$relations[$_to_alias]]['pattern'] ?? false)
+			if(!$url = (is_numeric($_to_alias) && isset(
+				self::getInstance()->db_relations[$_to_alias], self::getInstance()->routes[self::getInstance()->db_relations[$_to_alias]]
+			)) ? self::getInstance()->routes[self::getInstance()->db_relations[$_to_alias]]['pattern'] : self::getInstance()->routes[self::getInstance()->relations[$_to_alias]]['pattern'] ?? false)
 			{
 				return false;
 			}
@@ -517,30 +523,30 @@
 		/**
 		 *	Try to rewerse engineer the Route from the URL
 		 */
-		public static function getRouteFromUrl($_url)
+		public static function getRouteFromUrl(string $_url): mixed
 		{
-			return self::match(ltrim(parse_url($_url)['path'], "/"), "GET", false, false);
+			return self::getInstance()->match(ltrim(parse_url($_url)['path'], "/"), "GET", false, false);
 		}
 
-		public static function asItem($_alias)
+		public static function asItem(string $_alias): array
 		{
-			if(!isset(self::$relations[$_alias]))
+			if(!isset(self::getInstance()->relations[$_alias]))
 			{
 				throw new Exception("No RouteAlias found: " . $_alias);
 			}
 
-			return self::$routes[self::$relations[$_alias]];
+			return self::getInstance()->routes[self::getInstance()->relations[$_alias]];
 		}
 
 		// Pair everything as a tree based on parent/children
-		public function asTree($_strict = true)
+		public function asTree(bool $_strict = true)
 		{
 			// Root
 			$root = array();
 
-			foreach(self::$routes AS $r)
+			foreach($this->routes AS $r)
 			{
-				if(isset($r['parent']) || ($_strict && !in_array($r['key'], self::$map[Request::METHOD_GET])))
+				if(isset($r['parent']) || ($_strict && !in_array($r['key'], $this->map[Request::METHOD_GET])))
 				{
 					continue;
 				}
@@ -568,13 +574,13 @@
 
 			if(isset($route['parent']))
 			{
-				return $this->asTreeAliases(self::$routes[$route['parent']], $aliases);
+				return $this->asTreeAliases($this->routes[$route['parent']], $aliases);
 			}
 
 			return $aliases;
 		}
 
-		private function recursiveChildren($self)
+		private function recursiveChildren(mixed $self): mixed
 		{
 			if(!isset($self['children']))
 			{
@@ -585,9 +591,9 @@
 
 			foreach($self['children'] AS $key)
 			{
-				$route = self::$routes[$key];
+				$route = $this->routes[$key];
 
-				if(!in_array($route['key'], self::$map[Request::METHOD_GET]))
+				if(!in_array($route['key'], $this->map[Request::METHOD_GET]))
 				{
 					continue;
 				}
@@ -611,7 +617,7 @@
 
 		public function asArray(): array
 		{
-			return self::$routes;
+			return $this->routes;
 		}
 
 		public function merge($_routes): self
@@ -621,43 +627,40 @@
 				if(isset($r['settings'], $r['settings'][Locale::getLanguage()], $r['settings'][Locale::getLanguage()]['disabled']) && $r['settings'][Locale::getLanguage()]['disabled']['value'])
 				{
 					// Remove this route from the mapping too
-					foreach(array_filter(self::$map, fn($keys) => in_array($k, $keys)) AS $map => $keys)
+					foreach(array_filter($this->map, fn($keys) => in_array($k, $keys)) AS $map => $keys)
 					{
-						unset(self::$map[$map][array_search($k, $keys)]);
+						unset($this->map[$map][array_search($k, $keys)]);
 					}
-
-					//unset(self::$routes[$k]);
-					//continue;
 				}
-				elseif(!isset($r['key']) && !in_array($k, self::$map[Request::METHOD_GET]))
+				elseif(!isset($r['key']) && !in_array($k, $this->map[Request::METHOD_GET]))
 				{
-					self::$map[Request::METHOD_GET][] = $k;
+					$this->map[Request::METHOD_GET][] = $k;
 				}
 
 				if(isset($r['id']))
 				{
-					self::$db_relations[$r['id']] = $k;
+					$this->db_relations[$r['id']] = $k;
 				}
 
-				self::$routes[$k] = (isset(self::$routes[$k])) ? array_merge(self::$routes[$k], $r) : $r;
+				$this->routes[$k] = (isset($this->routes[$k])) ? array_merge($this->routes[$k], $r) : $r;
 
-				if(!isset(self::$routes[$k]['key']))
+				if(!isset($this->routes[$k]['key']))
 				{
-					self::$routes[$k]['key'] = $k;
+					$this->routes[$k]['key'] = $k;
 				}
 
-				if(!empty($r['alias']) && !isset(self::$relations[$r['alias']]))
+				if(!empty($r['alias']) && !isset($this->relations[$r['alias']]))
 				{
-					self::$relations[$r['alias']] = $k;
+					$this->relations[$r['alias']] = $k;
 				}
 
-				if(isset($r['parent_id']) && !empty($r['parent_id']) && !isset(self::$routes[$k]['parent']))
+				if(isset($r['parent_id']) && !empty($r['parent_id']) && !isset($this->routes[$k]['parent']))
 				{
-					self::$routes[$k]['parent'] = self::$db_relations[$r['parent_id']];
+					$this->routes[$k]['parent'] = $this->db_relations[$r['parent_id']];
 				}
 			}
 
-			return self::$instance;
+			return $this;
 		}
 	}
 ?>

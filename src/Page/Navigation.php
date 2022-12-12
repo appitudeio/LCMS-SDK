@@ -2,24 +2,25 @@
 	/**
 	 *	Traversable menu from the root
 	 */
-	namespace LCMS\Core;
+	namespace LCMS\Page;
 
 	use LCMS\Core\Route;
 
+	use \Closure;
 	use \Exception;
 
 	class Navigation implements \Iterator
 	{
 		private $route;
-		private $index = 0;
-		private $currents;
-		private $params;
-		private $root;
-		private $sorted = true;
-		private $active_keys = array();
-		public $items = array();
+		private int 	$index = 0;
+		private array 	$currents;
+		private array 	$params;
+		private array 	$root;
+		private bool 	$sorted = true;
+		private array 	$active_keys = array();
+		public array 	$items = array();
 
-		function __construct($_identifier)
+		function __construct(string $_identifier)
 		{
 			$this->params = array('identifier' => $_identifier);
 		}
@@ -30,11 +31,11 @@
 			{
 				$this->route = $_route;
 			}
-
+			
 			return $this;
 		}
 
-		public function add($_title = null, $_route = null, $_params = null): self
+		public function add(string $_title = null, string $_route = null, array $_params = null): self
 		{
 			$item = array(
 				'key'	=> $this->getCurrentKey() + 1,
@@ -97,13 +98,13 @@
 			$this->active_keys[] = $_key;
 		}
 
-		public function remove($_key = null): void
+		public function remove(int $_key = null): void
 		{
 			$_key = (!empty($_key)) ? $_key : $this->index; 
 			unset($this->items[$_key]);
 		}
 
-		public function group($_callback): void
+		public function group(Closure $_callback): void
 		{
 			$this->currents[] = $this->items[$this->getCurrentKey()];
 
@@ -274,7 +275,7 @@
 			$this->root = $this->sortRecursive($this->root);
 		}
 
-		public function merge($_items): self
+		public function merge(array $_items): self
 		{
 			foreach($_items AS $k => $v)
 			{
@@ -315,7 +316,7 @@
 			return array_merge($this->params, array('items' => $this->items));
 		}
 
-		private function sortRecursive($keys): array
+		private function sortRecursive(array $_keys): array
 		{
 			$items = array_map(function($key)
 			{
@@ -330,7 +331,7 @@
 				}
 
 				return $this->items[$key];
-			}, $keys);
+			}, $_keys);
 			
 			usort($items, fn($a, $b) => $a['order'] <=> $b['order']);
 

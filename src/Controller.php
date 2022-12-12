@@ -2,27 +2,16 @@
 	/**
 	 *
 	 */
-	namespace LCMS\Backbone;
+	namespace LCMS;
 
 	use LCMS\Core\Request;
-	use LCMS\Backbone\Page;
+	use LCMS\Page;
 
 	abstract class Controller
 	{
-		protected $route;
-		protected $request;
+		//protected $route;
 		protected $page;
 		private $magic_methods = ['middleware', 'before', 'after', 'first', 'last'];
-
-		function __construct($_route_array, Request $_request = null)
-		{
-			$this->route = $_route_array;
-
-			if(!empty($_request))
-			{
-				$this->request = $_request;
-			}
-		}
 
 	    /**
 	     * Magic method called when a non-existent or inaccessible method is
@@ -35,7 +24,7 @@
 	     *
 	     * @return void
 	     */
-	    public function __call($_action, $args)
+	    public function __call(string $_action, array $_arguments)
 	    {
 			if(in_array($_action, $this->magic_methods))
 			{
@@ -44,7 +33,7 @@
 					return;
 				}
 
-				return $this->$_action(...$args);
+				return $this->$_action(...$_arguments);
 			}
 	        elseif(!method_exists($this, $_action))
 	        {
@@ -52,34 +41,8 @@
 	        }
 	    }
 
-	    /**
-	     * Before filter - called before an action method.
-	     *
-	     * @return void
-	     */
-	    /*protected function middleware()
-	    {
-	    }*/
-
-	    /**
-	     * After filter - called after an action method.
-	     *
-	     * @return void
-	     */
-	    /*protected function after()
-	    {
-	    }*/
-
-	    /**
-	     *
-	     */
-	    /*protected function first()
-	    {	
-	    }*/
-
-		public function setPage(Page $_page): Void
-		{
-			$this->page = $_page;
-		}
+		private function first(...$args){}
+		private function middleware(...$args){}
+		private function after(...$args){}
 	}
 ?>

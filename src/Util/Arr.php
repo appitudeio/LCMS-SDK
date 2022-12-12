@@ -7,7 +7,7 @@
 	 * 	@author     Mathias Eklöf <mathias@appitude.io>
 	 *	@created 	2021-10-17
 	 */
-	namespace LCMS\Utils;
+	namespace LCMS\Util;
 
 	class Arr
 	{

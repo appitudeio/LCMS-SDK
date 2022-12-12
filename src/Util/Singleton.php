@@ -1,8 +1,8 @@
 <?php
 	/**
-	 *
+	 *	2022-12-03: Updated with __callStatic
 	 */
-	namespace LCMS\Utils;
+	namespace LCMS\Util;
 
 	trait Singleton 
 	{
@@ -17,15 +17,15 @@
 	    {
 			if(!(self::$instance instanceof self)) 
 			{
-				self::$instance = new self;
+				self::$instance = (str_ends_with(static::class, "\\DI")) ? new self : \LCMS\DI::get(static::class);
 			}
-
-			/*if(self::$instance == null)
-			{
-				self::$instance = new static();
-			}*/
 
 			return self::$instance;
 	    }
+
+		static function __callStatic($name, $arguments)
+		{
+			return self::getInstance()->$name(...$arguments);
+		}
 	}
 ?>
