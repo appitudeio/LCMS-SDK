@@ -38,7 +38,7 @@
 		public $headers;
 		public $content;
 
-		private static $instance;
+		//private static $instance;
         private $languages 	= null;
         private $pathInfo 	= null;
         private $requestUri = null;
@@ -48,7 +48,7 @@
         private static $trustedProxies;
         private static $httpMethodParameterOverride = false;
         protected $convertedFiles;
-        private $authObject = false;
+       // private $authObject = false;
 
 		/**
 		 * Sets the parameters for this request.
@@ -149,7 +149,7 @@
 		/**
 		 *
 		 */
-		public function setAuth($_object)
+		/*public function setAuth($_object)
 		{
 			$this->authObject = $_object;
 		}
@@ -157,7 +157,7 @@
 		public function getAuthObject()
 		{
 			return $this->authObject;
-		}
+		}*/
 
 		/**
 		 *	Strip first part of the segment

@@ -336,7 +336,7 @@
                 unset($properties['as'], $properties['name']);
                 $props = (!empty($properties)) ? array('properties' => $properties) : array();
 
-                $node = Node::NodeObject(array('content' => $fallback) + $props);
+                $node = Node::createNodeObject(array('content' => $fallback) + $props);
                 $stored = false;
             }
 

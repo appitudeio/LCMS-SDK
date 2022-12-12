@@ -25,6 +25,7 @@
 	{
 		private $object;
 		private $merger;
+		private $storage;
 
 		function __construct(object $_obj)
 		{
@@ -41,10 +42,15 @@
 			return (new \ReflectionClass($this->object))->getShortName();
 		}
 
-		public function with($_storage)
+		public function with($_storage, $_auto_merge = true)
 		{
 			if($this->merger)
 			{
+				if(!$_auto_merge)
+				{
+					return $this;
+				}
+
 				return $this->merger->merge($_storage);
 			}
 
@@ -61,7 +67,9 @@
 				throw new Exception("No merger available from Object");
 			}
 
-			return $this->with($_storage);
+			$this->storage = $_storage;
+
+			return $this->with($this->storage);
 		}
 
 		public function store($_what = null, $_into = null)
@@ -98,6 +106,11 @@
 			$this->instance = $_instance;
 		}
 
+		public function getStorage()
+		{
+			return $this->storage;
+		}		
+
 		public function prepare($_storage): self
 		{
 			$this->storage = $_storage;
@@ -118,7 +131,7 @@
 			return DI::call([$this, $fn], [$_storage]); // Let Storage-methods inherit DI
 		}
 
-		public function prepareFromDatabase(DB $db): self
+		/*public function prepareFromDatabase(DB $db): self
 		{
 			return $this;
 		}
@@ -131,7 +144,7 @@
 		public function prepareFromFile(string $_file): self
 		{
 			throw new Exception(get_class($this) . " cant prepare from File");
-		}
+		}*/
 
 		public function prepareFromClosure(Closure $_routes_closure): self
 		{
@@ -150,9 +163,10 @@
 			throw new Exception(get_class($this) . " does not support storage");
 		}
 
-		public function merge(mixed $_storage): self
+		public function merge(mixed $_storage = null): self
 		{
-			return $this->prepare($_storage)->execute($_storage);
+			$storage = $_storage ?? $this->storage;
+			return $this->prepare($storage)->execute($storage);
 		}
 
 		public function set(object $_instance): self
@@ -183,39 +197,37 @@
 			return $this->prepareFromIni($_file);
 		}
 
-		public function prepareFromDatabase(DB $db): self
+		public function prepareFromDatabase(DB $db, Locale $locale): self
 		{
 			$this->nodes = array();
 			$this->properties = array();
 			$this->unmergers = array();
 
-			$condition = ($this->instance::$namespace != null && isset($this->instance::$namespace['id'])) ? " OR `route_id`=".$this->instance::$namespace['id'] : null;
+			$condition = ($this->instance->namespace != null && isset($this->instance->namespace['id'])) ? " OR `route_id`=".$this->instance->namespace['id'] : null;
 
-			$query = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_nodes` 
-									WHERE (`route_id` IS NULL " . $condition . ") 
-										AND `deleted_at` IS NULL 
-										AND JSON_EXTRACT(`hidden_at`, '$.".Locale::getLanguage()."') IS NULL
-										AND (
-											`type`=".Node::TYPE_LOOP."
-											OR JSON_EXTRACT(`content`, '$.".Locale::getLanguage()."') > 0 
-											OR JSON_EXTRACT(`content`, '$.*') > 0
-										)
-											ORDER BY `order` ASC, `id` ASC");
-
-			if($db::num_rows($query) == 0)
+			if(!$nodes = $db->query("SELECT * FROM ".Env::get("db")['database'].".`lcms_nodes` 
+										WHERE (`route_id` IS NULL " . $condition . ") 
+											AND `deleted_at` IS NULL 
+											AND JSON_EXTRACT(`hidden_at`, ?) IS NULL
+											AND (
+												`type`=?
+												OR JSON_EXTRACT(`content`, ?) > 0 
+												OR JSON_EXTRACT(`content`, '$.*') > 0
+											)
+												ORDER BY `order` ASC, `id` ASC", ["$.".$locale->getLanguage(), Node::TYPE_LOOP, "$.".$locale->getLanguage()])->asArray())
 			{
 				return $this;
 			}
-
+			
 			$loops = array();
 			$loops_relations = array();
 
-			while($row = $db::fetch_assoc($query))
+			foreach($nodes AS $row)
 			{
 				$node = $this->buildNode($row);
 
 				$identifier = $node['identifier'];
-				$value = htmlspecialchars_decode($node['content'][Locale::getLanguage()] ?? $node['content']["*"] ?? "");
+				$value = htmlspecialchars_decode($node['content'][$locale->getLanguage()] ?? $node['content']["*"] ?? "");
 
 				if(empty($node['route_id']))
 				{
@@ -232,12 +244,12 @@
 						$identifier = array("global" => array($identifier => $value));
 					}
 				}
-				elseif($this->instance::$namespace != null)
+				elseif($this->instance->namespace != null)
 				{
 					$array = array();
 					Arr::unflatten($array, $identifier, $value);
 
-					$identifier = array(($this->instance::$namespace['alias'] ?? $this->instance::$namespace['pattern']) => $array);
+					$identifier = array(($this->instance->namespace['alias'] ?? $this->instance->namespace['pattern']) => $array);
 					unset($array);
 				}
 
@@ -264,7 +276,7 @@
 				{
 					$this->nodes = array_replace_recursive($this->nodes, $identifier);
 				
-					if(isset($node['properties'][Locale::getLanguage()]) && !empty($node['properties'][Locale::getLanguage()]) && $properties = $node['properties'][Locale::getLanguage()])
+					if(isset($node['properties'][$locale->getLanguage()]) && !empty($node['properties'][$locale->getLanguage()]) && $properties = $node['properties'][$locale->getLanguage()])
 					{
 						array_walk_recursive($identifier, fn(&$value) => ($value = $properties));
 						$this->properties = array_replace_recursive($this->properties, $identifier);
@@ -292,11 +304,11 @@
 					foreach($nodes AS $k => $node)
 					{
 						$array = array();
-						Arr::unflatten($array, $identifier, array($key => array($k => $node['content'][Locale::getLanguage()] ?? $node['content']["*"] ?? "")));
+						Arr::unflatten($array, $identifier, array($key => array($k => $node['content'][$locale->getLanguage()] ?? $node['content']["*"] ?? "")));
 
 						$this->nodes = array_replace_recursive($this->nodes, $array);
 
-						if(isset($node['properties'][Locale::getLanguage()]) && !empty($node['properties'][Locale::getLanguage()]) && $properties = $node['properties'][Locale::getLanguage()])
+						if(isset($node['properties'][$locale->getLanguage()]) && !empty($node['properties'][$locale->getLanguage()]) && $properties = $node['properties'][$locale->getLanguage()])
 						{
 							array_walk_recursive($array, fn(&$value) => ($value = $properties));
 							$this->properties = array_replace_recursive($this->properties, $array);
@@ -318,7 +330,7 @@
 		private function getLoop(DB $db, $loop_identifier)
 		{
 			// Fetch existing loops (Extend if any exists)
-			$condition = ($this->instance::$namespace != null && isset($this->instance::$namespace['id'])) ? " OR `route_id`=".$this->instance::$namespace['id'] : null;
+			$condition = ($this->instance->namespace != null && isset($this->instance->namespace['id'])) ? " OR `route_id`=".$this->instance->namespace['id'] : null;
 
 			$query = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_nodes` WHERE `identifier`='".$loop_identifier."' AND (`route_id` IS NULL " . $condition . ") AND `type`=".Node::TYPE_LOOP." AND `deleted_at` IS NULL AND `hidden_at` IS NULL");
 
@@ -359,7 +371,7 @@
 					if(!$loop_array)
 					{
 						$db::insert(Env::get("db")['database'].".`lcms_nodes`", array(
-							'route_id' 		=> ((!isset($n['global']) || !$n['global']) && $this->instance::$namespace != null && isset($this->instance::$namespace['id'])) ? $this->instance::$namespace['id'] : null,
+							'route_id' 		=> ((!isset($n['global']) || !$n['global']) && $this->instance->namespace != null && isset($this->instance->namespace['id'])) ? $this->instance->namespace['id'] : null,
 							'identifier'	=> $key,
 							'type'			=> Node::TYPE_LOOP,
 							'parameters'	=> $node // Snapshot of all nodes to be used here
@@ -391,9 +403,9 @@
 				elseif(str_starts_with($node['identifier'], "meta."))
 				{
 					// Meta-data
-					if(!empty($this->instance::$namespace) && isset($this->instance::$namespace['id']))
+					if(!empty($this->instance->namespace) && isset($this->instance->namespace['id']))
 					{
-						$db::query("UPDATE ".Env::get("db")['database'].".`lcms_routes` SET `meta` = JSON_MERGE_PATCH(`meta`, ?) WHERE `id`=?", [ array(Locale::getLanguage() => [explode(".", $node['identifier'], 2)[1] => $node['content']]), $this->instance::$namespace['id'] ]);
+						$db::query("UPDATE ".Env::get("db")['database'].".`lcms_routes` SET `meta` = JSON_MERGE_PATCH(`meta`, ?) WHERE `id`=?", [ array(Locale::getLanguage() => [explode(".", $node['identifier'], 2)[1] => $node['content']]), $this->instance->namespace['id'] ]);
 					}
 					else
 					{
@@ -404,7 +416,7 @@
 				{
 					// Default node
 					$db::insert(Env::get("db")['database'].".`lcms_nodes`", array(
-						'route_id' 		=> ((!isset($node['global']) || !$node['global']) && $this->instance::$namespace != null && isset($this->instance::$namespace['id'])) ? $this->instance::$namespace['id'] : null,
+						'route_id' 		=> ((!isset($node['global']) || !$node['global']) && $this->instance->namespace != null && isset($this->instance->namespace['id'])) ? $this->instance->namespace['id'] : null,
 						'identifier'	=> $node['identifier'],
 						'type'			=> $node['type'],
 						'parameters'	=> $node['parameters'] ?? null,
@@ -431,12 +443,12 @@
 			// Only store if this Route has an Alias OR is global
 			foreach($_nodes AS $identifier => $node)
 			{
-				if((!isset($node['global']) || !$node['global']) && $this->instance::$namespace == null)
+				if((!isset($node['global']) || !$node['global']) && $this->instance->namespace == null)
 				{
 					continue;
 				}
 
-				$alias = (isset($node['global']) && $node['global']) ? "global" : ($this->instance::$namespace['alias'] ?? $this->instance::$namespace['pattern']);
+				$alias = (isset($node['global']) && $node['global']) ? "global" : ($this->instance->namespace['alias'] ?? $this->instance->namespace['pattern']);
 
 				if(!isset($existing_file_array[$alias]))
 				{
@@ -669,20 +681,20 @@
 		/**
 		 *	Only GET-routes
 		 */
-		public function prepareFromDatabase(DB $db): self
+		public function prepareFromDatabase(DB $db, Env $env): self
 		{
-			$this->instance::bindControllerRoutes();
+			$this->instance->bindControllerRoutes();
 
-			$this->system_routes = $this->instance::$routes;
+			$this->system_routes = $this->instance->routes;
 
-			$query = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_routes`");
+			$query = $db->query("SELECT * FROM ".$env->get("db")['database'].".`lcms_routes`");
 
-			if($db::num_rows($query) == 0)
+			if($db->num_rows($query) == 0)
 			{
 				return $this;
 			}
 
-			while($row = $db::fetch_assoc($query))
+			while($row = $db->fetch_assoc($query))
 			{
 				$this->database_routes[$row['id']] = $this->buildRoute($row);
 			}
@@ -800,7 +812,7 @@
 
 			foreach($this->system_routes AS $key => $route)
 			{
-				if(!in_array($key, $this->instance::$map[Request::METHOD_GET])) // Post variable
+				if(!in_array($key, $this->instance->map[Request::METHOD_GET])) // Post variable
 				{
 					/**
 					 *	If parent has changed it's pattern, just replace it here
@@ -918,7 +930,7 @@
 				);
 			}
 
-			$db::query("UPDATE ".Env::get("db")['database'].".`lcms_routes` SET `settings` = JSON_MERGE_PATCH(`settings`, ?) WHERE `id`=?", [ $settings, $this->instance::$current['id'] ]);
+			$db::query("UPDATE ".Env::get("db")['database'].".`lcms_routes` SET `settings` = JSON_MERGE_PATCH(`settings`, ?) WHERE `id`=?", [ $settings, $this->instance->current['id'] ]);
 		
 			return $this;
 		}

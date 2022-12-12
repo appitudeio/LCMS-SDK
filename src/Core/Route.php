@@ -32,11 +32,11 @@
 		private $current_matched;
 		private $request;
 
-		function __construct(Request $_request = null)
+		function __construct(Request $_request)
 		{
 			$this->SingletonConstructor();
 
-			self::$instance->request = $_request ?? new Request();
+			$this->request = $_request;
 		}
 
 		public static function add($_url_pattern, $_caller): string
@@ -660,7 +660,7 @@
 				}
 			}
 
-			return $this->instance;
+			return $this;
 		}
 	}
 ?>

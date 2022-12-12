@@ -9,12 +9,15 @@
 
 	use LCMS\Core\Route;
 	use LCMS\Core\Locale;
-	use LCMS\Utils\Arr;
-	use LCMS\Utils\Toolset;
+	use LCMS\Util\Singleton;
+	use LCMS\Util\Arr;
+	use LCMS\Util\Toolset;
 	use \Exception;
 	
 	class Node
 	{
+		use Singleton;
+
 		public static $image_endpoint = "https://static.logicalcms.com/";
 
 		public const TYPE_TEXT 		= 1;
@@ -30,8 +33,8 @@
 		public const TYPE_HYPERLINK	= 25;
 		public const TYPE_LOOP		= 30;
 
-		public static $namespace;
-		public static $type_properties = array(
+		public $namespace;
+		public $type_properties = array(
 			Node::TYPE_IMAGE => array(
 				'alt' 	=> null,
 				'title'	=> null,
@@ -45,17 +48,16 @@
 				'href' => null
 			)
 		);
-		private static $parameters;
-		private static $nodes;
-		private static $properties;
-		private static $instance;
+		private $parameters;
+		private $nodes;
+		private $properties;
 
-		public static function init($_image_endpoint): Void
+		public static function init(string $_image_endpoint): void
 		{
-			self::$image_endpoint .= $_image_endpoint;
+			self::getInstance()::$image_endpoint .= $_image_endpoint;
 		}
 
-		public static function getInstance($_data = null): Self
+		/*public static function getInstance(mixed $_data = null): self
 		{
 			if(self::$instance == null)
 			{
@@ -68,19 +70,19 @@
 			}
 
 			return self::$instance;
-		}
+		}*/
 
-		public static function setNamespace(array $_namespace): Void
+		public function setNamespace(array $_namespace): void
 		{
-			self::$namespace = array_filter($_namespace);
+			$this->namespace = array_filter($_namespace);
 		}
 
 		/**
 		 *	@return Array of all nodes
 		 */
-		public static function getAll(): Array
+		public function getAll(): array
 		{
-			return self::$nodes;
+			return $this->nodes;
 		}
 
 		/**
@@ -90,14 +92,14 @@
 		 * 		- Array if a loop
 		 * 		- NodeObject if a Node
 		 */
-		public static function get(string $_identifier): Bool | Array | NodeObject
+		public static function get(string $_identifier): bool | array | NodeObject
 		{
 			// Check local namespace first with Global as fallback
 			$is_local = true;
 
-			if(is_bool($node = Arr::get(self::$nodes, (self::$namespace['alias'] ?? self::$namespace['pattern']) . "." . $_identifier, false)))
+			if(is_bool($node = Arr::get(self::getInstance()->nodes, (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier, false)))
 			{
-				if(is_bool($node = Arr::get(self::$nodes, "global." . $_identifier, false)))
+				if(is_bool($node = Arr::get(self::getInstance()->nodes, "global." . $_identifier, false)))
 				{
 					return false;
 				}
@@ -116,7 +118,7 @@
 			}
 
 			// Look for properties
-			$properties = (empty(self::$properties)) ? null : (($is_local) ? Arr::get(self::$properties, (self::$namespace['alias'] ?? self::$namespace['pattern']) . "." . $_identifier) : Arr::get(self::$properties, "global." . $_identifier));
+			$properties = (empty(self::getInstance()->properties)) ? null : (($is_local) ? Arr::get(self::getInstance()->properties, (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier) : Arr::get(self::getInstance()->properties, "global." . $_identifier));
 
 			$node = (is_string($node)) ? array('content' => $node) : $node;
 			$node += array(
@@ -138,97 +140,97 @@
 		/**
 		 *	Check local namespace, with global as fallback
 		 */
-		public static function set($_identifier, $_value): Void
+		public static function set(string $_identifier, mixed $_value): void
 		{
-			if(self::$namespace != null)
+			if(self::getInstance()->namespace != null)
 			{
-				$_identifier =  (self::$namespace['alias'] ?? self::$namespace['pattern']) . "." . $_identifier;
+				$_identifier =  (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier;
 			}
 			else
 			{
 				$_identifier = "global." . $_identifier;
 			}
 
-			Arr::unflatten(self::$nodes, $_identifier, $_value);
+			Arr::unflatten(self::getInstance()->nodes, $_identifier, $_value);
 		}
 
-		public static function has($_identifier): Bool
+		public static function has(string $_identifier): bool
 		{
-			return self::exists($_identifier);
+			return self::getInstance()->exists($_identifier);
 		}
 
 		// Check Local namespace first, then as fallback Global"
-		public static function exists($_identifier): Bool
+		public static function exists(string $_identifier): bool
 		{
 			// Check from namespaced node
-			if(self::$namespace != null && !$node = Arr::get((self::$namespace['alias'] ?? self::$namespace['pattern']) . "." . $_identifier))
+			if(self::getInstance()->namespace != null && !$node = Arr::get((self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier))
 			{
 				return false;
 			}
 
-			if(Arr::has(self::$nodes, $_identifier))
+			if(Arr::has(self::getInstance()->nodes, $_identifier))
 			{
 				return true;
 			}
-			elseif(self::$namespace == null)
+			elseif(self::getInstance()->namespace == null)
 			{
 				return false;
 			}
 
-			return Arr::has(self::$nodes,  (self::$namespace['alias'] ?? self::$namespace['pattern']) . "." . $_identifier);
+			return Arr::has(self::getInstance()->nodes,  (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier);
 		}	
 
 		/**
 		 *	Probably from Database, via Api\Merge
 		 */
-		public function merge(Array $_nodes, Array $_properties = null, Array $_unmergers = null): Self
+		public function merge(array $_nodes, array $_properties = null, array $_unmergers = null): self
 		{
 			if(!empty($_unmergers))
 			{
-				array_walk($_unmergers, fn($um) => Arr::forget(self::$nodes, $um));
+				array_walk($_unmergers, fn($um) => Arr::forget($this->nodes, $um));
 			}
 
-			self::$nodes = array_replace_recursive(self::$nodes ?? array(), $_nodes);
-			self::$properties = array_replace_recursive(self::$properties ?? array(), $_properties ?? array());
+			$this->nodes = array_replace_recursive($this->nodes ?? array(), $_nodes);
+			$this->properties = array_replace_recursive($this->properties ?? array(), $_properties ?? array());
 			
 			/**
 			 *	Merge data with strings
 			 */
-			if(empty(self::$parameters) || (($parameters = array_filter(self::$parameters, fn($v) => !is_array($v))) && empty($parameters)))
+			if(empty($this->parameters) || (($parameters = array_filter($this->parameters, fn($v) => !is_array($v))) && empty($parameters)))
 			{
 				return $this;
 			}
 
 			// Convert ['static_path' => "https://..."] => ['{{static_path}}' => "https://..."]
 			$parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($parameters)), $parameters);
-			array_walk_recursive(self::$nodes, fn(&$item) => (!empty($item) && str_contains($item, "{{")) ? $item = strtr($item, $parameters) : $item);
+			array_walk_recursive($this->nodes, fn(&$item) => (!empty($item) && str_contains($item, "{{")) ? $item = strtr($item, $parameters) : $item);
 
 			return $this;
 		}
 
-		public static function getParameter($_key): Array | Null
+		public function getParameter(string $_key): array | null
 		{
-			return self::$parameters[$_key] ?? null;
+			return $this->parameters[$_key] ?? null;
 		}
 
-		public static function with(String | Array $_key, $_value = null): Self
+		public static function with(string | array $_key, mixed $_value = null): self
 		{
 			if(is_array($_key))
 			{
 				foreach($_key AS $k => $v)
 				{
-					self::$parameters[$k] = $v;
+					self::getInstance()->parameters[$k] = $v;
 				}
 			}
 			else
 			{
-				self::$parameters[$_key] = $_value;
+				self::getInstance()->parameters[$_key] = $_value;
 			}
 
 			return self::getInstance();
 		}
 
-		public static function NodeObject(Array $_node): NodeObject
+		public static function createNodeObject(array $_node): NodeObject
 		{
 			return new NodeObject($_node);
 		}
@@ -239,7 +241,7 @@
 		private $node;
 		private $image_endpoint;
 
-		function __construct(Array | String $_node)
+		function __construct(array | string $_node)
 		{
 			$this->image_endpoint = Node::$image_endpoint;
 
@@ -254,7 +256,7 @@
 		/**
 		 * 	
 		 */
-		public function text(Array $_parameters = array()): Self
+		public function text(array $_parameters = array()): self
 		{
 			// Any params we should replace 
 			$forbidden_keys = array('name', 'type', 'content', 'as');
@@ -275,7 +277,7 @@
 		/**
 		 * 	
 		 */
-		public function image(Int $_width = null, Int $_height = null): Self
+		public function image(int $_width = null, int $_height = null): self
 		{
 			// If empty image
 			if(empty($this->node['content']))
@@ -311,7 +313,7 @@
 		/**
 		 *	
 		 */
-		public function picture(Int $_width = null, Int $_height = null): Self
+		public function picture(int $_width = null, int $_height = null): self
 		{
 			// If empty image
 			if(empty($this->node['content']))
@@ -339,7 +341,7 @@
 		/**
 		 * 	
 		 */
-		public function background(Int $_width = null, $_height = null): Self
+		public function background(int $_width = null, int $_height = null): self
 		{
 			// If empty image
 			if(empty($this->node['content']))
@@ -371,7 +373,7 @@
 		/**
 		 *  
 		 */
-		public function href(): Self
+		public function href(): self
 		{
 			return $this;
 		}
@@ -379,7 +381,7 @@
 		/**
 		 * 	
 		 */
-		public function route(Array $properties = null): Self
+		public function route(array $properties = null): self
 		{
 			if(!isset($this->node['properties']))
 			{
@@ -394,17 +396,17 @@
 		/**
 		 * 	
 		 */
-		public function loop(): Array
+		public function loop(): array
 		{
 			return array_filter($this->node, fn($k, $v) => is_numeric($v), ARRAY_FILTER_USE_BOTH);
 		}
 
-		public function asArray(): Array
+		public function asArray(): array
 		{
 			return $this->node;
 		}
 
-		function __toString()
+		function __toString(): string
 		{
 			return $this->node['content'];
 		}

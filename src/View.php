@@ -5,7 +5,7 @@
 	namespace LCMS;
 
 	use LCMS\DI;
-	use LCMS\Page\Page;
+	use LCMS\Page;
 	use LCMS\Util\Singleton;
 	use \Exception;
 

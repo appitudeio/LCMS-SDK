@@ -2,7 +2,7 @@
 	/**
 	 *
 	 */
-	namespace LCMS\Page;
+	namespace LCMS;
 
 	use LCMS\DI;
 	use LCMS\Core\Request;
@@ -30,8 +30,6 @@
 		function __construct(Locale $locale)
 		{
 			$this->locale = $locale;
-
-			DI::injectOn($this);
 		}
 
 		public function init(array $_route_array): self
@@ -125,9 +123,7 @@
 
 		public function meta(array $_meta): self
 		{
-			$_meta = array_filter($_meta[$this->locale->getLanguage()] ?? $_meta);
-
-			if(!empty($_meta))
+			if($_meta = array_filter($_meta[$this->locale->getLanguage()] ?? $_meta))
 			{
 				$this->meta = (!empty($this->meta)) ? array_replace_recursive($this->meta, array_filter($_meta)) : $_meta;
 			}
@@ -189,26 +185,13 @@
 
 		public function compile(): mixed
 		{
-            $action = $this->action;
-
-			// Returns HTML from View
-			//$this->controller->setPage($this);
-
-           	$this->compilation = $this->controller->$action(...array_values($this->parameters));
-
-           	if(empty($this->compilation))
+			if(!$this->compilation = DI::call([$this->controller, $this->action], [...array_values($this->parameters)]))
            	{
            		throw new Exception("Return value from controller cant be Void");
            	}
+
+			DI::call([$this->controller, "after"]); // Cleanup
 			
-			// Since this is a HTML-rendered page
-           	/*if($this->compilation instanceof View)
-           	{
-           		$this->compilation->setPage($this);
-			}*/
-
-            $this->controller->after(); // Cleanup
-
             return $this->compilation;
 		}
 

@@ -5,6 +5,7 @@
 	namespace LCMS\Backbone;
 
     use LCMS\Api\Merge;
+    use LCMS\Api\NodeMerge;
 	use LCMS\Core\Request;
 	use LCMS\Core\Response;
     use LCMS\Core\Redirect;
@@ -13,9 +14,10 @@
 	use LCMS\Core\Locale;
     use LCMS\Core\Env;
     use LCMS\Core\Navigations;
+    use LCMS\Core\Database;
 	use LCMS\View;
     use LCMS\DI;
-    use LCMS\Page\Page;
+    use LCMS\Page;
     use LCMS\Util\Toolset;
 	use \Exception;
 
@@ -25,6 +27,7 @@
 
         /**
          *  What the Init returns get's parsed into either Merger or into the Container
+         *  +++ Node+Database merge happens after Route identification ("namespace")
          */
         public function init(\Closure $_callback): self
         {
@@ -32,7 +35,10 @@
             {
                 if(is_array($merger) && isset($merger[0]) && gettype($merger[0]) == "object")
                 {
-                    $mergerObject = (new Merge($merger[0]))->with($merger[1]);
+                     // If Node+Database (Merges after figured out the Route namespace)
+                    $auto_merge = (!($merger[0] instanceof Node) || ($merger[0] instanceof Node && !($merger[1] instanceof Database))) ? false : true;
+                    
+                    $mergerObject = (new Merge($merger[0]))->with($merger[1], $auto_merge);
                     DI::set($mergerObject::class, $mergerObject);
 
                     /**
@@ -170,8 +176,13 @@
                 'pattern' => $route_array['pattern']
             ));
 
+            if(DI::has(NodeMerge::class) && ($nodeMerger = DI::get(NodeMerge::class)) && $nodeMerger->getStorage() instanceof Database)
+            {
+                $nodeMerger->merge();
+            }
+
             // Compile page into the end product
-            $compilation = DI::call([Page::class, "compile"]); 
+            $compilation = DI::call([Page::class, "compile"]);
 
             if($compilation instanceof Redirect)
             {

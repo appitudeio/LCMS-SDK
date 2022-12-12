@@ -5,7 +5,7 @@
 	namespace LCMS;
 
 	use LCMS\Core\Request;
-	use LCMS\Page\Page;
+	use LCMS\Page;
 
 	abstract class Controller
 	{
@@ -43,5 +43,6 @@
 
 		private function first(...$args){}
 		private function middleware(...$args){}
+		private function after(...$args){}
 	}
 ?>
