@@ -10,6 +10,7 @@
 
 	use LCMS\Core\File;
 	use LCMS\Util\Singleton;
+	use LCMS\Util\Arr;
 	use \Exception;
 
 	class Request
@@ -1296,10 +1297,7 @@
 		 */
 		public function __get($key)
 		{
-			return array_flatten($this->all(), $key, function () use ($key)
-			{
-				return $this->route($key);
-			});
+			return Arr::flatten($this->all(), $key, fn($key) => $this->route($key));
 		}
 
 		/**
@@ -2613,7 +2611,7 @@
 	     */
 	    public function input($key = null, $default = null)
 	    {
-	        return array_flatten(
+	        return Arr::flatten(
 	            $this->getInputSource()->all() + $this->query->all(), $key, $default
 	        );
 	    }

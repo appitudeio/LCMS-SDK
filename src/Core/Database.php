@@ -93,22 +93,24 @@
 			/**
 			 *	Prepare the bindings
 			 */
-			$columns_values = array_fill(0, count($_fields), "?");
-
 			foreach($_fields AS &$data)
 			{
-				if(is_string($data) && str_starts_with(strtolower($data ?? ""), "now"))
+				if(is_string($data) && str_starts_with(strtolower($data ?? ""), "now("))
 				{
 					$data = "NOW()";
 				}
-				elseif(is_string($data) && str_starts_with(strtolower($data ?? ""), "uuid"))
+				elseif(is_string($data) && str_starts_with(strtolower($data ?? ""), "uuid("))
 				{
 					preg_match('#\((.*?)\)#', $data, $match);
-					$data = (in_array(strtolower($data ?? ""), ["uuid", "uuid()"])) ? "UUID_TO_BIN('".Uuid::generate()."')" : "UUID_TO_BIN('".$match[1]."')";
+					$data = (strtolower($data ?? "") == "uuid()") ? "UUID_TO_BIN('".Uuid::generate()."')" : "UUID_TO_BIN('".$match[1]."')";
 				}
 				elseif(is_string($data) && str_starts_with(strtolower($data ?? ""), "point("))
 				{
 					$data = $data;	
+				}
+				else
+				{
+					$data = "?";
 				}
 			}
 
@@ -116,7 +118,7 @@
 			$all_fields = array_values($_fields);
 			array_walk($all_fields, fn(&$v) => (is_array($v)) ? $v = json_encode($v) : $v = $v); // Convert all arrays to json
 
-			self::getInstance()->sql = "INSERT INTO " . $_table . " (" . "`" . implode("`, `", array_keys($_fields)) . "`" . ") VALUES(" . implode(", ", $columns_values) . ")";
+			self::getInstance()->sql = "INSERT INTO " . $_table . " (" . "`" . implode("`, `", array_keys($_fields)) . "`" . ") VALUES(" . implode(", ", $all_fields) . ")";
 
 			$statement = $connection->prepare(self::getInstance()->sql, $all_fields);
 
@@ -168,10 +170,10 @@
 					$as = "NOW()";
 					$data = null;
 				}
-				elseif(is_string($data) && str_starts_with(strtolower($data ?? ""), "uuid"))
+				elseif(is_string($data) && str_starts_with(strtolower($data ?? ""), "uuid("))
 				{
 					preg_match('#\((.*?)\)#', $data, $match);
-					$as = (in_array(strtolower($data ?? ""), ["uuid", "uuid()"])) ? "UUID_TO_BIN('".Uuid::generate()."')" : "UUID_TO_BIN('".$match[1]."')";
+					$as = (strtolower($data ?? "") == "uuid") ? "UUID_TO_BIN('".Uuid::generate()."')" : "UUID_TO_BIN('".$match[1]."')";
 					$data = null;
 				}
 				elseif(is_string($data) && str_starts_with(strtolower($data ?? ""), "point("))
