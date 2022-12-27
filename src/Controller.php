@@ -10,7 +10,7 @@
 	abstract class Controller
 	{
 		//protected $route;
-		protected $page;
+		//protected $page;
 		private $magic_methods = ['middleware', 'before', 'after', 'first', 'last'];
 
 	    /**

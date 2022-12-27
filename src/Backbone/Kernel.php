@@ -13,11 +13,11 @@
     use LCMS\Core\Route;
 	use LCMS\Core\Locale;
     use LCMS\Core\Env;
-    use LCMS\Core\Navigations;
     use LCMS\Core\Database;
 	use LCMS\View;
     use LCMS\DI;
     use LCMS\Page;
+    use LCMS\Page\Navigations;
     use LCMS\Util\Toolset;
 	use \Exception;
 
