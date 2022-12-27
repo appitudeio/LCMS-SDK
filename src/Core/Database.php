@@ -126,7 +126,7 @@
 			{
 				$statement->execute($all_fields);
 			}
-			catch(PDOException $e)
+			catch(PDOException | Exception $e)
 			{
 				self::getInstance()->debug($e);
 			}
@@ -210,7 +210,7 @@
 			{
 				$statement->execute($all_fields);
 			}
-			catch(PDOException $e)
+			catch(PDOException | Exception $e)
 			{
 				self::getInstance()->debug($e);
 			}
@@ -231,11 +231,7 @@
 				{
 					return $connection->query(self::getInstance()->sql);
 				}
-				catch(PDOException $e)
-				{
-					self::getInstance()->debug($e);
-				}
-				catch(Exception $e)
+				catch(PDOException | Exception $e)
 				{
 					self::getInstance()->debug($e);
 				}
@@ -249,11 +245,7 @@
 				$statement = $connection->prepare(self::getInstance()->sql);
 				$statement->execute($args);
 			}
-			catch(PDOException $e)
-			{
-				self::getInstance()->debug($e);
-			}
-			catch(Exception $e)
+			catch(PDOException | Exception $e)
 			{
 				self::getInstance()->debug($e);
 			}
