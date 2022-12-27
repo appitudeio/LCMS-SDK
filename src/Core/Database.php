@@ -93,7 +93,11 @@
 			/**
 			 *	Prepare the bindings
 			 */
-			foreach($_fields AS &$data)
+			$columns_values = array_fill(0, count($_fields), "?");
+
+			$i = 0;
+
+			foreach($_fields AS $key => &$data)
 			{
 				if(is_string($data) && str_starts_with(strtolower($data ?? ""), "now("))
 				{
@@ -102,23 +106,22 @@
 				elseif(is_string($data) && str_starts_with(strtolower($data ?? ""), "uuid("))
 				{
 					preg_match('#\((.*?)\)#', $data, $match);
-					$data = (strtolower($data ?? "") == "uuid()") ? "UUID_TO_BIN('".Uuid::generate()."')" : "UUID_TO_BIN('".$match[1]."')";
+					$data = (strtolower($data ?? "") == "uuid()") ? Uuid::generate() : $match[1];
+					$columns_values[$i] = "UUID_TO_BIN(?)";
 				}
 				elseif(is_string($data) && str_starts_with(strtolower($data ?? ""), "point("))
 				{
-					$data = $data;	
+					$data = $data;	// Not checked yet (2022-12-27)
 				}
-				else
-				{
-					$data = "?";
-				}
+
+				$i++;
 			}
 
 			// array => json
 			$all_fields = array_values($_fields);
 			array_walk($all_fields, fn(&$v) => (is_array($v)) ? $v = json_encode($v) : $v = $v); // Convert all arrays to json
-
-			self::getInstance()->sql = "INSERT INTO " . $_table . " (" . "`" . implode("`, `", array_keys($_fields)) . "`" . ") VALUES(" . implode(", ", $all_fields) . ")";
+			
+			self::getInstance()->sql = "INSERT INTO " . $_table . " (" . "`" . implode("`, `", array_keys($_fields)) . "`" . ") VALUES(" . implode(", ", $columns_values) . ")";
 
 			$statement = $connection->prepare(self::getInstance()->sql, $all_fields);
 
