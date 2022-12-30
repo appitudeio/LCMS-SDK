@@ -12,22 +12,26 @@
 	namespace LCMS\Util;
 	
 	use LCMS\Core\File;
-	use \Exception;
+	use LCMS\Util\Singleton;
 	use Aws\S3\S3Client;
+
+	use \Exception;
 
 	class Uploader
 	{
-		const TMP_PATH 				= "/tmp";
-		public static $initialized = false;
-		private static $config 		= array();
+		use Singleton;
 
-		private static $validators 	= array(
+		const TMP_PATH = "/tmp";
+		private $config = array();
+		private $s3 = false;
+
+		/*private static $validators 	= array(
 			'max_file_size'	=> 25000, // in kb
 			'max_width'		=> 3200,
 			'max_height'	=> 3200
-		);
+		);*/
 
-		private static $allowed_mimes = array(
+		private $allowed_mimes = array(
 			'image'	=> array("image/gif", "image/jpeg", "image/jpg", "image/png", "image/svg", "image/svg+xml", "image/webp"),
 			'file'	=> array(
 				// Basic
@@ -55,60 +59,69 @@
 			)			
 		);
 
-		public static function init($config)
+		public static function init(array $_config): self
 		{
-			self::$config = array(
-				'region'					=> $config['region'],
-				'bucket'					=> $config['bucket'],
-				'bucket_images_root_path'	=> $config['bucket_images_root_path'] ?? "",
-				'access_key'				=> $config['access_key'],
-				'access_secret'				=> $config['access_secret'],
+			if(!isset($_config['credentials']) && !isset($_config['access_key'], $_config['access_secret']))
+			{
+				throw new Exception("Uploader can't be initialized w/o credentials | key+secret");
+			}
+
+			self::getInstance()->config = array(
+				'region'					=> $_config['region'],
+				'bucket'					=> $_config['bucket'],
+				'bucket_images_root_path'	=> $_config['bucket_images_root_path'] ?? "",
+				'credentials'				=> $_config['credentials'] ?? array(
+					'key'				=> $_config['access_key'] ?? null,
+					'secret'			=> $_config['access_secret'] ?? null
+				)
 			);
 
-			self::$initialized = true;
+			self::getS3(); // Init the Client
+			
+			return self::getInstance();
 		}
 
 		/**
 		 *
 		 */
-		public static function image(File $local_file, string $to_path = "images", string $new_filename = null)
+		public static function image(File $local_file, string $to_path = "images", string | null $new_filename = null)
 		{
-			self::validate("image", $local_file);
+			self::getInstance()->validate("image", $local_file);
 
-			return self::uploadToS3($local_file, $to_path, $new_filename);
+			return self::getInstance()->uploadToS3($local_file, $to_path, $new_filename);
 		}
 
 		/** 
 		 *
 		 */
-		public static function file(File $local_file, $to_path = "files", $new_filename = null)
+		public static function file(File $local_file, string $to_path = "files", string | null $new_filename = null)
 		{
-			self::validate("file", $local_file);
+			self::getInstance()->validate("file", $local_file);
 
-			return self::uploadToS3($local_file, $to_path, $new_filename);
+			return self::getInstance()->uploadToS3($local_file, $to_path, $new_filename);
 		}
 
-		public static function font(File $local_file, $to_path = "fonts", $new_filename = null)
+		public static function font(File $local_file, string $to_path = "fonts", string | null $new_filename = null)
 		{
-			self::validate("font", $local_file);
+			self::getInstance()->validate("font", $local_file);
 
-			return self::uploadToS3($local_file, $to_path, $new_filename);
+			return self::getInstance()->uploadToS3($local_file, $to_path, $new_filename);
 		}		
 
 		/**
 		 *	Type is either file || image
 		 */
-		private static function validate(string $type, File $local_file): Bool
+		private static function validate(string $type, File $local_file): bool
 		{
-			if(!self::$initialized)
+			if(!self::getInstance()->s3)
 			{
-				throw new Exception("Uploader needs to be initialized first");
+				throw new Exception("Uploader needs to be ::init(ialized) first");
 			}
 			elseif(!$local_file->isValid())
 			{
 				throw new Exception($local_file->getErrorMessage());
 			}
-			elseif(!in_array($local_file->getMimeType(), self::$allowed_mimes[$type]))
+			elseif(!in_array($local_file->getMimeType(), self::getInstance()->allowed_mimes[$type]))
 			{
 				throw new Exception("Mime type " . $local_file->getMimeType() . " is not allowed to be uploaded to the server as ".$type." (File: " . $local_file->getClientOriginalName().")");
 			}
@@ -119,7 +132,7 @@
 		/**
 		 *	Generate a new file name, which will be unique
 		 */
-		public static function generateFileName(File | string $file = null, string $prepend_filename = null): String
+		public static function generateFileName(File | string $file = null, string | null $prepend_filename = null): string
 		{
 			$filename = time();
 
@@ -142,16 +155,16 @@
 		}
 
 		/* Upload image to S3 Bucket */
-		public static function uploadToS3(File $local_file, string $s3_path = null, string $new_filename = null): String
+		public static function uploadToS3(File $local_file, string $s3_path = null, string | null $new_filename = null): string
 		{
-			if(!self::$initialized)
+			if(!self::getInstance()->s3)
 			{
 				throw new Exception("Uploader not initialized");
 			}
 
-			$new_filename = (empty($new_filename)) ? self::generateFileName($local_file) : $new_filename;
+			$new_filename = (empty($new_filename)) ? self::getInstance()->generateFileName($local_file) : $new_filename;
 
-			$s3_root_path = (!empty($s3_path)) ? self::$config['bucket_images_root_path'] . "/". $s3_path : self::$config['bucket_images_root_path'];
+			$s3_root_path = (!empty($s3_path)) ? self::getInstance()->config['bucket_images_root_path'] . "/". $s3_path : self::getInstance()->config['bucket_images_root_path'];
 			$s3_root_path .= ($s3_root_path[strlen($s3_root_path) - 1] == "/") ? "" : "/"; // Append slash
 			$s3_root_path = ltrim($s3_root_path, "/"); // Remove first slash
 
@@ -163,20 +176,10 @@
 				$mime .= "+xml";
 			}
 
-			$s3 = new S3Client(array(
-			    'version'	=> "latest",
-			    'region' 	=> self::$config['region'],
-			    'credentials'	=> array(
-					'key'		=> self::$config['access_key'],
-					'secret'	=> self::$config['access_secret']
-			    )
-			));
-			
-			$s3->putObject(array(
-				'Bucket' 		=> self::$config['bucket'], 
+			self::getInstance()->getS3()->putObject(array(
+				'Bucket' 		=> self::getInstance()->config['bucket'], 
 				'Key' 			=> $s3_root_path . $new_filename, 
 				'SourceFile' 	=> (string) $local_file, 
-				//'ACL' 			=> "public-read", 
 				'ContentType' 	=> $mime
 			));
 
@@ -184,11 +187,11 @@
 		}
 
 		/* Rewritten DownloadMethod */
-	    public static function downloadImage($download_url, $prepend_filename = null)
+	    public static function downloadImage(string $download_url, string | null $prepend_filename = null): string
 	    {
-	    	$mime = self::getMimeFromUrl($download_url);
+	    	$mime = self::getInstance()->getMimeFromUrl($download_url);
 
-			if(empty($mime) || !in_array($mime, self::$allowed_mimes['image']))
+			if(empty($mime) || !in_array($mime, self::getInstance()->allowed_mimes['image']))
 			{
 				throw new Exception("Mime '" . $mime . "' is not allowed to be uploaded to the server. (File: " . $download_url.")");
 			}
@@ -231,7 +234,7 @@
 	    	return $new_filename;
 	    }
 
-	    private static function getMimeFromUrl($_url)
+	    private static function getMimeFromUrl(string $_url): string
 	    {
 			$ch = curl_init($_url);
 			curl_setopt_array($ch, array(
@@ -241,17 +244,32 @@
 				CURLOPT_RETURNTRANSFER => true
 			));
 			curl_exec($ch);
+
 			return trim(explode(";", curl_getinfo($ch, CURLINFO_CONTENT_TYPE))[0]);   	
 	    }
 
-	    public static function getFileEndingFromMime($mime)
+	    public static function getFileEndingFromMime(string $_mime): string
 	    {
-	    	return explode("+", explode("/", $mime)[1])[0]; // "+" is for SVG
+	    	return explode("+", explode("/", $_mime)[1])[0]; // "+" is for SVG
 	    }
 
-	    public static function setBucket($_bucket)
+	    public static function setBucket(string $_bucket): void
 	    {
-	    	self::$config['bucket'] = $_bucket;
+	    	self::getInstance()->config['bucket'] = $_bucket;
 	    }
+
+		public static function getS3(): S3Client
+		{
+			if(!self::getInstance()->s3)
+			{
+				self::getInstance()->s3 = new S3Client(array(
+					'version'		=> "latest",
+					'region' 		=> self::getInstance()->config['region'],
+					'credentials' 	=> self::getInstance()->config['credentials']
+				));
+			}
+
+			return self::getInstance()->s3;
+		}		
 	}
 ?>
