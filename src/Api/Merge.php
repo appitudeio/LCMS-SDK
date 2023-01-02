@@ -1,25 +1,38 @@
 <?php
 	/** 
-	 *
+	 *	Merges different provider objects with source's. E.g local file, database.
+	 *	@author Mathias Eklöf
+	 * 	@created 2021-12-01
+	 * 	@updated 2022-12-07: DI with "prepare"-methods
+	 * 		- Env can use Locale to extract language
 	 */
 	namespace LCMS\Api;
 
 	use LCMS\Core\Env;
 	use LCMS\Core\Database as DB;
 	use LCMS\Core\Route;
-	use LCMS\Core\Navigations;
+	use LCMS\Page\Navigations;
 	use LCMS\Core\Node;
 	use LCMS\Core\Request;
 	use LCMS\Core\Locale;
-	use LCMS\Utils\Arr;
+	use LCMS\Util\Arr;
+	use LCMS\DI;
+	
+	use \Closure;
 	use \Exception;
 
 	class Merge
 	{
 		private $object;
 		private $merger;
+		private $storage;
 
-		function __construct($_obj)
+		function __construct(object $_obj)
+		{
+			$this->object = $_obj;
+		}
+
+		public function factory(object $_obj)
 		{
 			$this->object = $_obj;
 		}
@@ -29,35 +42,34 @@
 			return (new \ReflectionClass($this->object))->getShortName();
 		}
 
-		public function with($_storage)
+		public function with($_storage, $_auto_merge = true)
 		{
 			if($this->merger)
 			{
+				if(!$_auto_merge)
+				{
+					return $this;
+				}
+
 				return $this->merger->merge($_storage);
 			}
 
-			if($this->object instanceof Node)
+			if(!$this->merger = match(true)
 			{
-				$this->merger = new NodeMerge($this->object);
-			}
-			elseif($this->object instanceof Route)
-			{
-				$this->merger = new RouteMerge($this->object);
-			}
-			elseif($this->object instanceof Navigations)
-			{
-				$this->merger = new NavigationsMerger($this->object);
-			}
-			elseif($this->object instanceof Env)
-			{
-				$this->merger = new EnvMerge($this->object);
-			}
-			else
+				$this->object instanceof Node => new NodeMerge($this->object),
+				$this->object instanceof Route => new RouteMerge($this->object),
+				$this->object instanceof Navigations => new NavigationsMerger($this->object),
+				$this->object instanceof Env => new EnvMerge($this->object),
+				$this->object instanceof Locale => new LocaleMerge($this->object),
+				default => false
+			})
 			{
 				throw new Exception("No merger available from Object");
 			}
 
-			return $this->with($_storage);
+			$this->storage = $_storage;
+
+			return $this->with($this->storage);
 		}
 
 		public function store($_what = null, $_into = null)
@@ -89,56 +101,85 @@
 		protected $instance;
 		protected $storage;
 
-		function __construct($_instance)
+		function __construct(object $_instance)
 		{
-			$this->instance = $_instance;		
+			$this->instance = $_instance;
 		}
 
-		protected function prepare($_storage): Self
+		public function getStorage()
+		{
+			return $this->storage;
+		}		
+
+		public function prepare($_storage): self
 		{
 			$this->storage = $_storage;
 
-			if($_storage instanceof DB)
+			if(!$fn = match(true)
 			{
-				return $this->prepareFromDatabase($_storage);
-			}
-			elseif(is_array($_storage))
+				$_storage instanceof DB => "prepareFromDatabase",
+				$_storage instanceof Closure => "prepareFromClosure",
+				is_array($_storage) => "prepareFromArray",
+				is_file($_storage) => "prepareFromFile",
+				is_dir($_storage) => "prepareFromDir",
+				default => false
+			})
 			{
-				return $this->prepareFromArray($_storage);
-			}			
-			elseif(is_file($_storage))
-			{
-				return $this->prepareFromFile($_storage);
+				throw new Exception("Invalid preparation storage: " . $_storage);
 			}
 
-			throw new Exception("Invalid preparation storage: " . $_storage);
+			return DI::call([$this, $fn], [$_storage]); // Let Storage-methods inherit DI
 		}
 
-		protected function prepareFromDatabase(DB $db): Self
-		{}
+		/*public function prepareFromDatabase(DB $db): self
+		{
+			return $this;
+		}
 
-		protected function prepareFromArray($_array): Self
-		{}		
+		public function prepareFromArray(array $_array): self
+		{
+			return $this;
+		}
 
-		protected function prepareFromFile($_file): Self
+		public function prepareFromFile(string $_file): self
 		{
 			throw new Exception(get_class($this) . " cant prepare from File");
-		}
+		}*/
 
-		protected function store($_what, $_into = null): Self
+		public function prepareFromClosure(Closure $_routes_closure): self
+		{
+			DI::call($_routes_closure);
+
+			return $this;
+		}		
+
+		/*public function prepareFromDir(string $_dir): self
+		{
+			throw new Exception(get_class($this) . " cant prepare from Directory");
+		}*/
+
+		protected function store(mixed $_what, mixed $_into = null): self
 		{
 			throw new Exception(get_class($this) . " does not support storage");
 		}
 
-		public function merge($_storage)
+		public function merge(mixed $_storage = null): self
 		{
-			return $this->prepare($_storage)->execute($_storage);
+			$storage = $_storage ?? $this->storage;
+			return $this->prepare($storage)->execute($storage);
 		}
 
-		protected function execute($_storage): Mixed
+		public function set(object $_instance): self
 		{
-			return $this->instance;
-		}	
+			$this->instance = $_instance;
+
+			return $this;
+		}
+
+		protected function execute($_storage): self
+		{
+			return $this;
+		}
 	}
 
 	class NodeMerge extends BaseMerge
@@ -147,7 +188,7 @@
 		public $properties;
 		private $unmergers;
 		
-		protected function prepareFromFile($_file): Self
+		public function prepareFromFile(string $_file): self
 		{
 			$this->nodes = array();
 			$this->properties = array();
@@ -156,52 +197,61 @@
 			return $this->prepareFromIni($_file);
 		}
 
-		protected function prepareFromDatabase(DB $db): Self
+		public function prepareFromDatabase(DB $db, Locale $locale): self
 		{
 			$this->nodes = array();
 			$this->properties = array();
 			$this->unmergers = array();
 
-			$condition = ($this->instance::$namespace != null && isset($this->instance::$namespace['id'])) ? " OR `route_id`=".$this->instance::$namespace['id'] : null;
+			$condition = ($this->instance->namespace != null && isset($this->instance->namespace['id'])) ? " OR `route_id`=".$this->instance->namespace['id'] : null;
 
-			$query = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_nodes` 
-									WHERE (`route_id` IS NULL " . $condition . ") 
-										AND `deleted_at` IS NULL 
-										AND JSON_EXTRACT(`hidden_at`, '$.".Locale::getLanguage()."') IS NULL
-										AND (
-											`type`=".Node::TYPE_LOOP."
-											OR JSON_EXTRACT(`content`, '$.".Locale::getLanguage()."') > 0 
-											OR JSON_EXTRACT(`content`, '$.*') > 0
-										)
-											ORDER BY `order` ASC, `id` ASC");
-
-			if($db::num_rows($query) == 0)
+			if(!$nodes = $db->query("SELECT * FROM ".Env::get("db")['database'].".`lcms_nodes` 
+										WHERE (`route_id` IS NULL " . $condition . ") 
+											AND `deleted_at` IS NULL 
+											AND JSON_EXTRACT(`hidden_at`, ?) IS NULL
+											AND (
+												`type`=?
+												OR JSON_EXTRACT(`content`, ?) > 0 
+												OR JSON_EXTRACT(`content`, '$.*') > 0
+											)
+												ORDER BY `order` ASC, `id` ASC", ["$.".$locale->getLanguage(), Node::TYPE_LOOP, "$.".$locale->getLanguage()])->asArray())
 			{
 				return $this;
 			}
-
+			
 			$loops = array();
 			$loops_relations = array();
 
-			while($row = $db::fetch_assoc($query))
+			foreach($nodes AS $row)
 			{
 				$node = $this->buildNode($row);
 
 				$identifier = $node['identifier'];
-				$value = htmlspecialchars_decode($node['content'][Locale::getLanguage()] ?? $node['content']["*"] ?? "");
+				$value = htmlspecialchars_decode($node['content'][$locale->getLanguage()] ?? $node['content']["*"] ?? "");
 
 				if(empty($node['route_id']))
 				{
-					$identifier = array("global" => array($identifier => $value));
+					if(str_contains($identifier, "."))
+					{
+						$array = array();
+						Arr::unflatten($array, $identifier, $value);
+
+						$identifier = array("global" => $array);
+						unset($array);
+					}
+					else
+					{
+						$identifier = array("global" => array($identifier => $value));
+					}
 				}
-				elseif($this->instance::$namespace != null)
+				elseif($this->instance->namespace != null)
 				{
 					$array = array();
 					Arr::unflatten($array, $identifier, $value);
 
-					$identifier = array(($this->instance::$namespace['alias'] ?? $this->instance::$namespace['pattern']) => $array);
+					$identifier = array(($this->instance->namespace['alias'] ?? $this->instance->namespace['pattern']) => $array);
 					unset($array);
-				}				
+				}
 
 				if(!empty($node['loop_id']))
 				{
@@ -226,7 +276,7 @@
 				{
 					$this->nodes = array_replace_recursive($this->nodes, $identifier);
 				
-					if(isset($node['properties'][Locale::getLanguage()]) && !empty($node['properties'][Locale::getLanguage()]) && $properties = $node['properties'][Locale::getLanguage()])
+					if(isset($node['properties'][$locale->getLanguage()]) && !empty($node['properties'][$locale->getLanguage()]) && $properties = $node['properties'][$locale->getLanguage()])
 					{
 						array_walk_recursive($identifier, fn(&$value) => ($value = $properties));
 						$this->properties = array_replace_recursive($this->properties, $identifier);
@@ -254,11 +304,11 @@
 					foreach($nodes AS $k => $node)
 					{
 						$array = array();
-						Arr::unflatten($array, $identifier, array($key => array($k => $node['content'][Locale::getLanguage()] ?? $node['content']["*"] ?? "")));
+						Arr::unflatten($array, $identifier, array($key => array($k => $node['content'][$locale->getLanguage()] ?? $node['content']["*"] ?? "")));
 
 						$this->nodes = array_replace_recursive($this->nodes, $array);
 
-						if(isset($node['properties'][Locale::getLanguage()]) && !empty($node['properties'][Locale::getLanguage()]) && $properties = $node['properties'][Locale::getLanguage()])
+						if(isset($node['properties'][$locale->getLanguage()]) && !empty($node['properties'][$locale->getLanguage()]) && $properties = $node['properties'][$locale->getLanguage()])
 						{
 							array_walk_recursive($array, fn(&$value) => ($value = $properties));
 							$this->properties = array_replace_recursive($this->properties, $array);
@@ -272,10 +322,15 @@
 			return $this;
 		}
 
+		public function prepareFromDir(string $_dir, Locale $locale): self
+		{
+			return $this->prepareFromFile($_dir . "/" . $locale->getLanguage() . ".ini");
+		}
+
 		private function getLoop(DB $db, $loop_identifier)
 		{
 			// Fetch existing loops (Extend if any exists)
-			$condition = ($this->instance::$namespace != null && isset($this->instance::$namespace['id'])) ? " OR `route_id`=".$this->instance::$namespace['id'] : null;
+			$condition = ($this->instance->namespace != null && isset($this->instance->namespace['id'])) ? " OR `route_id`=".$this->instance->namespace['id'] : null;
 
 			$query = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_nodes` WHERE `identifier`='".$loop_identifier."' AND (`route_id` IS NULL " . $condition . ") AND `type`=".Node::TYPE_LOOP." AND `deleted_at` IS NULL AND `hidden_at` IS NULL");
 
@@ -287,7 +342,7 @@
 			return $db::fetch_assoc($query);
 		}		
 
-		public function store($_what, $_into = null): Self
+		public function store($_what, $_into = null): self
 		{
 			if($_into instanceof DB || (!empty($this->storage) && $this->storage instanceof DB))
 			{
@@ -301,7 +356,7 @@
 			throw new Exception("Unexpected storage: " . ($_into ?? "No storage-file defined"));
 		}
 
-		private function storeToDatabase(DB $db, $_nodes): Self
+		private function storeToDatabase(DB $db, $_nodes): self
 		{
 			/**
 			 *	Find out if a loop
@@ -316,7 +371,7 @@
 					if(!$loop_array)
 					{
 						$db::insert(Env::get("db")['database'].".`lcms_nodes`", array(
-							'route_id' 		=> ((!isset($n['global']) || !$n['global']) && $this->instance::$namespace != null && isset($this->instance::$namespace['id'])) ? $this->instance::$namespace['id'] : null,
+							'route_id' 		=> ((!isset($n['global']) || !$n['global']) && $this->instance->namespace != null && isset($this->instance->namespace['id'])) ? $this->instance->namespace['id'] : null,
 							'identifier'	=> $key,
 							'type'			=> Node::TYPE_LOOP,
 							'parameters'	=> $node // Snapshot of all nodes to be used here
@@ -348,9 +403,9 @@
 				elseif(str_starts_with($node['identifier'], "meta."))
 				{
 					// Meta-data
-					if(!empty($this->instance::$namespace) && isset($this->instance::$namespace['id']))
+					if(!empty($this->instance->namespace) && isset($this->instance->namespace['id']))
 					{
-						$db::query("UPDATE ".Env::get("db")['database'].".`lcms_routes` SET `meta` = JSON_MERGE_PATCH(`meta`, ?) WHERE `id`=?", [ array(Locale::getLanguage() => [explode(".", $node['identifier'], 2)[1] => $node['content']]), $this->instance::$namespace['id'] ]);
+						$db::query("UPDATE ".Env::get("db")['database'].".`lcms_routes` SET `meta` = JSON_MERGE_PATCH(`meta`, ?) WHERE `id`=?", [ array(Locale::getLanguage() => [explode(".", $node['identifier'], 2)[1] => $node['content']]), $this->instance->namespace['id'] ]);
 					}
 					else
 					{
@@ -361,7 +416,7 @@
 				{
 					// Default node
 					$db::insert(Env::get("db")['database'].".`lcms_nodes`", array(
-						'route_id' 		=> ((!isset($node['global']) || !$node['global']) && $this->instance::$namespace != null && isset($this->instance::$namespace['id'])) ? $this->instance::$namespace['id'] : null,
+						'route_id' 		=> ((!isset($node['global']) || !$node['global']) && $this->instance->namespace != null && isset($this->instance->namespace['id'])) ? $this->instance->namespace['id'] : null,
 						'identifier'	=> $node['identifier'],
 						'type'			=> $node['type'],
 						'parameters'	=> $node['parameters'] ?? null,
@@ -374,7 +429,7 @@
 			return $this;
 		}
 
-		private function storeToIni($_nodes): Self
+		private function storeToIni($_nodes): self
 		{
 			if(!is_writable($this->storage['filename']))
 			{
@@ -388,12 +443,12 @@
 			// Only store if this Route has an Alias OR is global
 			foreach($_nodes AS $identifier => $node)
 			{
-				if((!isset($node['global']) || !$node['global']) && $this->instance::$namespace == null)
+				if((!isset($node['global']) || !$node['global']) && $this->instance->namespace == null)
 				{
 					continue;
 				}
 
-				$alias = (isset($node['global']) && $node['global']) ? "global" : ($this->instance::$namespace['alias'] ?? $this->instance::$namespace['pattern']);
+				$alias = (isset($node['global']) && $node['global']) ? "global" : ($this->instance->namespace['alias'] ?? $this->instance->namespace['pattern']);
 
 				if(!isset($existing_file_array[$alias]))
 				{
@@ -507,7 +562,7 @@
 			return true;
 		}
 
-		private function prepareFromIni($_file): Self
+		private function prepareFromIni($_file): self
 		{
 			$file_content = parse_ini_file($_file, true);
 
@@ -541,7 +596,7 @@
 			return $this;
 		}
 
-		protected function prepareFromArray($_array): Self
+		public function prepareFromArray($_array): self
 		{
 			$flattened_array = Arr::flatten($_array);
 
@@ -556,15 +611,17 @@
 		/**
 		 *	Construct the new routes as the format they came as
 		 */
-		public function execute($_storage): Node
+		public function execute($_storage): self
 		{
 			if(empty($this->nodes))
 			{
-				return $this->instance;
+				return $this;
 			}
 
 			// Unflatten the file-content
-			return $this->instance->merge($this->nodes, $this->properties, $this->unmergers);
+			$this->instance->merge($this->nodes, $this->properties, $this->unmergers);
+
+			return $this;
 		}
 
 		/**
@@ -605,7 +662,7 @@
 			});*/
 		}
 
-		private function buildNode($row)
+		private function buildNode($row): array
 		{
 			return array_merge($row, array(
 				'content'		=> (!empty($row['content'])) ? json_decode($row['content'], true) : null,
@@ -624,20 +681,20 @@
 		/**
 		 *	Only GET-routes
 		 */
-		protected function prepareFromDatabase(DB $db): Self
+		public function prepareFromDatabase(DB $db, Env $env): self
 		{
-			$this->instance::bindControllerRoutes();
+			$this->instance->bindControllerRoutes();
 
-			$this->system_routes = $this->instance::$routes;
+			$this->system_routes = $this->instance->routes;
 
-			$query = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_routes`");
+			$query = $db->query("SELECT * FROM ".$env->get("db")['database'].".`lcms_routes`");
 
-			if($db::num_rows($query) == 0)
+			if($db->num_rows($query) == 0)
 			{
 				return $this;
 			}
 
-			while($row = $db::fetch_assoc($query))
+			while($row = $db->fetch_assoc($query))
 			{
 				$this->database_routes[$row['id']] = $this->buildRoute($row);
 			}
@@ -645,7 +702,7 @@
 			return $this;
 		}
 
-		private function pair($system_route)
+		private function pair($system_route): array
 		{
 			foreach($this->database_routes AS $k => $lcms_route)
 			{
@@ -661,7 +718,7 @@
 			return $system_route;
 		}
 
-		private function createRoute(DB $db, $_route)
+		private function createRoute(DB $db, $_route): int
 		{
 			$snapshot = array(
 				'pattern' => $_route['org_pattern'] ?? $_route['pattern']
@@ -695,7 +752,7 @@
 			return $db::last_insert_id();
 		}
 
-		private function buildRoute($row)
+		private function buildRoute($row): array
 		{
 			if(isset($row['parameters']) && !empty($row['parameters']) && !is_array($row['parameters']))
 			{
@@ -749,21 +806,19 @@
 			return $row;
 		}
 
-		public function execute($_storage): Route
+		public function execute($_storage): self
 		{
 			$relations = array();
 
 			foreach($this->system_routes AS $key => $route)
 			{
-				if(!in_array($key, $this->instance::$map[Request::METHOD_GET])) // Post variable
+				if(!in_array($key, $this->instance->map[Request::METHOD_GET])) // Post variable
 				{
 					/**
 					 *	If parent has changed it's pattern, just replace it here
 					 */
 					if(!isset($route['parent']) || !isset($this->system_routes[$route['parent']]['pattern'])) // Disabled because parent is disabled
 					{
-						//$this->system_routes[$key]['disabled'] = true;
-						//unset($this->system_routes[$key]);
 						continue;
 					}
 					elseif(substr($route['pattern'], 0, strlen($this->system_routes[$route['parent']]['pattern'])) !== $this->system_routes[$route['parent']]['pattern'])
@@ -819,34 +874,18 @@
 						$this->system_routes[$key]['id'] = $this->createRoute($_storage, $route);
 					}
 
-					// Is this route disabled? (From LCMS)
-					/*if(isset($this->system_routes[$key]['settings'], $this->system_routes[$key]['settings'][Locale::getLanguage()], $this->system_routes[$key]['settings'][Locale::getLanguage()]['disabled']) && $this->system_routes[$key]['settings'][Locale::getLanguage()]['disabled']['value'])
-					{
-						// Remove this route from the mapping too
-						foreach(array_filter($this->instance::$map, fn($keys) => in_array($key, $keys)) AS $map => $keys)
-						{
-							unset($this->instance::$map[$map][array_search($key, $keys)]);
-						}
-
-						$this->system_routes[$key]['disabled'] = true;
-						
-						//unset($this->system_routes[$key]);
-					}
-					else
-					{*/
-						$relations[$this->system_routes[$key]['id']] = $key;
-					//}
+					$relations[$this->system_routes[$key]['id']] = $key;
 				}
 			}
 
 			if(empty($relations))
 			{
-				return $this->instance;
+				return $this;
 			}
-
-			if(empty($this->database_routes))
+			elseif(empty($this->database_routes))
 			{
-				return $this->instance->merge($this->system_routes);
+				$this->instance->merge($this->system_routes);
+				return $this;
 			}
 			
 			foreach($this->database_routes AS $k => $route)
@@ -869,10 +908,12 @@
 				unset($this->database_routes[$k]);
 			}
 
-			return $this->instance->merge($this->system_routes);
+			$this->instance->merge($this->system_routes);
+
+			return $this;
 		}
 
-		private function storeToDatabase(DB $db, $_settings): Self
+		private function storeToDatabase(DB $db, $_settings): self
 		{
 			$settings = array(Locale::getLanguage() => array());
 
@@ -889,12 +930,12 @@
 				);
 			}
 
-			$db::query("UPDATE ".Env::get("db")['database'].".`lcms_routes` SET `settings` = JSON_MERGE_PATCH(`settings`, ?) WHERE `id`=?", [ $settings, $this->instance::$current['id'] ]);
+			$db::query("UPDATE ".Env::get("db")['database'].".`lcms_routes` SET `settings` = JSON_MERGE_PATCH(`settings`, ?) WHERE `id`=?", [ $settings, $this->instance->current['id'] ]);
 		
 			return $this;
 		}
 
-		public function store($_what, $_into = null): Self
+		public function store($_what, $_into = null): self
 		{
 			$_into = $_into ?? $this->storage;
 
@@ -912,7 +953,7 @@
 		private $database_navs = array();
 		private $system_navs = array();
 
-		protected function prepareFromDatabase(DB $db): Self
+		public function prepareFromDatabase(DB $db): self
 		{
 			$this->system_navs = $this->instance->getAll();
 
@@ -969,7 +1010,7 @@
 			return $system_nav_item;
 		}
 
-		private function createNavItem(DB $db, $_nav_identifier, $_nav_item, $_parent_id = null)
+		private function createNavItem(DB $db, $_nav_identifier, $_nav_item, $_parent_id = null): array
 		{
 			$db::insert(Env::get("db")['database'].".`lcms_navigations`", array(
 				'navigation' 	=> $_nav_identifier,
@@ -986,19 +1027,14 @@
 			return $_nav_item;
 		}
 
-		/*private function updateNavItem(DB $db, $nav_item_id, $params): Void
-		{
-			DB::update(Env::get("db")['database'].".`lcms_navigations`", $params, array('id' => $nav_item_id));
-		}*/
-
 		/**
 		 *	Merge everything together
 		 */
-		protected function execute($_storage): Navigations
+		protected function execute($_storage): self
 		{
 			if(empty($this->system_navs))
 			{
-				return $this->instance;
+				return $this;
 			}
 
 			$relations = $system_items = array();
@@ -1046,19 +1082,18 @@
 				foreach(array_filter($system_items[$navigation], fn($i) => isset($i['parent'])) AS $nav_item_key => $nav_object)
 				{
 					$system_items[$navigation][$nav_item_key]['parent_id'] = $system_items[$navigation][$nav_object['parent']]['id'];
-					
-					//$this->updateNavItem($_storage, $nav_object['id'], array('parent_id' => $system_items[$navigation][$nav_item_key]['parent_id']));
 				}
 			}
 
 			if(empty($relations))
 			{
-				return $this->instance;
+				return $this;
 			}
 
 			if(empty($this->database_navs))
 			{
-				return $this->instance->merge($system_items);
+				$this->instance->merge($system_items);
+				return $this;
 			}
 
 			/**
@@ -1088,10 +1123,12 @@
 				}
 			}
 
-			return $this->instance->merge($system_items);
+			$this->instance->merge($system_items);
+
+			return $this;
 		}
 
-		private function buildNavItem($row)
+		private function buildNavItem($row): array
 		{
 			if(isset($row['title']) && !empty($row['title']) && !is_array($row['title']))
 			{
@@ -1119,169 +1156,26 @@
 		}
 	}
 
-	/*class NavMerge extends BaseMerge
-	{
-		private $navigation;
-		private $database_items = array();
-		private $system_items = array();
-
-		protected function prepareFromDatabase(DB $db): Self
-		{
-			$data = $this->instance->asArray();
-
-			$this->navigation = $data['id'];
-			$this->system_items = $data['items'];
-
-			unset($data);
-
-			$query = $db::query("SELECT `mi`.*, `r`.`alias` AS `route` FROM ".Env::get("db")['database'].".`lcms_navigations` AS `mi` JOIN ".Env::get("db")['database'].".`lcms_routes` AS `r` ON(`r`.`id` = `mi`.`route_id`) WHERE `mi`.`deleted_at` IS NULL AND `nav`='".$this->navigation."' ORDER BY `mi`.`parent_id` ASC, `mi`.`id` ASC");
-
-			if($db::num_rows($query) == 0)
-			{
-				return $this;
-			}
-
-			while($row = $db::fetch_assoc($query))
-			{
-				$this->database_items[$row['id']] = $this->buildNavItem($row);
-			}
-
-			return $this;
-		}
-
-		private function pair($system_nav_item)
-		{
-			$snapshot = array('title' => $system_nav_item['title'], 'route' => $system_nav_item['route']);
-
-			foreach($this->database_items AS $k => $lcms_nav_item)
-			{
-				if(empty($lcms_nav_item['snapshot']) || $lcms_nav_item['snapshot'] != $snapshot)
-				{
-					continue;
-				}
-
-				unset($this->database_items[$k]); // Remove this entry from LCMS
-
-				return array_merge($system_nav_item, $lcms_nav_item);
-			}
-
-			return $system_nav_item;
-		}
-
-		private function createNavItem(DB $db, $_nav_item)
-		{
-			pre($_nav_item); die("nav item");
-			$item = array(
-				'navigation' 	=> $this->navigation,
-				'parent_id'		=> (isset($_nav_item['parent'])) ? $this->system_items[$_nav_item['parent']]['id'] : null,
-				'title'			=> array(Locale::getLanguage() => $_nav_item['title']),
-				'route_id'		=> Route::asItem($_nav_item['route'])['id'] ?? null,
-				'parameters'	=> (isset($_nav_item['parameters']) && !empty($_nav_item['parameters'])) ? $_nav_item['parameters'] : null,
-				'snapshot'		=> array('title' => $_nav_item['title'], 'route' => $_nav_item['route']),
-				'order'			=> $_nav_item['order'] ?? 99
-			);
-
-			$db::insert(Env::get("db")['database'].".`lcms_navigations`", $item);
-
-			$item['id'] = DB::last_insert_id();
-
-			return $item;
-		}
-
-		protected function execute($_storage): Navigation
-		{	
-			if(empty($this->system_items))
-			{
-				return $this->instance;
-			}
-
-			$relations = array();
-
-			foreach($this->system_items AS $navigation => $nav_item)
-			{
-				if(!empty($this->database_items))
-				{
-					$this->system_items[$navigation] = $this->pair($nav_item);
-				}
-
-				if(!isset($this->system_items[$navigation]['id']))
-				{
-					$this->system_items[$navigation] = array_merge($this->system_items[$navigation], $this->createNavItem($_storage, $navigation, $nav_item));
-				}
-
-				$relations[$this->system_items[$navigation]['id']] = $navigation;
-			}
-
-			if(empty($relations))
-			{
-				return $this->instance;
-			}
-
-			if(empty($this->database_items))
-			{
-				return $this->instance->merge($this->system_items);
-			}
-
-			foreach($this->database_items AS $k => $nav_item)
-			{
-				$key = count($this->system_items);
-				$relations[$nav_item['id']] = $key;
-
-				$this->system_items[] = array_merge($nav_item, array('key' => $key));
-
-				if(!empty($nav_item['parent_id']))
-				{
-					if(!isset($this->system_items[$relations[$nav_item['parent_id']]]['children']))
-					{
-						$this->system_items[$relations[$nav_item['parent_id']]]['children'] = array();
-					}
-
-					$this->system_items[$key]['parent'] = $relations[$nav_item['parent_id']];
-					$this->system_items[$relations[$nav_item['parent_id']]]['children'][] = $key;
-				}
-
-				unset($this->database_items[$k]);
-			}
-
-			return $this->instance->merge($this->system_items);
-		}
-
-		private function buildNavItem($row)
-		{
-			if(isset($row['title']) && !empty($row['title']) && !is_array($row['title']))
-			{
-				$row['title'] = json_decode($row['title'], true)[Locale::getLanguage()] ?? null;
-			}
-
-			if(isset($row['snapshot']) && !empty($row['snapshot']) && !is_array($row['snapshot']))
-			{
-				$row['snapshot'] = json_decode($row['snapshot'], true);
-			}
-
-			return $row;
-		}
-	}*/
-
 	class EnvMerge extends BaseMerge
 	{
 		private $excluded_keys = ['is_dev', 'db'];
 		private $items;
 
-		protected function prepareFromFile($_file): Self
+		public function prepareFromFile($_file): self
 		{
 			$this->items = require($_file);
 
 			return $this;
 		}
 
-		protected function prepareFromArray($_array): Self
+		public function prepareFromArray($_array): self
 		{
 			$this->items = (empty($this->items)) ? $_array : array_merge($this->items, $_array);
 
 			return $this;
 		}
 
-		protected function prepareFromDatabase(DB $db): Self
+		public function prepareFromDatabase(DB $db): self
 		{
 			$query = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_settings` WHERE `key` NOT IN('".implode("', '", $this->excluded_keys)."')");
 
@@ -1290,24 +1184,56 @@
 				return $this;
 			}
 
-			// $this->items = array();
-
 			while($row = $db::fetch_assoc($query))
 			{
-				$this->items[$row['key']] = (empty($row['value'])) ? null : ((\LCMS\Utils\Toolset::isJson($row['value'])) ? json_decode($row['value'], true) : $row['value']);
+				$this->items[$row['key']] = (empty($row['value'])) ? null : ((\LCMS\Util\Toolset::isJson($row['value'])) ? json_decode($row['value'], true) : $row['value']);
 			}
 
 			return $this;
 		}
 
-		protected function execute($_storage): Env
+		protected function execute($_storage): self
 		{
 			if(empty($this->items))
 			{
-				return $this->instance;
+				return $this;
 			}
 
-			return $this->instance->merge($this->items);
+			$this->instance->merge($this->items);
+
+			return $this;
+		}
+	}
+
+	class LocaleMerge extends BaseMerge
+	{
+		private $languages = array();
+
+		public function prepareFromDir(string $_dir): self
+		{
+			foreach(new \DirectoryIterator($_dir) AS $item) 
+			{
+				if(!$item->isFile() || $item->getExtension() != "ini") 
+				{
+					continue;
+				}
+
+				$this->languages[] = explode(".", $item->getFilename())[0];
+			}
+
+			return $this;
+		}
+
+		protected function execute($_storage): self
+		{
+			if(empty($this->languages))
+			{
+				return $this;
+			}
+
+			$this->instance->setLanguages($this->languages);
+
+			return $this;
 		}
 	}
 ?>

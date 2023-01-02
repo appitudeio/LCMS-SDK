@@ -2,7 +2,7 @@
 	namespace LCMS\Backbone;
 
 	use LCMS\Core\Request;
-	use \LCMS\Utils\Singleton;
+	use LCMS\Util\Singleton;
 	use \Exception;
 
 	class Cache
@@ -12,7 +12,7 @@
 		private static $cache_file_ext = ".html";
 		private static $file_storage = false;
 
-		public static function findFile(Request $_request, $_callback)
+		protected static function findFile(Request $_request, $_callback)
 		{
 			$strict_filename = ($_request->path() !== "/") ? $_request->path() : "startpage";
 			$root_filename = $strict_filename;
@@ -31,7 +31,7 @@
 			return $_callback($strict_filename . self::$cache_file_ext, $root_filename . self::$cache_file_ext, $url_parameters);
 		}
 
-		public static function setFile($to_file)
+		protected static function setFile($to_file)
 		{
 			if(!is_dir(dirname($to_file)))
 			{
@@ -45,7 +45,7 @@
 			self::$file_storage = $to_file;
 		}
 
-		public static function getFileCached($_root, Request $_request)
+		protected static function getFileCached($_root, Request $_request)
 		{
 			if(!self::$file_cache_enabled)
 			{
@@ -55,7 +55,7 @@
 
 		}
 
-		public static function storeToFile($_html) : String
+		protected static function storeToFile($_html) : String
 		{
 			if(!self::$file_storage)
 			{

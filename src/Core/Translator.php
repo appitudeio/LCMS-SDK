@@ -4,13 +4,18 @@
 	 *
 	 * 	@author     Mathias Eklöf <mathias@appitude.io>
 	 *	@created 	2019-03-14
+	 * 		---- DECAPRECATED (2022-12-07) ---??
 	 */
 	namespace LCMS\Core;
+
+	use LCMS\Util\Singleton;
 
 	use \Exception;
 
 	class Translator
 	{
+		use Singleton;
+
 		private static $translations = false;
 
 		public static function init($translation_file_path = null)
@@ -27,9 +32,9 @@
 					throw new Exception("Unable to find the translation file for language $translation_file_path!");
 				} 
 
-				self::$translations = parse_ini_file($translation_file_path, true);
+				self::getInstance()->translations = parse_ini_file($translation_file_path, true);
 
-				if(!self::$translations)
+				if(!self::getInstance()->translations)
 				{
 					throw new Exception("Could not parse ini-file: " . $translation_file_path);
 				}
@@ -38,17 +43,17 @@
 		
 		public static function getTranslations()
 		{
-			return self::$translations;
+			return self::getInstance()->translations;
 		}
 		
 		public static function get($_label, $_data = null, $_fallback_label = null)
 		{
-			if(!self::$translations && empty($_fallback_label))
+			if(!self::getInstance()->translations && empty($_fallback_label))
 			{
 				throw new Exception("Translator language file not initialized");
 			}
 
-		 	$message = self::getMessage($_label);
+		 	$message = self::getInstance()->getMessage($_label);
 
 		 	if(!$message) // Backup
 		 	{
@@ -74,12 +79,12 @@
 		{
 			list($section, $section_message) = explode(".", $label);
 
-			if(!isset(self::$translations[$section]) || !isset(self::$translations[$section][$section_message]))
+			if(!isset(self::getInstance()->translations[$section]) || !isset(self::getInstance()->translations[$section][$section_message]))
 			{
 				return false;
 			}			
 			
-			return self::$translations[$section][$section_message];
+			return self::getInstance()->translations[$section][$section_message];
 		}
 		
 		/**
@@ -102,7 +107,7 @@
     		{
         		if (is_array($value)) 
         		{
-            		$narr = array_merge($narr, self::array_flatten($value, $narr, $nkey . $key . '.'));
+            		$narr = array_merge($narr, self::getInstance()->array_flatten($value, $narr, $nkey . $key . '.'));
         		} 
         		else 
         		{

@@ -2,9 +2,11 @@
 	/**
 	 *
 	 */
-	namespace LCMS\Backbone;
+	namespace LCMS;
 
-	use LCMS\Utils\Singleton;
+	use LCMS\DI;
+	use LCMS\Page;
+	use LCMS\Util\Singleton;
 	use \Exception;
 
 	class View implements \Iterator
@@ -13,9 +15,14 @@
 
 		private $data = array();
 		private $view_file;
-		private $page;
+		//private $page;
 		private $keys;
 		private $index = 0;
+
+		public function get(string $_key): mixed
+		{
+			return $this->data[$_key] ?? DI::get($_key);
+		}
 
 		/**
 		 * Get a piece of data from the view.
@@ -23,9 +30,9 @@
 		 * @param  string  $key
 		 * @return mixed
 		 */
-		public function &__get($key)
+		public function &__get(string $_key): mixed
 		{
-		 	return $this->data[$key];
+		 	return $this->data[$_key];
 		}
 
 		/**
@@ -35,9 +42,9 @@
 		 * @param  mixed  $value
 		 * @return void
 		 */
-		public function __set($key, $value)
+		public function __set(string $_key, mixed $_value)
 		{
-			$this->with($key, $value);
+			$this->with($_key, $_value);
 		}
 
 		/**
@@ -46,9 +53,9 @@
 		 * @param  string  $key
 		 * @return bool
 		 */
-		public function __isset($key)
+		public function __isset(string $_key): bool
 		{
-			return isset($this->data[$key]);
+			return isset($this->data[$_key]);
 		}
 
 		/**
@@ -58,7 +65,7 @@
 		 * @param  mixed  $value
 		 * @return $this
 		 */
-		public static function with($key, $value = null)
+		public static function with($key, $value = null): self
 		{
 			if(is_array($key))
 			{
@@ -76,7 +83,6 @@
 				}
 
 				self::getInstance()->data[$key] += $value; // Keeps keys
-				//self::getInstance()->data[$key] = array_merge(self::getInstance()->data[$key], $value);
 			}
 			elseif($value instanceof \Closure)
 			{
@@ -90,10 +96,10 @@
 			return self::getInstance();
 		}
 
-		public static function make($_view, $_with = null)
+		public static function make(string $_view, mixed $_with = null): self
 		{
 			$file = str_replace(".", "/", $_view);
-			$file = getcwd() . "/App/Views/" . $file . ".php";  // relative to Root
+			$file = getcwd() . "/../App/Views/" . $file . ".php";  // relative to Root
 
 			if(!is_readable($file)) 
 			{
@@ -113,17 +119,17 @@
 			return self::getInstance();
 		}
 
-		public function setPage(Page $_page)
+		/*public function setPage(Page $_page): void
 		{
 			$this->page = $_page;
-		}
+		}*/
 
-		public function getPage()
+		protected function getPage(): Page
 		{
-			return $this->page;
+			return DI::get(Page::class);
 		}
 
-		private function renderContent($_data = null)
+		public function renderContent(mixed $_data = null): string
 		{
        	 	$obLevel = ob_get_level();
 
@@ -137,13 +143,13 @@
 	        	extract($_data, EXTR_SKIP);
 	        }
 
-	    	if(!empty(self::getInstance()->data))
+	    	if(!empty($this->data))
 	    	{
-	        	extract(self::getInstance()->data, EXTR_SKIP);
+	        	extract($this->data, EXTR_SKIP);
 	        }
-
-	        include self::getInstance()->view_file;
-
+			
+	        include $this->view_file;
+			
 	        return ltrim(ob_get_clean());
 		}
 
@@ -155,13 +161,13 @@
 	     *
 	     * @return void
 	     */
-	    public static function render($_view = null, $_data = null)
+	    public static function render(string $_view = null, mixed $_data = null): string
 	    {
 	    	if(!empty($_view))
 	    	{
-	    		self::make($_view, $_data);
+	    		self::getInstance()->make($_view, $_data);
 	    	}
-
+			
 	    	return self::getInstance()->renderContent($_data);
 	    }
 
@@ -172,7 +178,7 @@
 		 *
 		 * @throws \Throwable
 		 */
-	    public function __toString()
+	    public function __toString(): string
 	    {
 	    	return (string) $this->render();
 	    }

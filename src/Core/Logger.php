@@ -29,7 +29,7 @@
 	use LCMS\Core\Database as DB;
 	use LCMS\Core\Env;
 	use LCMS\Core\Request;
-	use LCMS\Utils\Singleton;
+	use LCMS\Util\Singleton;
 	
 	use \ReflectionClass;
 	use \Exception;
@@ -37,7 +37,9 @@
 
 	class Logger extends LogLevel
 	{
-		use Singleton;
+		use Singleton {
+			Singleton::__construct as private SingletonConstructor;
+		}
 
 		/**
 		 * To (Database || file)
@@ -49,7 +51,7 @@
 		 * 		- For validation when logging
 		 */
 		private $levels;
-		public static $level;
+		public $level;
 
 		/**
 		 * 	Tag a message with something (E.g a category of some sort) 
@@ -66,16 +68,20 @@
 		 */
 		private $user;
 
+		private $request;
+
 		/**
 		 * 
 		 */
-		function __construct(string $context = null)
+		function __construct(Request $request)
 		{
-			self::$instance = $this;
+			$this->SingletonConstructor();
 
-			$this->context($context);
+			self::getInstance()->request = $request;
 
-			$this->levels = (new ReflectionClass(__CLASS__))->getConstants();
+			//self::getInstance()->context($_context);
+
+			self::getInstance()->levels = (new ReflectionClass(__CLASS__))->getConstants();
 		}
 
 		/**
@@ -85,9 +91,9 @@
 		 * @param array $context
 		 * @return void
 		 */
-		public static function emergency($message, array $context = array()): void
+		public static function emergency(mixed $_message, array $_context = array()): void
 		{
-			self::getInstance()->log(self::EMERGENCY, $message, $context);
+			self::getInstance()->log(self::EMERGENCY, $_message, $_context);
 		}
 
 		/**
@@ -100,9 +106,9 @@
 		 * @param array $context
 		 * @return void
 		 */
-		public static function alert($message, array $context = array()): void
+		public static function alert(mixed $_message, array $_context = array()): void
 		{
-			self::getInstance()->log(self::ALERT, $message, $context);
+			self::getInstance()->log(self::ALERT, $_message, $_context);
 		}
 
 		/**
@@ -114,9 +120,9 @@
 		 * @param array $context
 		 * @return void
 		 */
-		public static function critical($message, array $context = array()): void
+		public static function critical(mixed $_message, array $_context = array()): void
 		{
-			self::getInstance()->log(self::CRITICAL, $message, $context);
+			self::getInstance()->log(self::CRITICAL, $_message, $_context);
 		}
 
 		/**
@@ -127,9 +133,9 @@
 		 * @param array $context
 		 * @return void
 		 */
-		public static function error($message, array $context = array()): void
+		public static function error(mixed $_message, array $_context = array()): void
 		{
-			self::getInstance()->log(self::ERROR, $message, $context);
+			self::getInstance()->log(self::ERROR, $_message, $_context);
 		}
 
 		/**
@@ -142,9 +148,9 @@
 		 * @param array $context
 		 * @return void
 		 */
-		public static function warning($message, array $context = array()): void
+		public static function warning(mixed $_message, array $_context = array()): void
 		{
-			self::getInstance()->log(self::WARNING, $message, $context);
+			self::getInstance()->log(self::WARNING, $_message, $_context);
 		}
 
 		/**
@@ -154,9 +160,9 @@
 		 * @param array $context
 		 * @return void
 		 */
-		public static function notice($message, array $context = array()): void
+		public static function notice(mixed $_message, array $_context = array()): void
 		{
-			self::getInstance()->log(self::NOTICE, $message, $context);
+			self::getInstance()->log(self::NOTICE, $_message, $_context);
 		}
 
 		/**
@@ -168,9 +174,9 @@
 		 * @param array $context
 		 * @return void
 		 */
-		public static function info($message, array $context = array()): void
+		public static function info(mixed $_message, array $_context = array()): void
 		{
-			self::getInstance()->log(self::INFO, $message, $context);
+			self::getInstance()->log(self::INFO, $_message, $_context);
 		}
 
 		/**
@@ -180,9 +186,9 @@
 		 * @param array $context
 		 * @return void
 		 */
-		public static function debug($message, array $context = array()): void
+		public static function debug(mixed $_message, array $_context = array()): void
 		{
-			self::getInstance()->log(self::DEBUG, $message, $context);
+			self::getInstance()->log(self::DEBUG, $_message, $_context);
 		}
 
 		/**
@@ -193,33 +199,33 @@
 		 * @param array $context
 		 * @return void
 		 */
-		public static function log($level, string|ErrorException $message, array $context = array()): void
+		public static function log(string $_level, string | ErrorException $_message, array $_context = array()): void
 		{
-			if(!in_array($level, self::getInstance()->levels))
+			if(!in_array($_level, self::getInstance()->levels))
 			{
-				self::getInstance()->error("Unsupported log level (".$level.") of " . implode(", ", self::getInstance()->levels));
+				self::getInstance()->error("Unsupported log level (".$_level.") of " . implode(", ", self::getInstance()->levels));
 				
-				$level = self::ERROR;
+				$_level = self::ERROR;
 			}
 
-			self::getInstance()::$level = $level;
+			self::getInstance()->level = $_level;
 
 			if(self::getInstance()->to)
 			{
 				self::getInstance()->validateLogLocation();
 			}
 
-			$endpoint = [Request::fullUrl()];
+			$endpoint = [self::getInstance()->request::fullUrl()];
 
-			if(Request::getInstance()->headers->get("referer") && !in_array(Request::getInstance()->headers->get("referer"), $endpoint))
+			if(self::getInstance()->request->headers->get("referer") && !in_array(self::getInstance()->request->headers->get("referer"), $endpoint))
 			{
-				$endpoint[] = Request::getInstance()->headers->get("referer");
+				$endpoint[] = self::getInstance()->request->headers->get("referer");
 			}
 
         	$params = array(
         		'uuid'				=> "UUID()",
         		'context'			=> self::getInstance()->context ?? null,
-        		'level'				=> $level,
+        		'level'				=> $_level,
         		'endpoint'			=> $endpoint,
 				'created'			=> gmdate("Y-m-d H:i:s"),
 				'data'				=> (!empty($context)) ? $context : null,
@@ -227,34 +233,34 @@
 				'tag'				=> self::getInstance()->tag ?? null
         	);
 
-			if($message instanceof ErrorException)
+			if($_message instanceof ErrorException)
 			{
 				$params += array(
-					'code'		=> $message->code,
-					'message'	=> $message->message,
-					'file'		=> $message->file,
-					'line'		=> $message->line,
-					'type'		=> $message->type
+					'code'		=> $_message->code,
+					'message'	=> $_message->message,
+					'file'		=> $_message->file,
+					'line'		=> $_message->line,
+					'type'		=> $_message->type
 				);
 			}
 			else
 			{
 				$params += array(
-					'message'	=> (!empty($params['data'])) ? self::interpolate($message, $params['data']) : $message,
+					'message'	=> (!empty($params['data'])) ? self::getInstance()->interpolate($_message, $params['data']) : $_message
 				);
 			}
 
 			/**
 			 * 	Build return message to output
 			 */
-			$error_message = self::interpolate("{date} {context}{level}: {message}", array(
+			$error_message = self::getInstance()->interpolate("{date} {context}{level}: {message}", array(
         		'context' 	=> ($params['context']) ? " [" . $params['context'] . "] " : "",
         		'level' 	=> strtoupper($params['level']),
         		'date'		=> gmdate("Y-m-d H:i:s"),
         		'message'	=> match(true)
         		{
-        			($message instanceof ErrorException && $message->type == "exception") => "Exception(".$params['code']."): " . $params['message'] . " in " . $params['file'] . ":" . $params['line'],
-        			($message instanceof ErrorException && $message->type == "error") => "Error(".match((int) $params['code'])
+        			($_message instanceof ErrorException && $_message->type == "exception") => "Exception(".$params['code']."): " . $params['message'] . " in " . $params['file'] . ":" . $params['line'],
+        			($_message instanceof ErrorException && $_message->type == "error") => "Error(".match((int) $params['code'])
         			{
         				E_ERROR 			=> "E_ERROR",
         				E_WARNING 			=> "E_WARNING",
@@ -281,14 +287,14 @@
 			// If 'to' still exists
 			if(self::getInstance()->to instanceof Database || (is_object(self::getInstance()->to) && method_exists(self::getInstance()->to, "insert")))
 			{
-				self::getInstance()->to->insert(Env::get("db")['database'].".`lcms_log`", $params);
+				self::getInstance()->to::insert(Env::get("db")['database'].".`lcms_log`", $params);
 			}
 			elseif(is_string(self::getInstance()->to))
 			{
 				file_put_contents(self::getInstance()->to, $error_message, FILE_APPEND);
 			}
 
-			if(ini_get("display_errors") && $message instanceof ErrorException)
+			if(ini_get("display_errors") && $_message instanceof ErrorException)
 			{
 				echo $error_message;
 			}
@@ -310,13 +316,13 @@
 			}
 		}
 
-		private function validateLogLocation()
+		public static function validateLogLocation()
 		{
 			$dir = self::getInstance()->to;
 
 			if($dir instanceof Database)
 			{
-				if(!DB::getInstance()->isConnected())
+				if(!$dir::isConnected())
 				{
 					self::getInstance()->to(null);
 
@@ -342,7 +348,7 @@
 			unset($dir);
 		}
 
-		public static function context(string $_context = null)
+		public static function context(string $_context = null): self
 		{
 			self::getInstance()->context = $_context;
 
@@ -363,7 +369,7 @@
 			return self::getInstance();
 		}
 
-		public static function user($_user): self
+		public static function user(mixed $_user): self
 		{
 			self::getInstance()->user = $_user;
 
@@ -371,14 +377,14 @@
 		}		
 
 		/**
-		 * Interpolates context values into the message placeholders.
+		 * 	Interpolates context values into the message placeholders.
 		 */
-		private static function interpolate($message, array $context = array())
+		private function interpolate($_message, array $_context = array())
 		{
 		    // build a replacement array with braces around the context keys
 		    $replace = array();
 
-		    foreach ($context AS $key => $val) 
+		    foreach ($_context AS $key => $val) 
 		    {
 		        // check that the value can be cast to string
 		        if (!is_array($val) && (!is_object($val) || method_exists($val, '__toString'))) 
@@ -388,10 +394,10 @@
 		    }
 
 		    // interpolate replacement values into the message and return
-		    return strtr($message, $replace);
+		    return strtr($_message, $replace);
 		}
 
-		public static function ErrorHandler()
+		public static function ErrorHandler(): void
 		{
 			$args = func_get_args();
 			$args = (isset($args[0]) && $args[0] instanceof Error) ? $args[0] : $args;
@@ -399,7 +405,7 @@
 			self::getInstance()->error(new ErrorException($args));
 		}
 
-		public static function ExceptionHandler(\Exception | \Error $e)
+		public static function ExceptionHandler(\Exception | \Error $e): void
 		{
 			self::getInstance()->error(new ErrorException($e));
 		}
