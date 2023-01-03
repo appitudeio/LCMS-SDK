@@ -18,6 +18,7 @@
  *
  * Version 2.0-RC2
  * Updated: 2022-12-10 (From Apr 25 update)
+	 [#404] 2023-01-03: Don't use htmlentities, so we may use <tags>
  */
 namespace LCMS\Util;
 
@@ -358,7 +359,7 @@ class HtmlNode
 		foreach ($this->nodes as $n) {
 			$ret .= $n->outertext();
 		}
-
+		
 		return $this->convert_text($ret);
 	}
 
@@ -396,7 +397,11 @@ class HtmlNode
 				} else {
 					$charset = DEFAULT_TARGET_CHARSET;
 				}
-				$ret .= htmlentities($this->_[self::HDOM_INFO_INNER], ENT_QUOTES | ENT_SUBSTITUTE, $charset);
+
+				/**
+				 * 	2023-01-03: Don't use htmlentities, so we may use <tags>
+				 */
+				$ret .= $this->_[self::HDOM_INFO_INNER]; //htmlentities($this->_[self::HDOM_INFO_INNER], ENT_QUOTES | ENT_SUBSTITUTE, $charset);
 			}
 		}
 
@@ -533,7 +538,6 @@ class HtmlNode
 		$ret = '<' . $this->tag;
 
 		foreach ($this->attr as $key => $val) {
-
 			// skip removed attribute
 			if ($val === null || $val === false) { continue; }
 
