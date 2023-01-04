@@ -31,6 +31,10 @@
          */
         public function init(\Closure $_callback): self
         {
+            // Set itself
+            DI::set(DI::class, DI::getInstance());
+
+            // Set rest
             foreach(DI::call($_callback) AS $key => $merger)
             {
                 if(is_array($merger) && isset($merger[0]) && gettype($merger[0]) == "object")

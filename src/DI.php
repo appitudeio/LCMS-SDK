@@ -11,25 +11,25 @@
 
     class DI
     {
-        use Singleton;
+		use Singleton {
+			Singleton::__construct as private SingletonConstructor;
+		}        
 
-        private $di;
+        protected $di;
 
         function __construct(string $_environment = "development")
         {
+            $this->SingletonConstructor();
+
             if($_environment == "development")
             {
                 $this->di = new Container();
             }
-            else
-            {
-
-            }
         }
 
-        function __call(string $_name, array $_arguments): mixed
+        public function __call(string $_method, array $_args): mixed
         {
-            return $this->di->$_name(...$_arguments);
+            return $this->di->$_method(...$_args);
         }
     }
 ?>
