@@ -134,17 +134,21 @@
 
 		public function __call(string $_method, array $_args)
 		{
-			if(!method_exists($this, $_method))
+			if(method_exists($this, $_method))
 			{
-				throw new Exception("Undefined method: " . $_method);
+				return $this->$_method(...$_args);
+			}
+			elseif(isset($this->$_method))
+			{
+				return $this->$_method;
 			}
 			
-			return $this->$_method(...$_args);
+			throw new Exception("Undefined method: " . $_method);
 		}
 
 	 	public static function __callStatic(string $_method, array $_args)
 		{
-			return self::getInstance()->$_method(...$_args);
+			return self::getInstance()->__call($_method, $_args);
 		}
 
 		/**
