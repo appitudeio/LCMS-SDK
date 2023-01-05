@@ -51,7 +51,6 @@
         private static $trustedProxies;
         private static $httpMethodParameterOverride = false;
         protected $convertedFiles;
-       // private $authObject = false;
 
 		/**
 		 * Sets the parameters for this request.
