@@ -15,25 +15,25 @@
 		private $to;
 		private $code;
 
-		protected function to($_url = null): self
+		public static function to($_url = null): self
 		{
-			$this->to = (isset(parse_url($_url)['scheme'])) ? $_url : "/" . ltrim($_url, "/");
+			self::getInstance()->to = (isset(parse_url($_url)['scheme'])) ? $_url : "/" . ltrim($_url, "/");
 
-			return $this;
+			return self::getInstance();
 		}
 
-		protected function route($_route_alias, $_arguments = null): self
+		public static function route($_route_alias, $_arguments = null): self
 		{
-			$this->to = Route::url($_route_alias, $_arguments);
+			self::getInstance()->to = Route::url($_route_alias, $_arguments);
 
-			return $this;
+			return self::getInstance();
 		}
 
-		protected function back(): self
+		public static function back(): self
 		{
-			$this->to = Request::headers()->get('referer') ?? Env::get("app_path");
+			self::getInstance()->to = Request::headers()->get('referer') ?? Env::get("app_path");
 
-			return $this;
+			return self::getInstance();
 		}
 
 		/**
