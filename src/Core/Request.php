@@ -5,6 +5,8 @@
 	*	With heavy inspiration from
 	* 	- https://github.com/illuminate/http/blob/master/Request.php
 	*	- https://github.com/symfony/http-foundation/blob/master/Request.php
+	*
+	*	Update 2023-01-05: #2614 (Removed usage of Arr::flatten so arrays can be used in Request->get)	
 	*/
 	namespace LCMS\Core;
 
@@ -2598,9 +2600,11 @@
 	     */
 	    public function input($key = null, $default = null)
 	    {
-	        return Arr::flatten(
+			return $this->getInputSource()->all() + $this->query->all();
+
+	        /*return Arr::flatten(
 	            $this->getInputSource()->all() + $this->query->all(), $key, $default
-	        );
+	        );*/
 	    }
 
 	    /**

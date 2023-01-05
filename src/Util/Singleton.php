@@ -30,6 +30,11 @@
 
 		static function __callStatic(string $_method, array $_args): mixed
 		{
+			if(empty($_args))
+			{
+				return DI::call([self::getInstance(), $_method]);
+			}
+			
 			return self::getInstance()->$_method(...$_args);
 		}
 	}
