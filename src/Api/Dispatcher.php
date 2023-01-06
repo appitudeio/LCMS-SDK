@@ -51,7 +51,7 @@
             return $this->sendRequest($mode, $_method, $request_data);
         }
 
-        private function sendRequest(string $mode = "sandbox", string $_method = "send", array $_request_data = array()): array
+        private function sendRequest(string $_mode = "sandbox", string $_method = "send", array $_request_data = array()): array
         {
             $query_data = array_replace_recursive(array(
                 'headers' => array(
@@ -61,32 +61,43 @@
 
             if(isset($query_data['batch']))
             {
+                $query_data[RequestOptions::JSON] = $query_data[RequestOptions::JSON] ?? array();
                 $query_data[RequestOptions::JSON]['users'] = $_request_data['user']; 
              
                 unset($query_data['batch']);
             }
             elseif(isset($_request_data['user']))
             {  
+                $query_data[RequestOptions::JSON] = $query_data[RequestOptions::JSON] ?? array();
                 $query_data[RequestOptions::JSON]['user'] = $_request_data['user'];
             }
             
             if(isset($_request_data['payload']))
-            {  
+            {
+                $query_data[RequestOptions::JSON] = $query_data[RequestOptions::JSON] ?? array();
                 $query_data[RequestOptions::JSON]['payload'] = $_request_data['payload'];
             }            
 
             try
             {
+                // Append {?interface} to the endpoint
                 $endpoint = "dispatch/" . $_request_data['event'] . (($_method == "send") ? null : "/" . $_method);
                 
                 if(isset($query_data['silent']))
                 {
-                    
+                    // Send this message silently
+                    $cmd = "curl -L -X POST -H 'Content-Type: application/json' -H 'Authorization: ".$query_data['headers']['Authorization']."'";
+                    $cmd .= " -d '" . json_encode($query_data[RequestOptions::JSON] ?? "") . "' '".$this->urls[$_mode] . "/" . $endpoint . "'";
+                    $cmd .= " > /dev/null 2>&1 &"; // Don't wait for response
+
+                    exec($cmd, $output, $exit);
+
+                    return array('success' => $exit == 0);
                 }
                 else
                 {
-                    $client     = new Guzzle(['base_uri' => $this->urls[$mode]]);
-                    $request    = $client->post($endpoint, $query_data);
+                    $client = new Guzzle(['base_uri' => $this->urls[$_mode]]);
+                    $request = $client->post($endpoint, $query_data);
 
                     if(!$response_array = json_decode((string) $request->getBody(), true))
                     {
@@ -121,7 +132,7 @@
             $request_data = array();
 
             // Depending on which api_key that comes in, decides mode
-            if(!str_starts_with($this->api_key, "live_") && !str_starts_with($this->api_key, "test"))
+            if(!str_starts_with($this->api_key, "live_") && !str_starts_with($this->api_key, "test_"))
             {
                 throw new Exception("Dispatcher ApiKey requires to start with test_ || live_");
             }
@@ -145,7 +156,15 @@
             // Can this server send silent requests(?)
             if(isset($this->options['silent']))
             {
+                $exec_enabled =
+                    function_exists('exec') &&
+                    !in_array('exec', array_map('trim', explode(', ', ini_get('disable_functions')))) &&
+                    strtolower(ini_get('safe_mode')) != 1;
 
+                if(!$exec_enabled)
+                {
+                    throw new Exception("Can't dispatch messages silently (with exec)");
+                }
             }
 
             // Validate batch request
