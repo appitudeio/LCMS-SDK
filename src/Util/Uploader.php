@@ -8,6 +8,7 @@
 	 *
 	 * 	@author     Mathias Eklöf <mathias@appitude.io>
 	 *	@created 	2020-09-12
+	 *  @updated 	2023-01-09 - Supports Singleton (Methods are kept 'static' because of direct usage)
 	 */
 	namespace LCMS\Utils;
 	
