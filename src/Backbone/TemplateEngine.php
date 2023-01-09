@@ -240,12 +240,16 @@
             else
             {
                 /**
-                 *  Text HtmlNodes may have siblings, so we remove them
+                 *  Text HtmlNodes may have children, so we remove them
                  */
                 if(isset($element->attr['as']))
                 {
                     list($element->innertext, $stored) = $this->handle($identifier, $element->attr, $element->innertext);
-                    $element->removeChild($element);
+                   
+                    if($element->hasChildNodes())
+                    {
+                        array_walk($element->nodes, fn($e) => $element->removeChild($e));
+                    }
                 }
                 else
                 {

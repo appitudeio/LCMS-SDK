@@ -4,28 +4,38 @@
 	 */
 	namespace LCMS\Util;
 
+	use LCMS\DI;
+
 	trait Singleton 
 	{
-	    private static $instance;
+	    private static $instance = false;
 
 	    function __construct()
 	    {
 	    	self::$instance = $this;
 	    }
 
+		/**
+		 * 	Returns Dependency injection instead of self
+		 */
 	    public static function getInstance()
 	    {
-			if(!(self::$instance instanceof self)) 
+			if(false === self::$instance)
 			{
-				self::$instance = (str_ends_with(static::class, "\\DI")) ? new self : \LCMS\DI::get(static::class);
+				self::$instance = (static::class == "LCMS\\DI") ? new self : DI::get(static::class);
 			}
 
 			return self::$instance;
 	    }
 
-		static function __callStatic($name, $arguments)
+		static function __callStatic(string $_method, array $_args): mixed
 		{
-			return self::getInstance()->$name(...$arguments);
+			if(empty($_args))
+			{
+				return DI::call([self::getInstance(), $_method]);
+			}
+			
+			return self::getInstance()->$_method(...$_args);
 		}
 	}
 ?>

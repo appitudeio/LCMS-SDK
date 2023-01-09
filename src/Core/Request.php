@@ -5,6 +5,8 @@
 	*	With heavy inspiration from
 	* 	- https://github.com/illuminate/http/blob/master/Request.php
 	*	- https://github.com/symfony/http-foundation/blob/master/Request.php
+	*
+	*	Update 2023-01-05: #2614 (Removed usage of Arr::flatten so arrays can be used in Request->get)	
 	*/
 	namespace LCMS\Core;
 
@@ -49,7 +51,6 @@
         private static $trustedProxies;
         private static $httpMethodParameterOverride = false;
         protected $convertedFiles;
-       // private $authObject = false;
 
 		/**
 		 * Sets the parameters for this request.
@@ -76,7 +77,7 @@
 			$this->initialize($this, $query, $request, $attributes, $cookies, $files, $server);
 		}
 
-		public static function initialize($instance, array $query = null, array $request = null, array $attributes = null, array $cookies = null, array $files = null, array $server = null)
+		protected static function initialize($instance, array $query = null, array $request = null, array $attributes = null, array $cookies = null, array $files = null, array $server = null)
 		{
 			if($instance->query === null)
 			{
@@ -132,43 +133,34 @@
 			$instance->cookies->setSecure(self::$instance->isSecure());
 		}
 
-		public function __call($method, $args)
+		public function __call(string $_method, array $_args)
 		{
-			return $this->$method;
-		}
-
-	 	public static function __callStatic($method, $args)
-		{
-			if(!self::$instance)
+			if(method_exists($this, $_method))
 			{
-				self::$instance = new static();
+				return $this->$_method(...$_args);
 			}
-
-			return self::$instance->$method;
+			elseif(isset($this->$_method))
+			{
+				return $this->$_method;
+			}
+			
+			throw new Exception("Undefined method: " . $_method);
 		}
 
-		/**
-		 *
-		 */
-		/*public function setAuth($_object)
+	 	public static function __callStatic(string $_method, array $_args)
 		{
-			$this->authObject = $_object;
+			return self::getInstance()->__call($_method, $_args);
 		}
-
-		public function getAuthObject()
-		{
-			return $this->authObject;
-		}*/
 
 		/**
 		 *	Strip first part of the segment
 		 */
-		public function setLanguage(string $_language): void
+		protected function setLanguage(string $_language): void
 		{
 			$this->appendUrl($_language);
 		}
 
-		public function appendUrl(string $_string): void
+		protected function appendUrl(string $_string): void
 		{
 			$this->server->set('REQUEST_URI', str_replace("/" . $_string, "", $this->server->get("REQUEST_URI")));
 
@@ -181,7 +173,7 @@
 		 *
 		 * @return string
 		 */
-		public function root()
+		protected function root()
 		{
 			return rtrim($this->getSchemeAndHttpHost().$this->getBaseUrl(), '/');
 		}
@@ -191,7 +183,7 @@
 		 *
 		 * @return string
 		 */
-		public static function url()
+		protected static function url()
 		{
 			return rtrim(preg_replace('/\?.*/', '', self::getInstance()->getUri()), "/");
 		}
@@ -201,15 +193,11 @@
 		 *
 		 * @return string
 		 */
-		public static function fullUrl()
+		protected static function fullUrl()
 		{
 			$query = self::getInstance()->getQueryString();
 
-			//$question = $this->getBaseUrl() . $this->getPathInfo() === "/" ? "/?" : "?";
-
 			return self::getInstance()->root() . $query;
-
-			//return $query ? $this->url() . $question . $query : $this->url();
 		}
 
 		/**
@@ -218,7 +206,7 @@
 		 * @param  array  $query
 		 * @return string
 		 */
-		public function fullUrlWithQuery(array $query)
+		protected function fullUrlWithQuery(array $query)
 		{
 			$question = $this->getBaseUrl().$this->getPathInfo() === '/' ? '/?' : '?';
 
@@ -232,7 +220,7 @@
 		 *
 		 * @return string
 		 */
-		public function path()
+		protected function path()
 		{
 			$pattern = trim($this->getPathInfo(), '/');
 
@@ -244,7 +232,7 @@
 		 *
 		 * @return array
 		 */
-		public function segments()
+		protected function segments()
 		{
 			$segments = explode('/', $this->decodedPath());
 
@@ -259,7 +247,7 @@
 		 *
 		 * @return string
 		 */
-		public function decodedPath()
+		protected function decodedPath()
 		{
 			return rawurldecode($this->path());
 		}
@@ -279,7 +267,7 @@
 		 *
 		 * @see getRealMethod()
 		 */
-		public function getMethod()
+		protected function getMethod()
 		{
 			if (null !== $this->method)
 			{
@@ -327,7 +315,7 @@
 		 *
 		 * @see getMethod()
 		 */
-		public function getRealMethod()
+		protected function getRealMethod()
 		{
 			return strtoupper($this->server->get('REQUEST_METHOD', 'GET'));
 		}
@@ -339,7 +327,7 @@
 		 *
 		 * @return bool
 		 */
-		public function isMethod(string $method)
+		protected function isMethod(string $method)
 		{
 			return $this->getMethod() === strtoupper($method);
 		}
@@ -353,7 +341,7 @@
 		 *
 		 * @throws \LogicException
 		 */
-		public function getContent(bool $asResource = false)
+		protected function getContent(bool $asResource = false)
 		{
 			$currentContentIsResource = is_resource($this->content);
 
@@ -421,7 +409,7 @@
 		 *
 		 * @return string The raw URL (i.e. not urldecoded)
 		 */
-		public function getBaseUrl()
+		protected function getBaseUrl()
 		{
 			if (null === $this->baseUrl)
 			{
@@ -438,7 +426,7 @@
 		 *
 		 * @see getQueryString()
 		 */
-		public function getUri()
+		protected function getUri()
 		{
 			if (null !== $qs = $this->getQueryString())
 			{
@@ -462,7 +450,7 @@
 		 *
 		 * @return string The raw path (i.e. not urldecoded)
 		 */
-		public function getPathInfo()
+		protected function getPathInfo()
 		{
 			if (null === $this->pathInfo)
 			{
@@ -472,7 +460,7 @@
 			return $this->pathInfo;
 		}
 
-		public function resetPathInfo()
+		protected function resetPathInfo()
 		{
 			$this->pathInfo = null;
 			$this->requestUri = null;
@@ -486,7 +474,7 @@
 		 *
 		 * @return string|null A normalized query string for the Request
 		 */
-		public function getQueryString()
+		protected function getQueryString()
 		{
 			return $this->server->get("REQUEST_URI", null);
 			/*
@@ -503,7 +491,7 @@
 		 *
 		 * @return string A normalized query string for the Request
 		 */
-		public static function normalizeQueryString(?string $qs)
+		protected static function normalizeQueryString(?string $qs)
 		{
 			if ('' === ($qs ?? ''))
 			{
@@ -621,7 +609,7 @@
 			return $requestUri;
 		}
 
-		public function resetUri()
+		protected function resetUri()
 		{
 			$this->requestUri = null;
 		}
@@ -738,7 +726,7 @@
 		 *
 		 * @return string The raw URI (i.e. not URI decoded)
 		 */
-		public function getRequestUri()
+		protected function getRequestUri()
 		{
 			if (null === $this->requestUri)
 			{
@@ -753,7 +741,7 @@
 		 *
 		 * @return string
 		 */
-		public function getScheme()
+		protected function getScheme()
 		{
 			return $this->isSecure() ? 'https' : 'http';
 		}
@@ -768,7 +756,7 @@
 		 *
 		 * @return int|string can be a string if fetched from the server bag
 		 */
-		public function getPort()
+		protected function getPort()
 		{
 			/*if ($this->isFromTrustedProxy() && $host = $this->getTrustedValues(self::HEADER_X_FORWARDED_PORT))
 			{
@@ -809,7 +797,7 @@
 		 *
 		 * @return string The scheme and HTTP host
 		 */
-		public function getSchemeAndHttpHost()
+		protected function getSchemeAndHttpHost()
 		{
 			return $this->getScheme().'://'.$this->getHttpHost();
 		}
@@ -821,7 +809,7 @@
 		 *
 		 * @return string
 		 */
-		public function getHttpHost()
+		protected function getHttpHost()
 		{
 			$scheme = $this->getScheme();
 			$port = $this->getPort();
@@ -844,7 +832,7 @@
 		 *
 		 * @return bool
 		 */
-		public function isSecure(): Bool
+		protected function isSecure(): Bool
 		{
 			/*if ($this->isFromTrustedProxy() && $proto = $this->getTrustedValues(self::HEADER_X_FORWARDED_PROTO))
 			{
@@ -868,7 +856,7 @@
 	     *
 	     * @throws SuspiciousOperationException when the host name is invalid or not trusted
 	     */
-	    public function getHost()
+	    protected function getHost()
 	    {
 			/*if ($this->isFromTrustedProxy() && $host = $this->getTrustedValues(self::HEADER_X_FORWARDED_HOST))
 			{
@@ -939,7 +927,7 @@
 		 * @param  mixed  ...$patterns
 		 * @return bool
 		 */
-		public function is(...$patterns)
+		protected function is(...$patterns)
 		{
 			$path = $this->decodedPath();
 
@@ -959,7 +947,7 @@
 		 *
 		 * @return bool
 		 */
-		public function ajax()
+		protected function ajax()
 		{
 			return $this->isXmlHttpRequest();
 		}
@@ -976,7 +964,7 @@
 	     *
 	     * @api
 	     */
-	    public function isXmlHttpRequest()
+	    protected function isXmlHttpRequest()
 	    {
 	        return 'XMLHttpRequest' == $this->headers->get('X-Requested-With');
 	    }
@@ -986,7 +974,7 @@
 		 *
 		 * @return bool
 		 */
-		public function prefetch()
+		protected function prefetch()
 		{
 			return strcasecmp($this->server->get('HTTP_X_MOZ'), 'prefetch') === 0 ||
 				strcasecmp($this->headers->get('Purpose'), 'prefetch') === 0;
@@ -997,7 +985,7 @@
 		 *
 		 * @return bool
 		 */
-		public function secure()
+		protected function secure()
 		{
 			return $this->isSecure();
 		}
@@ -1007,7 +995,7 @@
 		 *
 		 * @return string|null
 		 */
-		public function ip()
+		protected function ip()
 		{
 			return $this->getClientIp();
 		}
@@ -1017,7 +1005,7 @@
 		 *
 		 * @return array
 		 */
-		public function ips()
+		protected function ips()
 		{
 			return $this->getClientIps();
 		}
@@ -1027,7 +1015,7 @@
 		 *
 		 * @return string
 		 */
-		public function userAgent()
+		protected function userAgent()
 		{
 			return $this->headers->get('User-Agent');
 		}
@@ -1038,7 +1026,7 @@
 		 * @param  array  $input
 		 * @return $this
 		 */
-		public function merge(array $input)
+		protected function merge(array $input)
 		{
 			$this->getInputSource()->add($input);
 
@@ -1051,7 +1039,7 @@
 		 * @param  array  $input
 		 * @return $this
 		 */
-		public function replace(array $input)
+		protected function replace(array $input)
 		{
 			$this->getInputSource()->replace($input);
 
@@ -1071,7 +1059,7 @@
 		 *
 		 * @see getClientIp()
 		 */
-		public function getClientIps()
+		protected function getClientIps()
 		{
 	        if($this->server->get("HTTP_CF_CONNECTING_IP"))
 	        {
@@ -1118,7 +1106,7 @@
 		 * @see getClientIps()
 		 * @see https://wikipedia.org/wiki/X-Forwarded-For
 		 */
-		public function getClientIp()
+		protected function getClientIp()
 		{
 			return $this->getClientIps()[0];
 		}
@@ -1131,7 +1119,7 @@
 		*
 		* @return bool true if the request came from a trusted proxy, false otherwise
 		*/
-		public function isFromTrustedProxy()
+		protected function isFromTrustedProxy()
 		{
 			return self::$trustedProxies && IpUtils::checkIp($this->server->get('REMOTE_ADDR'), self::$trustedProxies);
 		}
@@ -1266,7 +1254,7 @@
 		 * @param  mixed  $default
 		 * @return \Illuminate\Routing\Route|object|string|null
 		 */
-		public function route($param = null, $default = null)
+		protected function route($param = null, $default = null)
 		{
 			$route = call_user_func($this->getRouteResolver());
 
@@ -1313,7 +1301,7 @@
 		 *
 		 * @return mixed
 		 */
-		public function get(string $key, $default = null)
+		protected function get(string $key, $default = null)
 		{
 			if ($this !== $result = $this->attributes->get($key, $this))
 			{
@@ -1333,7 +1321,7 @@
 			return $default;
 		}
 
-		public function set(string $key, $value)
+		protected function set(string $key, $value)
 		{
 			return $this->attributes->set($key, $value);
 		}		
@@ -1350,7 +1338,7 @@
 		 *
 		 * @return static
 		 */
-		public function duplicate(array $query = null, array $request = null, array $attributes = null, array $cookies = null, array $files = null, array $server = null)
+		protected function duplicate(array $query = null, array $request = null, array $attributes = null, array $cookies = null, array $files = null, array $server = null)
 		{
 			$dup = clone $this;
 
@@ -1405,7 +1393,7 @@
 		 * Note that the session is not cloned as duplicated requests
 		 * are most of the time sub-requests of the main one.
 		 */
-		public function __clone()
+		protected function __clone()
 		{
 			$this->query 		= clone $this->query;
 			$this->request 		= clone $this->request;
@@ -2611,9 +2599,11 @@
 	     */
 	    public function input($key = null, $default = null)
 	    {
-	        return Arr::flatten(
+			return $this->getInputSource()->all() + $this->query->all();
+
+	        /*return Arr::flatten(
 	            $this->getInputSource()->all() + $this->query->all(), $key, $default
-	        );
+	        );*/
 	    }
 
 	    /**
