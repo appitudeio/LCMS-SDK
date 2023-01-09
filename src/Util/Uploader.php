@@ -9,7 +9,7 @@
 	 * 	@author     Mathias Eklöf <mathias@appitude.io>
 	 *	@created 	2020-09-12
 	 */
-	namespace LCMS\Util;
+	namespace LCMS\Utils;
 	
 	use LCMS\Core\File;
 	use LCMS\Util\Singleton;
