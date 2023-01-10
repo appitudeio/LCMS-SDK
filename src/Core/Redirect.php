@@ -63,7 +63,7 @@
 			return $this;
 		}
 
-		public static function dispatch(): void
+		public static function dispatch(): never
 		{
 			if(self::getInstance()->code)
 			{
