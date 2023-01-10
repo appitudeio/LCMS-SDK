@@ -9,6 +9,7 @@
 	 * 	@author     Mathias Eklöf <mathias@appitude.io>
 	 *	@created 	2020-09-12
 	 *  @updated 	2023-01-09 - Supports Singleton (Methods are kept 'static' because of direct usage)
+	 * 				+ can be used without credentials (iAM-role from AWS)
 	 */
 	namespace LCMS\Util;
 	
@@ -61,19 +62,14 @@
 
 		public static function init(array $_config): self
 		{
-			if(!isset($_config['credentials']) && !isset($_config['access_key'], $_config['access_secret']))
-			{
-				throw new Exception("Uploader can't be initialized w/o credentials | key+secret");
-			}
-
-			self::getInstance()->config = array(
+			self::getInstance()->config = array_filter(array(
 				'region'					=> $_config['region'],
 				'bucket'					=> $_config['bucket'],
 				'bucket_images_root_path'	=> $_config['bucket_images_root_path'] ?? "",
-				'credentials'				=> $_config['credentials'] ?? array(
+				'credentials'				=> $_config['credentials'] ?? array_filter(array(
 					'key'				=> $_config['access_key'] ?? null,
 					'secret'			=> $_config['access_secret'] ?? null
-				)
+				))
 			);
 
 			self::getS3(); // Init the Client
