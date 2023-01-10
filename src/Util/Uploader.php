@@ -10,12 +10,11 @@
 	 *	@created 	2020-09-12
 	 *  @updated 	2023-01-09 - Supports Singleton (Methods are kept 'static' because of direct usage)
 	 */
-	namespace LCMS\Utils;
+	namespace LCMS\Util;
 	
 	use LCMS\Core\File;
 	use LCMS\Util\Singleton;
 	use Aws\S3\S3Client;
-
 	use \Exception;
 
 	class Uploader
