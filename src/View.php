@@ -19,9 +19,14 @@
 		private $keys;
 		private $index = 0;
 
-		public function get(string $_key): mixed
+		protected function get(string $_key): mixed
 		{
-			return $this->data[$_key] ?? DI::get($_key);
+			return self::getInstance()->data[$_key] ?? (DI::has($_key)) ? DI::get($_key) : false;
+		}
+
+		protected function has(string $_key): bool
+		{
+			return (isset(self::getInstance()->data[$_key]) || DI::has($_key));
 		}
 
 		/**

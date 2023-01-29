@@ -70,7 +70,7 @@
 					'key'				=> $_config['access_key'] ?? null,
 					'secret'			=> $_config['access_secret'] ?? null
 				))
-			);
+			));
 
 			self::getS3(); // Init the Client
 			
