@@ -21,7 +21,7 @@
 
 		protected function get(string $_key): mixed
 		{
-			return self::getInstance()->data[$_key] ?? (DI::has($_key)) ? DI::get($_key) : false;
+			return self::getInstance()->data[$_key] ?? DI::get($_key); //(DI::has($_key)) ? DI::get($_key) : false;
 		}
 
 		protected function has(string $_key): bool
