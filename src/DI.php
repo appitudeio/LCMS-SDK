@@ -16,6 +16,7 @@
 		}        
 
         protected $di;
+        protected array $instances = array();
 
         function __construct(string $_environment = "development")
         {
@@ -29,6 +30,15 @@
 
         public function __call(string $_method, array $_args): mixed
         {
+            if($_method == "set")
+            {
+                $this->instances[] = $_args[0];
+            }
+            elseif($_method == "has")
+            {
+                return in_array($_method, $this->instances);
+            }
+
             return $this->di->$_method(...$_args);
         }
     }

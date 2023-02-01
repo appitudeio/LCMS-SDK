@@ -62,7 +62,7 @@
 			{
 				throw new Exception("API_KEY missing");
 			}
-			elseif($_request->input("api_key") !== Env::get("API_KEY"))
+			elseif($_request->get("api_key") !== Env::get("API_KEY"))
 			{
 				throw new Exception("Wrong API_KEY");
 			}

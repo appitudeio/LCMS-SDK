@@ -34,7 +34,7 @@
 		public const TYPE_LOOP		= 30;
 
 		public $namespace;
-		public $type_properties = array(
+		public static $type_properties = array(
 			Node::TYPE_IMAGE => array(
 				'alt' 	=> null,
 				'title'	=> null,

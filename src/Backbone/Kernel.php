@@ -39,18 +39,26 @@
             {
                 if(is_array($merger) && isset($merger[0]) && gettype($merger[0]) == "object")
                 {
-                     // If Node+Database (Merges after figured out the Route namespace)
-                    $auto_merge = (!($merger[0] instanceof Node) || ($merger[0] instanceof Node && !($merger[1] instanceof Database))) ? false : true;
-                    
-                    $mergerObject = (new Merge($merger[0]))->with($merger[1], $auto_merge);
-                    DI::set($mergerObject::class, $mergerObject);
+                    // If Node+Database (Merges after figured out the Route namespace)
+                    $RootObj = $merger[0];
+                    unset($merger[0]);
+
+                    $instances = array_map(fn($o) => (is_object($o)) ? get_class($o) : $o, $merger);
+                    $auto_merge = (!($RootObj instanceof Node) || ($RootObj instanceof Node && !in_array(Database::class, $instances))) ? false : true;
+
+                    // Either create a new Merge, or re-use
+                    foreach($merger AS $merge)
+                    {
+                        $mergerObject = (new Merge($RootObj))->with($merge, $auto_merge);
+                        DI::set($mergerObject::class, $mergerObject);
+                    }
 
                     /**
                      *  If Env is Local, let's figure out language (Maybe from URL or default).
                      */
-                    if($merger[0] instanceof Locale && $new_language = $merger[0]->extract(DI::get(Request::class)))
+                    if($RootObj instanceof Locale && $new_language = $RootObj->extract(DI::get(Request::class)))
                     {
-                        if($merger[0]->isDefault()) // if url = /{defualt_language}/ -> remove
+                        if($RootObj->isDefault()) // if url = /{defualt_language}/ -> remove
                         {
                             return $this->trigger("redirect", Redirect::to(str_replace("/" . $new_language, "", DI::get(Request::class)->getRequestUri())));
                         }
@@ -75,14 +83,14 @@
             return $this;
         }
 
-        public function trigger(string $_event, ...$arguments): mixed
+        public function trigger(string $_event, ...$_args): mixed
         {
             if(!isset($this->events[strtolower($_event)]))
             {
                 return false;
             }
 
-            return DI::call($this->events[strtolower($_event)], $arguments);
+            return DI::call($this->events[strtolower($_event)], $_args);
         }
 
         public function dispatch(): mixed
@@ -212,7 +220,7 @@
             {
                 $request->headers->set("Content-type", $content_type);
             }
-
+            
             /** 
              *  Find out if we should block this page with 'noindex' or 'nofollow'
              */
@@ -247,8 +255,8 @@
                     $request->headers->set("X-Robots-Tag", implode(", ", $robots));
                 }
             }
-        
-            return DI::call([$this, "trigger"], ["page"]); //->trigger("page");
+
+            return DI::call([$this, "trigger"], ["page"]);
         }
     }
 ?>
