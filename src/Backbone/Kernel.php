@@ -19,6 +19,7 @@
     use LCMS\Page;
     use LCMS\Page\Navigations;
     use LCMS\Util\Toolset;
+    use LCMS\Util\Arr;
 	use \Exception;
 
 	class Kernel
@@ -191,7 +192,7 @@
 
             if(DI::has(NodeMerge::class) && ($nodeMerger = DI::get(NodeMerge::class)) && $nodeMerger->getStorage() instanceof Database)
             {
-                $nodeMerger->merge();
+                $nodeMerger->merge(); // Fetch all DB Nodes
             }
 
             // Compile page into the end product
@@ -209,8 +210,11 @@
             {
                 return $this->trigger("string", $compilation);
             }
-            
-            // Prepare Meta
+
+            /** 
+             *  Page is an actual html page!
+             *  - Prepare meta data
+             */
             if(isset($route_array['meta'], $route_array['meta'][$locale->getLanguage()]) && !empty($route_array['meta'][$locale->getLanguage()]))
             {
                 DI::get(Page::class)->meta($route_array['meta'][$locale->getLanguage()]);
@@ -254,6 +258,27 @@
                 {
                     DI::get(Page::class)->meta(['robots' => $robots]);
                     $request->headers->set("X-Robots-Tag", implode(", ", $robots));
+                }
+            }
+
+            // Merge all Nodes with View-data  
+            if(DI::has(NodeMerge::class) && $nodeMerge = DI::get(NodeMerge::class))
+            {
+                $parameters = array();
+
+                foreach(DI::get(View::class) AS $parameter_key => $parameter_value)
+                {
+                    if(empty($parameter_value) || is_object($parameter_value))
+                    {
+                        continue;
+                    }
+
+                    $parameters[$parameter_key] = $parameter_value;
+                }
+
+                if(!empty($parameters))
+                {
+                    $nodeMerge->getInstance()->with(Arr::flatten($parameters))->merge();
                 }
             }
 
