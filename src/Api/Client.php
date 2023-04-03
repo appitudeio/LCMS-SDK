@@ -62,9 +62,9 @@
 			{
 				throw new Exception("API_KEY missing");
 			}
-			elseif($_request->get("api_key") !== Env::get("API_KEY"))
+			elseif($_request->get("api_key") !== Env::get("lcms_api_key"))
 			{
-				throw new Exception("Wrong API_KEY");
+				throw new Exception("API_KEY mismatch");
 			}
 
 			return true;
