@@ -44,14 +44,15 @@
                     unset($merger[0]);
 
                     $instances = array_map(fn($o) => (is_object($o)) ? get_class($o) : $o, $merger);
-                    $auto_merge = (!($RootObj instanceof Node) || ($RootObj instanceof Node && !in_array(Database::class, $instances))) ? false : true;
+                    $auto_merge = ($RootObj instanceof Node || ($RootObj instanceof Node && !in_array(Database::class, $instances))) ? false : true;
 
                     // Either create a new Merge, or re-use
                     foreach($merger AS $merge)
                     {
                         $mergerObject = (new Merge($RootObj))->with($merge, $auto_merge);
-                        DI::set($mergerObject::class, $mergerObject);
                     }
+
+                    DI::set($mergerObject::class, $mergerObject);
 
                     /**
                      *  If Env is Local, let's figure out language (Maybe from URL or default).
