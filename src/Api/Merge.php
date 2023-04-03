@@ -114,7 +114,12 @@
 		public function getStorage()
 		{
 			return $this->storage;
-		}		
+		}
+
+		public function getInstance()
+		{
+			return $this->instance;
+		}
 
 		public function prepare($_storage): self
 		{
@@ -530,7 +535,7 @@
 
 				if(!$this->writeToIniFile($new_file_content))
 				{
-					throw new Exception("Cant write Routes to ini-file: " . $_file);
+					throw new Exception("Cant write Routes to ini-file: " . $this->storage['filename']);
 				}
 			}
 

@@ -183,15 +183,22 @@
 		/**
 		 *	Probably from Database, via Api\Merge
 		 */
-		public function merge(array $_nodes, array $_properties = null, array $_unmergers = null): self
+		public function merge(array $_nodes = array(), array $_properties = null, array $_unmergers = null): self
 		{
 			if(!empty($_unmergers))
 			{
 				array_walk($_unmergers, fn($um) => Arr::forget($this->nodes, $um));
 			}
 
-			$this->nodes = array_replace_recursive($this->nodes ?? array(), $_nodes);
-			$this->properties = array_replace_recursive($this->properties ?? array(), $_properties ?? array());
+			if(!empty($_nodes))
+			{
+				$this->nodes = array_replace_recursive($this->nodes ?? array(), $_nodes);
+			}
+
+			if(!empty($_properties))
+			{
+				$this->properties = array_replace_recursive($this->properties ?? array(), $_properties ?? array());
+			}
 			
 			/**
 			 *	Merge data with strings
@@ -200,7 +207,7 @@
 			{
 				return $this;
 			}
-
+			
 			// Convert ['static_path' => "https://..."] => ['{{static_path}}' => "https://..."]
 			$parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($parameters)), $parameters);
 			array_walk_recursive($this->nodes, fn(&$item) => (!empty($item) && str_contains($item, "{{")) ? $item = strtr($item, $parameters) : $item);
