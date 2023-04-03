@@ -48,7 +48,7 @@
 			{
 				if(!$_auto_merge)
 				{
-					return $this;
+					return $this->merger;
 				}
 
 				return $this->merger->merge($_storage);
@@ -56,11 +56,11 @@
 
 			if(!$this->merger = match(true)
 			{
-				$this->object instanceof Node => new NodeMerge($this->object),
-				$this->object instanceof Route => new RouteMerge($this->object),
-				$this->object instanceof Navigations => new NavigationsMerger($this->object),
-				$this->object instanceof Env => new EnvMerge($this->object),
-				$this->object instanceof Locale => new LocaleMerge($this->object),
+				$this->object instanceof Node => new NodeMerge($this->object, $_storage),
+				$this->object instanceof Route => new RouteMerge($this->object, $_storage),
+				$this->object instanceof Navigations => new NavigationsMerger($this->object, $_storage),
+				$this->object instanceof Env => new EnvMerge($this->object, $_storage),
+				$this->object instanceof Locale => new LocaleMerge($this->object, $_storage),
 				default => false
 			})
 			{
@@ -69,7 +69,7 @@
 
 			$this->storage = $_storage;
 
-			return $this->with($this->storage);
+			return $this->with($this->storage, $_auto_merge);
 		}
 
 		public function store($_what = null, $_into = null)
@@ -101,9 +101,14 @@
 		protected $instance;
 		protected $storage;
 
-		function __construct(object $_instance)
+		function __construct(object $_instance, mixed $_storage = null)
 		{
 			$this->instance = $_instance;
+
+			if(!empty($_storage))
+			{
+				$this->storage = $_storage;
+			}
 		}
 
 		public function getStorage()

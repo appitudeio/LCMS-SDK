@@ -36,7 +36,7 @@
             }
             elseif($_method == "has")
             {
-                return in_array($_method, $this->instances);
+                return in_array($_args[0], $this->instances);
             }
 
             return $this->di->$_method(...$_args);

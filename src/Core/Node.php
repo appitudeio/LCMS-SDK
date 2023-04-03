@@ -266,7 +266,7 @@
 				// Convert ['static_path' => "https://..."] => ['{{static_path}}' => "https://..."]
 				$_parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($_parameters)), $_parameters);
 	
-				$this->node['parameters'] = array_merge($this->node['parameters'], $_parameters);
+				$this->node['parameters'] = array_merge($this->node['parameters'] ?? [], $_parameters);
 
 				$this->node['content'] = strtr($this->node['content'], $this->node['parameters']);
 			}
