@@ -893,7 +893,7 @@
 				$key = count($this->system_routes);
 				$relations[$route['id']] = $key;
 
-				$this->system_routes[] = $route + array('key' => $key);
+				$this->system_routes[] = $route; // + array('key' => $key); --> Added in 'Route::merge'
 
 				if(!empty($route['parent_id']))
 				{
