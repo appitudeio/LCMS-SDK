@@ -968,22 +968,20 @@
 			$this->system_navs = $this->instance->getAll();
 
 			// Only select those menu items which has enabled routes
-			$query = $db::query("SELECT `mi`.*, `r`.`alias` AS `route`, `r`.`settings` AS `route_settings`, `r`.`parent_id` AS `route_parent_id`
+			if(!$navs = $db::query("SELECT `mi`.*, `r`.`alias` AS `route`, `r`.`settings` AS `route_settings`, `r`.`parent_id` AS `route_parent_id`
 									FROM ".Env::get("db")['database'].".`lcms_navigations` AS `mi` 
 										LEFT JOIN ".Env::get("db")['database'].".`lcms_routes` AS `r` ON(`r`.`id` = `mi`.`route_id`) 
-											WHERE `mi`.`deleted_at` IS NULL ORDER BY `mi`.`parent_id` ASC, `mi`.`id` ASC");
-
-			if($db::num_rows($query) == 0)
+											WHERE `mi`.`deleted_at` IS NULL ORDER BY `mi`.`parent_id` ASC, `mi`.`id` ASC")->asArray())
 			{
 				return $this;
 			}
 
-			while($row = $db::fetch_assoc($query))
+			foreach($navs AS $row)
 			{
-				if(!empty($row['hidden_at']) && ($hidden_at = json_decode($row['hidden_at'], true)) && isset($hidden_at[Locale::getLanguage()]) && !empty($hidden_at[Locale::getLanguage()]))
+				/*if(!empty($row['hidden_at']) && ($hidden_at = json_decode($row['hidden_at'], true)) && isset($hidden_at[Locale::getLanguage()]) && !empty($hidden_at[Locale::getLanguage()]))
 				{
 					continue;
-				}
+				}*/
 
 				if(!isset($this->database_navs[$row['navigation']]))
 				{
@@ -1002,7 +1000,7 @@
 
 			foreach($this->database_navs[$nav_identifier] AS $k => $lcms_nav_item)
 			{
-				if(empty($lcms_nav_item['snapshot']) || $lcms_nav_item['snapshot'] != $snapshot)
+				if(empty($lcms_nav_item['snapshot']) || !($lcms_nav_item['snapshot'] == $snapshot))
 				{
 					continue;
 				}
@@ -1034,7 +1032,17 @@
 
 			$_nav_item['id'] = $db::last_insert_id();
 
+			if($_parent_id)
+			{
+				$_nav_item['parent_id'] = $_parent_id;
+			}
+
 			return $_nav_item;
+		}
+
+		private function updateNavItem(DB $db, int $_nav_item_id, array $_params): void
+		{
+			$db::update(Env::get("db")['database'].".`lcms_navigations`", $_params, ['id' => $_nav_item_id]);
 		}
 
 		/**
@@ -1063,7 +1071,8 @@
 
 					if(!isset($system_items[$navigation][$nav_item_key]['id']))
 					{
-						$system_items[$navigation][$nav_item_key] = array_merge($system_items[$navigation][$nav_item_key], $this->createNavItem($_storage, $navigation, $nav_item));
+						$parent_id = (isset($nav_item['parent'], $system_items[$navigation][$nav_item['parent']], $system_items[$navigation][$nav_item['parent']]['id'])) ? $system_items[$navigation][$nav_item['parent']]['id'] : null;
+						$system_items[$navigation][$nav_item_key] = array_merge($system_items[$navigation][$nav_item_key], $this->createNavItem($_storage, $navigation, $nav_item, $parent_id));
 					}
 
 					$route_settings = (!empty($system_items[$navigation][$nav_item_key]['route_settings'])) ? json_decode($system_items[$navigation][$nav_item_key]['route_settings'], true) : null;
@@ -1089,8 +1098,9 @@
 				}
 
 				// Pair with parents
-				foreach(array_filter($system_items[$navigation], fn($i) => isset($i['parent'])) AS $nav_item_key => $nav_object)
+				foreach(array_filter($system_items[$navigation], fn($i) => isset($i['parent']) && !isset($i['parent_id'])) AS $nav_item_key => $nav_object)
 				{
+					$this->updateNavItem($_storage, $nav_object['id'], ['parent_id' => $system_items[$navigation][$nav_object['parent']]['id']]);
 					$system_items[$navigation][$nav_item_key]['parent_id'] = $system_items[$navigation][$nav_object['parent']]['id'];
 				}
 			}
@@ -1119,9 +1129,11 @@
 					if(!empty($nav_item['parent_id']))
 					{
 						// Find parent
-						$find_key = $relations[$nav_identifier][$nav_item['parent_id']] ?? $nav_items[$nav_item['parent_id']]['key'];
-		
-						if(!isset($system_items[$nav_identifier][$find_key]['children']))
+						if(!$find_key = $relations[$nav_identifier][$nav_item['parent_id']] ?? $nav_items[$nav_item['parent_id']]['key'] ?? false)
+						{
+							continue;
+						}
+						elseif(!isset($system_items[$nav_identifier][$find_key]['children']))
 						{
 							$system_items[$nav_identifier][$find_key]['children'] = array();
 						}
@@ -1158,6 +1170,11 @@
 			if(empty($row['route_id']) && isset($row['snapshot'], $row['snapshot']['route']) && !empty($row['snapshot']['route']))
 			{
 				$row['route'] = $row['snapshot']['route'];
+			}
+
+			if(isset($row['hidden_at']) && !empty($row['hidden_at']) && !is_array($row['hidden_at']) && $hidden_at = array_filter(json_decode($row['hidden_at'], true)))
+			{
+				$row['hidden_at'] = $hidden_at;
 			}
 
 			$row['order'] = (int) $row['order'];
