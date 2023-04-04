@@ -81,7 +81,7 @@
 
 		public function getActiveKey(): int
 		{
-			return $this->active_keys[array_key_last($this->active_keys)];
+			return (empty($this->active_keys)) ? 0 : $this->active_keys[array_key_last($this->active_keys)];
 		}
 
 		public function getActiveKeys(): array
