@@ -3,7 +3,7 @@
 
 	class Toolset
 	{
-		public static function isJson($_string)
+		public static function isJson(string $_string): bool
 		{
 			try
 			{
@@ -15,16 +15,15 @@
 			}
 		}
 
-		public static function picture(String $_url, Array $_attributes = array(), String | Int $_size = null): String
+		public static function picture(string $_url, array $_attributes = array(), string | int $_size = null): string
 		{
 			$parts = self::pictureArray($_url, $_attributes, $_size);
 
 			return self::pictureArrayToString($parts);
 		}
 
-		public static function pictureArray(String $_url, Array $_attributes = null, String | Int $_size = null): Array
+		public static function pictureArray(string $_url, array $_attributes = array(), string | int $_size = null): array
 		{
-			//$_size = (!empty($_size) && !is_array($_size)) ? explode("x", $_size) : null;
 			$parts = explode(".", $_url);
 			$file_ending = $parts[count($parts) - 1];
 			unset($parts[count($parts) - 1]);
@@ -55,7 +54,7 @@
 			);
 		}
 
-		public static function pictureArrayToString(Array $picture_data)
+		public static function pictureArrayToString(array $picture_data): string
 		{
 			$picture_parts = array_map(fn($picture) => 
 				"<" . $picture[0] . ((isset($picture[1]) && !empty($picture[1])) 
@@ -66,7 +65,7 @@
 
 		}
 
-		public static function imgTo(string $_url, mixed $_size = null, string $_file_ending = "webp")
+		public static function imgTo(string $_url, mixed $_size = null, string $_file_ending = "webp"): string
 		{
 			$image_url = implode(".", explode(".", $_url, -1)) . "." . $_file_ending;
 	
@@ -78,7 +77,7 @@
 			return $image_url;
 		}
 	
-		public static function resize(string $_url, mixed $_size = null)
+		public static function resize(string $_url, mixed $_size = null): string
 		{
 			if(empty($_size))
 			{
@@ -97,9 +96,9 @@
 			return "https://" . implode("/", $parts);
 		}
 		
-		public static function getStringBetween($string, $start, $end)
+		public static function getStringBetween(string $_string, string $_start, string $_end): mixed
 		{
-			if(preg_match_all('/'.$start.'(.*?)'.$end.'/', $string, $match) > 0)
+			if(preg_match_all('/'.$_start.'(.*?)'.$_end.'/', $_string, $match) > 0)
 			{
 				return array($match[0], $match[1]);
 			}

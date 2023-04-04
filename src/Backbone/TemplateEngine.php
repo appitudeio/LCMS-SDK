@@ -83,7 +83,7 @@
 			$nodes = array();
 
             $buildElement = (fn($el, $key) => array(
-                'type'         => $this->identifyNodeType($el->attr['type'] ?? $el->tag ?? null),
+                'type'         => $this->identifyNodeType($el->attr['type'] ?? (($el->tag == "node") ? $el->attr['as'] ?? null : null)),
                 'properties'   => $this->getPropertiesFromNode($el),
                 'identifier'   => $key,
                 'content'      => $el->attr['src'] ?? (string) $el->innertext ?? "", // Fallback text from document
@@ -297,7 +297,7 @@
 
         private function getPropertiesFromNode(object $_element): null | array
         {
-            $type = $this->identifyNodeType($_element->attr['type'] ?? $_element->tag ?? null);
+            $type = $this->identifyNodeType($_element->attr['type'] ?? (($_element->tag == "node") ? $_element->attr['as'] ?? null : null));
 
             if(!in_array($type, [Node::TYPE_IMAGE, Node::TYPE_HYPERLINK])) //, Node::TYPE_ROUTE]))
             {
