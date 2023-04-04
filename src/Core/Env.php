@@ -62,12 +62,32 @@
 
 		/**
 		 *	Never return DB nor protected assets
+		 *	- nor objects
 		 */
 		public static function getAll(): array
 		{
-			$return = array_filter(self::getInstance()->parameters, fn($e) => !isset($e[1]) || $e[1] != 999);
+			$return = array_filter(self::getInstance()->parameters, function($e)
+			{
+				if(is_object($e) || (is_array($e) && array_is_list($e) && is_object($e[0])))
+				{
+					return false;
+				}
+				elseif(is_array($e) && array_is_list($e) && (!isset($e[1]) || $e[1] != 999))
+				{
+					return true;
+				}
 
-			unset($return['db']);
+				return true;
+			});
+
+			// If key == db, db_web, web_db
+			foreach($return AS $key => $value)
+			{
+				if($key == "db" || str_starts_with($key, "db_") || str_ends_with($key, "_db"))
+				{
+					unset($return[$key]);
+				}
+			}
 
 			return $return;
 		}
