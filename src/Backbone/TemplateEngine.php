@@ -152,6 +152,8 @@
             {
                 $new_nodes = array();
 
+                $i = 1;
+
                 foreach($node AS $key => $n) // $n == $node
                 {
                     /**
@@ -164,7 +166,9 @@
                         $this->parseElement($element, $loop_element->attr['name'], $key);
                     }
 
-                    $new_nodes[] = str_replace("{{key}}", $key, (string) $loop_element_node);
+                    $new_nodes[] = str_replace(["{{key}}", "{{int}}"], [$key, $i], (string) $loop_element_node);
+
+                    $i++;
                 }
 
                 /**
@@ -330,39 +334,39 @@
             };
 		}
 
-		private function handle(string $identifier, array $properties, string $fallback): array | string
+		private function handle(string $_identifier, array $_properties, string $_fallback): array | string
 		{
             $stored = true;
-            $type = $properties['type'] ?? $properties['as'] ?? null;
+            $type = $_properties['type'] ?? $_properties['as'] ?? null;
 
-            if(!$node = Node::get($identifier))
+            if(!$node = Node::get($_identifier))
             {
-                unset($properties['as'], $properties['name']);
-                $props = (!empty($properties)) ? array('properties' => $properties) : array();
+                unset($_properties['as'], $_properties['name']);
+                $props = (!empty($_properties)) ? array('properties' => $_properties) : array();
 
-                $node = Node::createNodeObject(array('content' => $fallback) + $props);
+                $node = Node::createNodeObject(array('content' => $_fallback) + $props);
                 $stored = false;
             }
 
 			if(isset($node->asArray()['properties']) && !empty($node->asArray()['properties']))
 			{
-				$properties = array_merge($properties, array_filter($node->asArray()['properties']));
+				$_properties = array_merge($_properties, array_filter($node->asArray()['properties']));
 			}
 
             if(!in_array($type, ['text', 'html', 'textarea', 'meta', 'image', 'picture', 'route', 'a', 'img']))
             {
-                return array($node->text($properties), $stored);
+                return array($node->text($_properties), $stored);
             }
 
             return match($type)
             {
-                "text", "html", "textarea", "meta" => array($node->text($properties), $stored),
-                "image", "img"  => array($node->image($properties['width'] ?? null, $properties['height'] ?? null), $stored),
-                "picture"       => array($node->picture($properties['width'] ?? null, $properties['height'] ?? null), $stored),
-                "background"    => array($node->background($properties['width'] ?? null, $properties['height'] ?? null), $stored),
-                "route"         => array($node->route($properties), $stored),
-                "a"             => array($node->href($properties), $stored),
-                default         => array($fallback, false)
+                "text", "html", "textarea", "meta" => array($node->text($_properties), $stored),
+                "image", "img"  => array($node->image($_properties['width'] ?? null, $_properties['height'] ?? null), $stored),
+                "picture"       => array($node->picture($_properties['width'] ?? null, $_properties['height'] ?? null), $stored),
+                "background"    => array($node->background($_properties['width'] ?? null, $_properties['height'] ?? null), $stored),
+                "route"         => array($node->route($_properties), $stored),
+                "a"             => array($node->href($_properties), $stored),
+                default         => array($_fallback, false)
             };
 		}
 	}
