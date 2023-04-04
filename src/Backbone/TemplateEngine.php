@@ -152,6 +152,8 @@
             {
                 $new_nodes = array();
 
+                $i = 1;
+
                 foreach($node AS $key => $n) // $n == $node
                 {
                     /**
@@ -164,7 +166,9 @@
                         $this->parseElement($element, $loop_element->attr['name'], $key);
                     }
 
-                    $new_nodes[] = str_replace("{{key}}", $key, (string) $loop_element_node);
+                    $new_nodes[] = str_replace(["{{key}}", "{{int}}"], [$key, $i], (string) $loop_element_node);
+
+                    $i++;
                 }
 
                 /**
