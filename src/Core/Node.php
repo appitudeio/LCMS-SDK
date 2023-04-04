@@ -203,11 +203,11 @@
 			/**
 			 *	Merge data with strings
 			 */
-			if(empty($this->parameters) || (($parameters = array_filter($this->parameters, fn($v) => !is_array($v))) && empty($parameters)))
+			if(empty($this->nodes) || empty($this->parameters) || (($parameters = array_filter($this->parameters, fn($v) => !is_array($v))) && empty($parameters)))
 			{
 				return $this;
 			}
-			
+
 			// Convert ['static_path' => "https://..."] => ['{{static_path}}' => "https://..."]
 			$parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($parameters)), $parameters);
 			array_walk_recursive($this->nodes, fn(&$item) => (!empty($item) && str_contains($item, "{{")) ? $item = strtr($item, $parameters) : $item);
