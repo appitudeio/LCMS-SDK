@@ -307,6 +307,11 @@
 			 */
 			foreach($loops_relations AS $node_id => $identifier)
 			{
+				if(!isset($loops[$node_id]))
+				{
+					continue;
+				}
+
 				$this->unmergers[] = $identifier;
 				
 				foreach($loops[$node_id] AS $key => $nodes)
