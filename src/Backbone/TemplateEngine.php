@@ -83,7 +83,7 @@
 			$nodes = array();
 
             $buildElement = (fn($el, $key) => array(
-                'type'         => $this->identifyNodeType($el->attr['type'] ?? (($el->tag == "node") ? $el->attr['as'] ?? null : null)),
+                'type'         => $this->identifyNodeType($el->attr['type'] ?? (($el->tag == "node") ? $el->attr['as'] ?? $el->tag ?? null : $el->tag ?? null)),
                 'properties'   => $this->getPropertiesFromNode($el),
                 'identifier'   => $key,
                 'content'      => $el->attr['src'] ?? (string) $el->innertext ?? "", // Fallback text from document
