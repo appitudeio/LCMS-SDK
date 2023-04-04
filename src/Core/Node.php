@@ -185,7 +185,7 @@
 		 */
 		public function merge(array $_nodes = array(), array $_properties = null, array $_unmergers = null): self
 		{
-			if(!empty($_unmergers))
+			if(!empty($_unmergers) && !empty($this->nodes))
 			{
 				array_walk($_unmergers, fn($um) => Arr::forget($this->nodes, $um));
 			}
