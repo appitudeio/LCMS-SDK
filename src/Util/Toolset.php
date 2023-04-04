@@ -24,7 +24,7 @@
 
 		public static function pictureArray(String $_url, Array $_attributes = null, String | Int $_size = null): Array
 		{
-			$_size = (!empty($size) && is_string($_size)) ? explode("x", $_size) : null;
+			//$_size = (!empty($_size) && !is_array($_size)) ? explode("x", $_size) : null;
 			$parts = explode(".", $_url);
 			$file_ending = $parts[count($parts) - 1];
 			unset($parts[count($parts) - 1]);
@@ -36,7 +36,7 @@
 			if($file_ending == "webp")
 			{
 				return array(
-					array("source", array('srcset' => $_url, 'type' => "image/webp")),
+					array("source", array('srcset' => self::resize($_url, $_size), 'type' => "image/webp")),
 					array("source", array('srcset' => self::imgTo($_url, $_size, "png"), 'type' => 'image/png')),
 					array("img", array('src' => self::imgTo($_url, $_size, "png")) + $_attributes)
 				);
@@ -50,8 +50,8 @@
 			
 			return array(
 				array("source", array('srcset' => self::imgTo($_url, $_size), 'type' => "image/webp")),
-				array("source", array('srcset' => $_url, 'type' => 'image/' . $mime)),
-				array("img", array('src' => $_url) + $_attributes)
+				array("source", array('srcset' => self::resize($_url, $_size), 'type' => 'image/' . $mime)),
+				array("img", array('src' => self::resize($_url, $_size)) + $_attributes)
 			);
 		}
 
@@ -66,7 +66,7 @@
 
 		}
 
-		public static function imgTo($_url, $_size, $_file_ending = "webp")
+		public static function imgTo(string $_url, mixed $_size = null, string $_file_ending = "webp")
 		{
 			$image_url = implode(".", explode(".", $_url, -1)) . "." . $_file_ending;
 	
@@ -78,11 +78,23 @@
 			return $image_url;
 		}
 	
-		public static function resize($_url, $_size)
+		public static function resize(string $_url, mixed $_size = null)
 		{
+			if(empty($_size))
+			{
+				return $_url;
+			}
+
 			$parts = explode("/", $_url);
-			$parts[count($parts) - 2] = $_size;
-			return implode("/", $parts);
+
+			if($parts[1] == "")
+			{
+				unset($parts[0], $parts[1]); // http(s)
+			}
+
+			array_splice($parts, count($parts) - 1, 0, [$_size]);
+		
+			return "https://" . implode("/", $parts);
 		}
 		
 		public static function getStringBetween($string, $start, $end)

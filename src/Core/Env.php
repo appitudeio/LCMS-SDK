@@ -66,19 +66,7 @@
 		 */
 		public static function getAll(): array
 		{
-			$return = array_filter(self::getInstance()->parameters, function($e)
-			{
-				if(is_object($e) || (is_array($e) && array_is_list($e) && is_object($e[0])))
-				{
-					return false;
-				}
-				elseif(is_array($e) && array_is_list($e) && (!isset($e[1]) || $e[1] != 999))
-				{
-					return true;
-				}
-
-				return true;
-			});
+			$return = array_filter(self::getInstance()->parameters, fn($e) => !is_array($e) || is_array($e) && array_is_list($e) && (!isset($e[1]) || $e[1] != 999));
 
 			// If key == db, db_web, web_db
 			foreach($return AS $key => $value)
