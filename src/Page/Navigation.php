@@ -5,13 +5,14 @@
 	namespace LCMS\Page;
 
 	use LCMS\Core\Route;
+	use LCMS\Core\Locale;
+	use LCMS\DI;
 
 	use \Closure;
 	use \Exception;
 
 	class Navigation implements \Iterator
 	{
-		private $route;
 		private int 	$index = 0;
 		private array 	$currents;
 		private array 	$params;
@@ -25,13 +26,8 @@
 			$this->params = array('identifier' => $_identifier);
 		}
 
-		function __invoke(Route $_route = null): self
+		function __invoke(): self
 		{
-			if(!empty($_route))
-			{
-				$this->route = $_route;
-			}
-			
 			return $this;
 		}
 
@@ -68,11 +64,11 @@
 
 				if(!isset($this->items[$current['key']]['children']))
 				{
-				 	$this->items[$current['key']]['children'] 	= array();
+				 	$this->items[$current['key']]['children'] = array();
 				}
 
-				$this->items[$this->getCurrentKey()]['parent'] 	= $current['key'];
-				$this->items[$current['key']]['children'][] 	= $this->getCurrentKey();
+				$this->items[$this->getCurrentKey()]['parent'] = $current['key'];
+				$this->items[$current['key']]['children'][] = $this->getCurrentKey();
 			}
 			else
 			{
@@ -122,12 +118,12 @@
 
 		public function current(): mixed
 		{
-			return $this->items[$this->root[$this->index]];
+			return $this->items[$this->root[$this->key()]];
 		}
 
 		public function next(): void
 		{
-			$this->index++;
+			++$this->index;
 		}
 
 		public function rewind(): void
@@ -137,7 +133,7 @@
 				$this->sort();
 			}
 
-			if($this->route)
+			if(DI::get(Route::class))
 			{
 				$this->sortActive();
 			}
@@ -158,12 +154,14 @@
 		private function sortActive()
 		{
 			// Get whole Route Tree aliases
-			if(!$current_route = $this->route->getCurrentMatched())
+			$route = DI::get(Route::class);
+
+			if(!$current_route = $route->getCurrentMatched())
 			{
 				return;
 			}
 
-			$current_route_aliases = $this->route->asTreeAliases($current_route);
+			$current_route_aliases = $route->asTreeAliases($current_route);
 
 			foreach(array_filter($this->items, fn($i) => isset($i['route'])) AS $item)
 			{
@@ -277,32 +275,13 @@
 
 		public function merge(array $_items): self
 		{
-			foreach($_items AS $k => $v)
+			foreach($_items AS $k => $nav_item)
 			{
-				if(isset($v['disabled']))
+				$this->items[$k] = $nav_item;
+
+				if(empty($nav_item['parent_id']) && !in_array($nav_item['key'], $this->root))
 				{
-					$has_disables = true;
-				
-					if(isset($this->items[$k]['parent']))
-					{
-						unset($this->items[$this->items[$k]['parent']]['children'][array_search($k, $this->items[$this->items[$k]['parent']]['children'])]);
-					}
-
-					unset($this->items[$k]);
-
-					if(empty($v['parent_id']))
-					{
-						unset($this->root[$k]);
-					}
-				}
-				else
-				{
-					$this->items[$k] = $v;
-
-					if(empty($v['parent_id']))
-					{
-						$this->root[$k] = $v['key'];
-					}
+					$this->root[$k] = $nav_item['key'];
 				}
 			}
 
@@ -318,9 +297,15 @@
 
 		private function sortRecursive(array $_keys): array
 		{
-			$items = array_map(function($key)
+			$language = DI::get(Locale::class)->getLanguage();
+
+			$items = array_filter(array_map(function($key) use($language)
 			{
-				if(isset($this->items[$key]['children']) && count($this->items[$key]['children']) > 1)
+				if(isset($this->items[$key]['hidden_at'], $this->items[$key]['hidden_at'][$language]))
+				{
+					return false;
+				}
+				elseif(isset($this->items[$key]['children']) && count($this->items[$key]['children']) > 1)
 				{
 					$this->items[$key]['children'] = $this->sortRecursive($this->items[$key]['children']);
 				}
@@ -331,7 +316,7 @@
 				}
 
 				return $this->items[$key];
-			}, $_keys);
+			}, $_keys));
 			
 			usort($items, fn($a, $b) => $a['order'] <=> $b['order']);
 

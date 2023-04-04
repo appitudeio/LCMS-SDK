@@ -102,7 +102,7 @@
             $env = DI::get(Env::class);
             $node = DI::get(Node::class);
             $route = DI::get(Route::class);
-            $navigations = DI::get(Navigations::class);
+            // $navigations = DI::get(Navigations::class);
             
             /**
              *  If LCMS-environment, set ImageFactory 
