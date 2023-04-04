@@ -372,7 +372,7 @@
 				$image_url .= $_width . "/";
 			}
 
-			$this->content = $image_url .= $this->node['content'];
+			$this->node['content'] = $image_url .= $this->node['content'];
 
 			return $this;
 		}
