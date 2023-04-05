@@ -4,6 +4,7 @@
 	 */
 	namespace LCMS\Backbone;
 
+    use LCMS\DI;
 	use LCMS\Core\Node;
     use LCMS\Util\SimpleHtmlDom;
 
@@ -67,7 +68,7 @@
             /**
              *  Now parse what's left
              */
-            foreach($this->document->find("node[name]") AS $element)
+            foreach($this->document->find("node") AS $element)
             {
                 $this->parseElement($element);
             }
@@ -83,7 +84,7 @@
 			$nodes = array();
 
             $buildElement = (fn($el, $key) => array(
-                'type'         => $this->identifyNodeType($el->attr['type'] ?? (($el->tag == "node") ? $el->attr['as'] ?? $el->tag ?? null : $el->tag ?? null)),
+                'type'         => $this->identifyNodeType($el),
                 'properties'   => $this->getPropertiesFromNode($el),
                 'identifier'   => $key,
                 'content'      => $el->attr['src'] ?? (string) $el->innertext ?? "", // Fallback text from document
@@ -122,31 +123,31 @@
         /**
          *  Handles \LCMS\Util\SimpleHtmlDom subclass HtmlNode
          */
-        private function handleLoop(object $loop_element): void
+        private function handleLoop(object $_loop_element): void
         {
             // Items found, let's put them into the loop (Merge with nodes)
-            if(false === $node = Node::get($loop_element->attr['name']))
+            if(false === $node = Node::get($_loop_element->attr['name']))
             {
-                $this->elements[self::ELEMENT_UNIDENTIFIED][$loop_element->attr['name']] = array();
+                $this->elements[self::ELEMENT_UNIDENTIFIED][$_loop_element->attr['name']] = array();
 
-                foreach($loop_element->find("node[name]") AS $element)
+                foreach($_loop_element->find("node[name]") AS $element)
                 {
-                    $this->elements[self::ELEMENT_UNIDENTIFIED][$loop_element->attr['name']][] = $element;
+                    $this->elements[self::ELEMENT_UNIDENTIFIED][$_loop_element->attr['name']][] = $element;
                 }
 
-                $loop_element->remove();
+                $_loop_element->remove();
             }
             elseif($node instanceof Node && empty($node->loop()))
             {
                 // If empty, maybe the elements are unidentified
-                $this->elements[self::ELEMENT_UNIDENTIFIED][$loop_element->attr['name']] = array();
+                $this->elements[self::ELEMENT_UNIDENTIFIED][$_loop_element->attr['name']] = array();
 
-                foreach($loop_element->find("node[name]") AS $element)
+                foreach($_loop_element->find("node[name]") AS $element)
                 {
-                    $this->elements[self::ELEMENT_UNIDENTIFIED][$loop_element->attr['name']][] = $element;
+                    $this->elements[self::ELEMENT_UNIDENTIFIED][$_loop_element->attr['name']][] = $element;
                 }
 
-                $loop_element->remove();
+                $_loop_element->remove();
             }
             else
             {
@@ -159,11 +160,11 @@
                     /**
                      *  Break out the Loop from the tree
                      */
-                    $loop_element_node = SimpleHtmlDom::string($loop_element->innertext());
+                    $loop_element_node = SimpleHtmlDom::string($_loop_element->innertext());
 
                     foreach($loop_element_node->find("node[name]") AS $element)
                     {
-                        $this->parseElement($element, $loop_element->attr['name'], $key);
+                        $this->parseElement($element, $_loop_element->attr['name'], $key);
                     }
 
                     $new_nodes[] = str_replace(["{{key}}", "{{int}}"], [$key, $i], (string) $loop_element_node);
@@ -174,7 +175,7 @@
                 /**
                  *  Replace the old <loop> with new html
                  */
-                $loop_element->outertext = implode("", $new_nodes);
+                $_loop_element->outertext = implode("", $new_nodes);
 
                 unset($new_nodes);
             }
@@ -185,40 +186,39 @@
          *  
          *  @return HtmlNode with modified content
          */
-        private function parseElement(object $element, string $parent = null, int $key = null): void
+        private function parseElement(object $_element, string | null $_parent = null, int | null $_key = null): void
         {
-            $is_meta = (in_array($element->tag, ["meta", "title"]) || str_starts_with($element->attr['name'], "meta.")) ? true : false;
+            $is_meta = (in_array($_element->tag, ["meta", "title"]) || (isset($_element->attr['name']) && str_starts_with($_element->attr['name'], "meta."))) ? true : false;
 
             if($is_meta)
             {
-                $name = (isset($element->attr['name']) && str_starts_with($element->attr['name'], "meta.")) ? $element->attr['name'] : "meta." . ($element->attr['name'] ?? $element->tag);
-            }
-            else
-            {
-                $name = $element->attr['alias'] ?? $element->attr['name'];
+                $name = (isset($_element->attr['name']) && str_starts_with($_element->attr['name'], "meta.")) ? $_element->attr['name'] : "meta." . ($_element->attr['name'] ?? $_element->tag);
             }
 
-            $identifier = (!empty($parent)) ? $parent . "." . $key . "." . $name : $name;
-
-            if(!empty($key))
+            if($name ??= $_element->attr['alias'] ?? $_element->attr['name'] ?? null)
             {
-                $element->attr['key'] = $key;
+                $identifier = (!empty($_parent)) ? $_parent . "." . $_key . "." . $name : $name;
+            }
+
+            if(!empty($_key))
+            {
+                $_element->attr['key'] = $_key;
             }
 
             if($is_meta)
             {
-                if($element->tag == "title")
+                if($_element->tag == "title")
                 {
-                    list($element->innertext, $stored) = $this->handle($identifier, $element->attr, $element->innertext);
+                    list($_element->innertext, $stored) = $this->handle($identifier ?? null, $_element->attr, $_element->innertext);
                 }
                 else
                 {
-                    list($element->content, $stored) = $this->handle($identifier, $element->attr, $element->innertext);
+                    list($_element->content, $stored) = $this->handle($identifier ?? null, $_element->attr, $_element->innertext);
                 }
             }
-            elseif((isset($element->attr['type']) && in_array($element->attr['type'], ['route', 'a'])) || (isset($element->attr['as']) && in_array($element->attr['as'], ['route', 'a'])))
+            elseif((isset($_element->attr['type']) && in_array($_element->attr['type'], ['route', 'a'])) || (isset($_element->attr['as']) && in_array($_element->attr['as'], ['route', 'a'])))
             {
-                list($href, $stored) = $this->handle($identifier, $element->attr, $element->innertext ?? "");
+                list($href, $stored) = $this->handle($identifier ?? null, $_element->attr, $_element->innertext ?? "");
 
                 if(isset($href->asArray()['properties']) && !empty($href->asArray()['properties']))
                 {
@@ -226,82 +226,88 @@
 
                     foreach(array_filter($href->asArray()['properties'], fn($d) => !in_array($d, $excluded_data), ARRAY_FILTER_USE_KEY) AS $tag => $value)
                     {
-                        if($element->$tag != $value)
+                        if($_element->$tag == $value)
                         {
-                            $element->$tag = $value;
+                            continue;
                         }
+
+                        $_element->$tag = $value;
                     }
                 }
 
-                $element->innertext = (string) $href;
-                $element->attr['as'] = "a";
+                if(isset($_element->attr['type']) && $_element->attr['type'] == "route")
+                {
+                    $_element->innertext = (string) $href;
+                }
+                
+                $_element->attr['as'] = "a";
             }
-            elseif((isset($element->attr['type']) && in_array($element->attr['type'], ['img', 'image', 'picture'])) || (isset($element->attr['as']) && in_array($element->attr['as'], ['img', 'image', 'picture'])))
+            elseif((isset($_element->attr['type']) && in_array($_element->attr['type'], ['img', 'image', 'picture'])) || (isset($_element->attr['as']) && in_array($_element->attr['as'], ['img', 'image', 'picture'])))
             {
-                list($image, $stored) = $this->handle($identifier, $element->attr, $element->attr['src'] ?? $element->innertext);
-                $element->outertext = (string) $image;
+                list($image, $stored) = $this->handle($identifier ?? null, $_element->attr, $_element->attr['src'] ?? $_element->innertext);
+                $_element->outertext = (string) $image;
             }
             else
             {
                 /**
                  *  Text HtmlNodes may have children, so we remove them
                  */
-                if(isset($element->attr['as']))
+                if(isset($_element->attr['as']))
                 {
-                    list($element->innertext, $stored) = $this->handle($identifier, $element->attr, $element->innertext);
+                    list($_element->innertext, $stored) = $this->handle($identifier ?? null, $_element->attr, $_element->innertext);
                    
-                    if($element->hasChildNodes())
+                    if($_element->hasChildNodes())
                     {
-                        array_walk($element->nodes, fn($e) => $element->removeChild($e));
+                        array_walk($_element->nodes, fn($e) => $_element->removeChild($e));
                     }
                 }
                 else
                 {
-                    list($element->outertext, $stored) = $this->handle($identifier, $element->attr, $element->innertext);
+                    list($_element->outertext, $stored) = $this->handle($identifier ?? null, $_element->attr, $_element->innertext);
                 }
             }
 
-            if(isset($element->attr['as']))
+            if(isset($_element->attr['as']))
             {
-                $element->tag = $element->attr['as'];
-                unset($element->attr['as']);
+                $_element->tag = $_element->attr['as'];
+                unset($_element->attr['as']);
             }
 
-            if(isset($element->attr['global']))
+            if(isset($_element->attr['global']))
             {
-                $element->attr['global'] = null;
+                $_element->attr['global'] = null;
             }
 
-            if(!empty($element->attr))
+            if(!empty($_element->attr))
             {
-                $element->attr['name'] = null;
+                $_element->attr['name'] = null;
             }
-            
+
             if($stored)
             {
-                $element->attr['type'] = null;
+                $_element->attr['type'] = null;
             }
-            else //if(empty($key)) // $key == indicates this is from a loop item
+            elseif($name) //if(empty($_key)) // $key == indicates this is from a loop item
             {
-                if(!empty($parent))
+                if(!empty($_parent))
                 {
-                    if(!isset($this->elements[self::ELEMENT_UNIDENTIFIED][$parent]))
+                    if(!isset($this->elements[self::ELEMENT_UNIDENTIFIED][$_parent]))
                     {
-                        $this->elements[self::ELEMENT_UNIDENTIFIED][$parent] = array();
+                        $this->elements[self::ELEMENT_UNIDENTIFIED][$_parent] = array();
                     }
 
-                    $this->elements[self::ELEMENT_UNIDENTIFIED][$parent][$name] = $element;
+                    $this->elements[self::ELEMENT_UNIDENTIFIED][$_parent][$name] = $_element;
                 }
                 else
                 {
-                    $this->elements[self::ELEMENT_UNIDENTIFIED][$name] = $element;
+                    $this->elements[self::ELEMENT_UNIDENTIFIED][$name] = $_element;
                 }
             }
         }        
 
         private function getPropertiesFromNode(object $_element): null | array
         {
-            $type = $this->identifyNodeType($_element->attr['type'] ?? (($_element->tag == "node") ? $_element->attr['as'] ?? null : null));
+            $type = $this->identifyNodeType($_element); //->attr['type'] ?? (($_element->tag == "node") ? $_element->attr['as'] ?? null : null));
 
             if(!in_array($type, [Node::TYPE_IMAGE, Node::TYPE_HYPERLINK])) //, Node::TYPE_ROUTE]))
             {
@@ -318,9 +324,19 @@
            return $self;
         }
 
-		private function identifyNodeType(string $_type = null): string
+		private function identifyNodeType(object $_element): string
 		{
-            return match($_type)
+            // If no 'type' found, check if it contains html tags, then it's a wysiwyg
+            if(!$type = $_element->attr['type'] ?? (($_element->tag == "node") ? $_element->attr['as'] ?? null : $_element->tag ?? null))
+            {
+                // HDOM_TYPE_ELEMENT == 1
+                if($_element->nodes && array_filter($_element->nodes, fn($n) => $n->nodetype == 1))
+                {
+                    $type = "wysiwyg";
+                }   
+            }
+            
+            return match($type)
             {
                 "image", "picture", "img" => Node::TYPE_IMAGE,
                 "background"        => Node::TYPE_BACKGROUND,
@@ -334,12 +350,12 @@
             };
 		}
 
-		private function handle(string $_identifier, array $_properties, string $_fallback): array | string
+		private function handle(string | null $_identifier = null, array $_properties, string $_fallback): array | string
 		{
             $stored = true;
             $type = $_properties['type'] ?? $_properties['as'] ?? null;
 
-            if(!$node = Node::get($_identifier))
+            if(empty($_identifier) || !$node = Node::get($_identifier))
             {
                 unset($_properties['as'], $_properties['name']);
                 $props = (!empty($_properties)) ? array('properties' => $_properties) : array();

@@ -85,6 +85,11 @@
 			return $this->nodes;
 		}
 
+		public function getParameters(): array
+		{
+			return $this->parameters ?? array();
+		}
+
 		/**
 		 * 	
 		 * 	@return 
@@ -207,10 +212,11 @@
 			{
 				return $this;
 			}
-
+			
 			// Convert ['static_path' => "https://..."] => ['{{static_path}}' => "https://..."]
 			$parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($parameters)), $parameters);
 			array_walk_recursive($this->nodes, fn(&$item) => (!empty($item) && str_contains($item, "{{")) ? $item = strtr($item, $parameters) : $item);
+			array_walk_recursive($this->properties, fn(&$item) => (!empty($item) && str_contains($item, "{{")) ? $item = strtr($item, $parameters) : $item);	
 
 			return $this;
 		}
@@ -239,6 +245,11 @@
 
 		public static function createNodeObject(array $_node): NodeObject
 		{
+			if(!empty(self::getInstance()->parameters))
+			{
+				$_node['parameters'] = self::getInstance()->parameters;
+			}
+
 			return new NodeObject($_node);
 		}
 	}
@@ -382,13 +393,32 @@
 		 */
 		public function href(): self
 		{
+			// Any params we should replace
+			if(!isset($this->node['parameters']) || empty($this->node['parameters']))
+			{
+				return $this;
+			}
+
+			$forbidden_properties = array('name', 'type', 'as');
+			$_parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($this->node['parameters'])), $this->node['parameters']);
+	
+			foreach(array_filter($this->node['properties'], fn($v, $k) => !in_array($k, $forbidden_properties) && str_contains($v, "{{"), ARRAY_FILTER_USE_BOTH) AS $prop => $content)
+			{
+				$this->node['properties'][$prop] = strtr($content, $_parameters);
+			}
+
+			if(isset($this->node['content']) && str_contains($this->node['content'], "{{"))
+			{
+				$this->node['content'] = strtr($this->node['content'], $_parameters);
+			}
+
 			return $this;
 		}
 
 		/**
 		 * 	
 		 */
-		public function route(array $properties = null): self
+		public function route(array $_properties = array()): self
 		{
 			if(!isset($this->node['properties']))
 			{
