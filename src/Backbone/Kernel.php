@@ -238,7 +238,7 @@
             {
                 $robots = array();
 
-                if((list($row, $noindex_content) = Toolset::getStringBetween($robots_node->text(), "Noindex: ", "\\n")) 
+                if($env->get("web_path") && (list($row, $noindex_content) = Toolset::getStringBetween($robots_node->text(), "Noindex: ", "\\n")) 
                     && ($noindex_content = str_replace($env->get("web_path"), "", $noindex_content))
                     && (in_array(DI::get(Page::class)->pattern, $noindex_content) || count(array_filter(explode("/", DI::get(Page::class)->pattern), fn($part) => in_array($part . "/", $noindex_content)))
                 ))
@@ -246,7 +246,7 @@
                     $robots[] = "noindex";
                 }
 
-                if((list($row, $disallow_content) = Toolset::getStringBetween($robots_node->text(), "Disallow: ", "\\n")) 
+                if($env->get("web_path") && (list($row, $disallow_content) = Toolset::getStringBetween($robots_node->text(), "Disallow: ", "\\n")) 
                     && ($disallow_content = str_replace($env->get("web_path"), "", $disallow_content))
                     && (in_array(DI::get(Page::class)->pattern, $disallow_content) || count(array_filter(explode("/", DI::get(Page::class)->pattern), fn($part) => in_array($part . "/", $disallow_content)))
                 ))
