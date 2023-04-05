@@ -57,21 +57,6 @@
 			self::getInstance()::$image_endpoint .= $_image_endpoint;
 		}
 
-		/*public static function getInstance(mixed $_data = null): self
-		{
-			if(self::$instance == null)
-			{
-				self::$instance = new static();
-			}
-
-			if($_data instanceof Route)
-			{
-				self::$instance->route = $_data;
-			}
-
-			return self::$instance;
-		}*/
-
 		public function setNamespace(array $_namespace): void
 		{
 			$this->namespace = array_filter($_namespace);
@@ -262,6 +247,7 @@
 	{
 		private $node;
 		private $image_endpoint;
+		private $return_as;
 
 		function __construct(array | string $_node)
 		{
@@ -275,11 +261,20 @@
 			$this->node = $_node;
 		}
 
+		public function setProperties(array $_properties): self
+		{
+			$this->node['properties'] = array_merge($this->node['properties'] ?? array(), $_properties);
+
+			return $this;
+		}
+
 		/**
 		 * 	
 		 */
 		public function text(array $_parameters = array()): self
 		{
+			$this->return_as = __FUNCTION__;
+
 			// Any params we should replace 
 			$forbidden_keys = array('name', 'type', 'content', 'as');
 
@@ -301,6 +296,8 @@
 		 */
 		public function image(int $_width = null, int $_height = null): self
 		{
+			$this->return_as = __FUNCTION__;
+
 			// If empty image
 			if(empty($this->node['content']))
 			{
@@ -337,6 +334,8 @@
 		 */
 		public function picture(int $_width = null, int $_height = null): self
 		{
+			$this->return_as = __FUNCTION__;
+
 			// If empty image
 			if(empty($this->node['content']))
 			{
@@ -365,6 +364,8 @@
 		 */
 		public function background(int $_width = null, int $_height = null): self
 		{
+			$this->return_as = __FUNCTION__;
+
 			// If empty image
 			if(empty($this->node['content']))
 			{
@@ -397,6 +398,8 @@
 		 */
 		public function href(): self
 		{
+			$this->return_as = __FUNCTION__;
+
 			// Any params we should replace
 			if(!isset($this->node['parameters']) || empty($this->node['parameters']))
 			{
@@ -424,6 +427,8 @@
 		 */
 		public function route(array $_properties = array()): self
 		{
+			$this->return_as = __FUNCTION__;
+
 			if(!isset($this->node['properties']))
 			{
 				$this->node['properties'] = array();
@@ -449,6 +454,11 @@
 
 		function __toString(): string
 		{
+			if($this->return_as == "href")
+			{
+				return $this->node['properties']['href'] ?? $this->node['content'];
+			}
+
 			return $this->node['content'];
 		}
 	}
