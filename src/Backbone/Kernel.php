@@ -44,9 +44,6 @@
                     $RootObj = $merger[0];
                     unset($merger[0]);
 
-                   // $instances = array_map(fn($o) => (is_object($o)) ? get_class($o) : $o, $merger);
-                   //  $auto_merge = ($RootObj instanceof Node && in_array(Database::class, $instances)) ? false : true;
-
                     // Either create a new Merge, or re-use
                     foreach($merger AS $storage)
                     {
