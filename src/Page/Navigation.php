@@ -8,10 +8,11 @@
 	use LCMS\Core\Locale;
 	use LCMS\DI;
 
+	use \Iterator;
 	use \Closure;
 	use \Exception;
 
-	class Navigation implements \Iterator
+	class Navigation implements Iterator
 	{
 		private int 	$index = 0;
 		private array 	$currents;

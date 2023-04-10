@@ -11,6 +11,9 @@
 
 	class Arr
 	{
+		/**
+		 * 	If an int occurs in the key, stop and treat it as an array
+		 */
 		public static function get($array, $key, $default = null)
 		{
 			if(!is_array($array))
@@ -121,9 +124,9 @@
 
 				unset($array[array_shift($parts)]);
 			}
-		}		
+		}
 
-		public static function unflatten(&$array, $key, $value)
+		public static function set(&$array, $key, $value)
 		{
 	        if (is_null($key)) 
 	        {
@@ -157,7 +160,17 @@
 	        return $array;
 		}
 
+		public static function unflatten(&$array, $key, $value)
+		{
+			return self::set($array, $key, $value);
+		}
+
 		public static function flatten($array, $prepend = '')
+		{
+			return self::dot($array, $prepend);
+		}
+
+		public static function dot($array, $prepend = '')
 		{
 			$results = array();
 
@@ -175,5 +188,17 @@
 
 			return $results;
 		}
+
+		public static function undot($array)
+		{
+			$results = [];
+	
+			foreach ($array as $key => $value) 
+			{
+				self::set($results, $key, $value);
+			}
+	
+			return $results;
+		}		
 	}
 ?>

@@ -13,6 +13,8 @@
 	use LCMS\Core\Route;
 	use LCMS\Page\Navigations;
 	use LCMS\Core\Node;
+	use LCMS\Core\NodeType;
+	use LCMS\Core\NodeObject;
 	use LCMS\Core\Request;
 	use LCMS\Core\Locale;
 	use LCMS\Util\Arr;
@@ -20,12 +22,11 @@
 	
 	use \Closure;
 	use \Exception;
-
+	
 	class Merge
 	{
 		private $object;
 		private $merger;
-		private $storage;
 
 		function __construct(object $_obj)
 		{
@@ -42,34 +43,29 @@
 			return (new \ReflectionClass($this->object))->getShortName();
 		}
 
-		public function with($_storage, $_auto_merge = true)
+		public static function getClassOf(object $_obj): string | bool
 		{
-			if($this->merger)
+			return match(true)
 			{
-				if(!$_auto_merge)
-				{
-					return $this->merger;
-				}
-
-				return $this->merger->merge($_storage);
-			}
-
-			if(!$this->merger = match(true)
-			{
-				$this->object instanceof Node => new NodeMerge($this->object, $_storage),
-				$this->object instanceof Route => new RouteMerge($this->object, $_storage),
-				$this->object instanceof Navigations => new NavigationsMerger($this->object, $_storage),
-				$this->object instanceof Env => new EnvMerge($this->object, $_storage),
-				$this->object instanceof Locale => new LocaleMerge($this->object, $_storage),
+				$_obj instanceof Node 			=> NodeMerge::class,
+				$_obj instanceof Route 			=> RouteMerge::class,
+				$_obj instanceof Navigations 	=> NavigationsMerger::class,
+				$_obj instanceof Env 			=> EnvMerge::class,
+				$_obj instanceof Locale 		=> LocaleMerge::class,
 				default => false
-			})
+			};
+		}
+
+		public function with($_storage)
+		{
+			$mergObj = $this->getClassOf($this->object);
+
+			if(!$mergObj || !$this->merger = new $mergObj($this->object, $_storage))
 			{
 				throw new Exception("No merger available from Object");
 			}
 
-			$this->storage = $_storage;
-
-			return $this->with($this->storage, $_auto_merge);
+			return $this->merger;
 		}
 
 		public function store($_what = null, $_into = null)
@@ -109,6 +105,13 @@
 			{
 				$this->storage = $_storage;
 			}
+		}
+
+		public function setStorage(mixed $_storage): self
+		{
+			$this->storage = $_storage;
+
+			return $this;
 		}
 
 		public function getStorage()
@@ -194,9 +197,10 @@
 
 	class NodeMerge extends BaseMerge
 	{
-		public $nodes;
-		public $properties;
-		private $unmergers;
+		public array $nodes;
+		public array $properties;
+		private array $unmergers;
+		private bool $has_written_to_ini = false;
 		
 		public function prepareFromFile(string $_file): self
 		{
@@ -213,7 +217,16 @@
 			$this->properties = array();
 			$this->unmergers = array();
 
-			$condition = ($this->instance->namespace != null && isset($this->instance->namespace['id'])) ? " OR `route_id`=".$this->instance->namespace['id'] : null;
+			$condition = "";
+			$values = array();
+
+			if($this->instance->namespace != null && isset($this->instance->namespace['id']))
+			{
+				$condition = " OR `route_id`=?";
+				$values[] = $this->instance->namespace['id'];
+			}
+
+			$values = [...$values, "$.".$locale->getLanguage(), NodeType::LOOP->value, "$.".$locale->getLanguage()];
 
 			if(!$nodes = $db->query("SELECT * FROM ".Env::get("db")['database'].".`lcms_nodes` 
 										WHERE (`route_id` IS NULL " . $condition . ") 
@@ -224,19 +237,21 @@
 												OR JSON_EXTRACT(`content`, ?) > 0 
 												OR JSON_EXTRACT(`content`, '$.*') > 0
 											)
-												ORDER BY `order` ASC, `id` ASC", ["$.".$locale->getLanguage(), Node::TYPE_LOOP, "$.".$locale->getLanguage()])->asArray())
+												ORDER BY `order` ASC, `identifier` ASC", $values)->asArray())
 			{
 				return $this;
 			}
 			
 			$loops = array();
 			$loops_relations = array();
+			$rows_relations = array();
 
 			foreach($nodes AS $row)
 			{
 				$node = $this->buildNode($row);
 
 				$identifier = $node['identifier'];
+				$identifier_flat = $identifier;
 				$value = htmlspecialchars_decode($node['content'][$locale->getLanguage()] ?? $node['content']["*"] ?? "");
 
 				if(empty($node['route_id']))
@@ -253,40 +268,58 @@
 					{
 						$identifier = array("global" => array($identifier => $value));
 					}
+
+					$identifier_flat = "global." . $identifier_flat;
 				}
 				elseif($this->instance->namespace != null)
 				{
 					$array = array();
 					Arr::unflatten($array, $identifier, $value);
 
-					$identifier = array(($this->instance->namespace['alias'] ?? $this->instance->namespace['pattern']) => $array);
+					$alias = ($this->instance->namespace['alias'] ?? $this->instance->namespace['pattern']);
+
+					$identifier = array($alias => $array);
+					$identifier_flat = $alias . "." . $identifier_flat;
 					unset($array);
 				}
 
 				if(!empty($node['loop_id']))
 				{
-					$row_id = explode(".", $node['identifier'], 2)[0];
+					list($row_id, $node_identifier) =  explode(".", $node['identifier'], 2);
+					
+					// Rewrite "row_id" from db starting from 0...++
+					if(!isset($rows_relations[$node['loop_id']]))
+					{
+						$rows_relations[$node['loop_id']] = array();
+					}
+
+					if(!isset($rows_relations[$node['loop_id']][$row_id]))
+					{
+						$rows_relations[$node['loop_id']][$row_id] = count($rows_relations[$node['loop_id']]);
+					}
+
+					$row_id = $rows_relations[$node['loop_id']][$row_id];
 
 					if(!isset($loops[$node['loop_id']]))
 					{
-						$loops[$node['loop_id']] = array();
+						$loops[$node['loop_id']] = array($row_id => array());
 					}
 					elseif(!isset($loops[$node['loop_id']][$row_id]))
 					{
 						$loops[$node['loop_id']][$row_id] = array();
 					}
 					
-					$loops[$node['loop_id']][$row_id][explode(".", $node['identifier'], 2)[1]] = $node;
+					$loops[$node['loop_id']][$row_id][$node_identifier] = $node;
 				}
-				elseif($node['type'] == Node::TYPE_LOOP)
+				elseif($node['type'] == NodeType::LOOP->value)
 				{
-					$loops_relations[$node['id']] = array_key_first(Arr::flatten($identifier));
+					$loops_relations[$node['id']] = [ $identifier_flat, $identifier, $node['parameters'] ];
 				}
 				else
 				{
 					$this->nodes = array_replace_recursive($this->nodes, $identifier);
 				
-					if(isset($node['properties'][$locale->getLanguage()]) && !empty($node['properties'][$locale->getLanguage()]) && $properties = $node['properties'][$locale->getLanguage()])
+					if($properties = $node['properties'][$locale->getLanguage()] ?? false)
 					{
 						array_walk_recursive($identifier, fn(&$value) => ($value = $properties));
 						$this->properties = array_replace_recursive($this->properties, $identifier);
@@ -305,31 +338,37 @@
 			/**
 			 * 	If loop already exists (Probably from i18n) - null it and replace with new ones from this source
 			 */
-			foreach($loops_relations AS $node_id => $identifier)
+			foreach($loops_relations AS $node_id => $relation) // node_id = loop_id
 			{
+				list($identifier_flat, $identifier_array, $parameters) = $relation;
+
+				$this->unmergers[] = $identifier_flat;
+			
+				// Loop exists from the source but has no entries
 				if(!isset($loops[$node_id]))
 				{
-					continue;
+					// Since this loop has no items, store the structure ("nodes") as property instead
+					array_walk_recursive($identifier_array, fn(&$v) => ($v = $parameters));
+					$this->properties = array_replace_recursive($this->properties, $identifier_array);
 				}
-
-				$this->unmergers[] = $identifier;
-				
-				foreach($loops[$node_id] AS $key => $nodes)
+				else
 				{
-					foreach($nodes AS $k => $node)
+					foreach($loops[$node_id] AS $row_id => $nodes)
 					{
-						$array = array();
-						Arr::unflatten($array, $identifier, array($key => array($k => $node['content'][$locale->getLanguage()] ?? $node['content']["*"] ?? "")));
-
-						$this->nodes = array_replace_recursive($this->nodes, $array);
-
-						if(isset($node['properties'][$locale->getLanguage()]) && !empty($node['properties'][$locale->getLanguage()]) && $properties = $node['properties'][$locale->getLanguage()])
+						foreach($nodes AS $node_identifier => $node)
 						{
-							array_walk_recursive($array, fn(&$value) => ($value = $properties));
-							$this->properties = array_replace_recursive($this->properties, $array);
-						}
+							$arr = array();
+							Arr::unflatten($arr, $identifier_flat, array($row_id => array($node_identifier => $node['content'][$locale->getLanguage()] ?? $node['content']["*"] ?? "")));
+							$this->nodes = array_replace_recursive($this->nodes, $arr);
 
-						unset($array);
+							if($properties = $node['properties'][$locale->getLanguage()] ?? $node['properties']["*"] ?? false)
+							{
+								array_walk_recursive($arr, fn(&$v) => $v = $properties);
+								$this->properties = array_replace_recursive($this->properties, $arr);
+							}
+
+							unset($arr);
+						}
 					}
 				}
 			}
@@ -342,23 +381,38 @@
 			return $this->prepareFromFile($_dir . "/" . $locale->getLanguage() . ".ini");
 		}
 
-		private function getLoop(DB $db, $loop_identifier)
+		private function getLoop(DB $db, string $_loop_identifier): array
 		{
 			// Fetch existing loops (Extend if any exists)
-			$condition = ($this->instance->namespace != null && isset($this->instance->namespace['id'])) ? " OR `route_id`=".$this->instance->namespace['id'] : null;
+			$condition = "";
+			$values = [$_loop_identifier, NodeType::LOOP->value];
 
-			$query = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_nodes` WHERE `identifier`='".$loop_identifier."' AND (`route_id` IS NULL " . $condition . ") AND `type`=".Node::TYPE_LOOP." AND `deleted_at` IS NULL AND `hidden_at` IS NULL");
+			if($this->instance->namespace != null && isset($this->instance->namespace['id']))
+			{
+				$condition = " OR `route_id`=?";
+				$values[] = $this->instance->namespace['id'];
+			}
 
-			if($db::num_rows($query) == 0)
+			if(!$loop = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_nodes` WHERE `identifier`=? AND `type`=? AND (`route_id` IS NULL " . $condition . ") AND `deleted_at` IS NULL AND `hidden_at` IS NULL", $values)->asArray()[0] ?? false)
 			{
 				return array();
 			}
 
-			return $db::fetch_assoc($query);
-		}		
+			$loop['parameters'] = json_decode($loop['parameters'], true);
+			return $loop;
+		}
 
-		public function store($_what, $_into = null): self
+		public function store(mixed $_what, $_into = null): self
 		{
+			// Convert to array, if Nodes
+			if(is_array($_what))
+			{
+				foreach(array_filter($_what, fn($o) => $o instanceof NodeObject) AS $k => $v)
+				{
+					$_what[$k] = $v->asArray();
+				}
+			}
+
 			if($_into instanceof DB || (!empty($this->storage) && $this->storage instanceof DB))
 			{
 				return $this->storeToDatabase($_into ?? $this->storage, $_what);
@@ -371,48 +425,34 @@
 			throw new Exception("Unexpected storage: " . ($_into ?? "No storage-file defined"));
 		}
 
-		private function storeToDatabase(DB $db, $_nodes): self
+		private function storeToDatabase(DB $db, array $_nodes): self
 		{
-			/**
-			 *	Find out if a loop
-			 */
 			foreach($_nodes AS $key => $node)
 			{
 				// If a loop
-				if(!isset($node['identifier']))
+				if(array_is_list($node) || (isset($node['type']) && $node['type'] == NodeType::LOOP->value))
 				{
-					$loop_array = $this->getLoop($db, $key);
+					$identifier = $node['identifier'] ?? $key;
 
-					if(!$loop_array)
+					// Update existing loop
+					if($loop_array = $this->getLoop($db, $identifier))
 					{
-						$db::insert(Env::get("db")['database'].".`lcms_nodes`", array(
-							'route_id' 		=> ((!isset($n['global']) || !$n['global']) && $this->instance->namespace != null && isset($this->instance->namespace['id'])) ? $this->instance->namespace['id'] : null,
-							'identifier'	=> $key,
-							'type'			=> Node::TYPE_LOOP,
-							'parameters'	=> $node // Snapshot of all nodes to be used here
-						));
+						if($loop_array['parameters'] == $node['properties'])
+						{
+							continue;
+						}
+
+						// Update!
+						$db::update(Env::get("db")['database'].".`lcms_nodes`", array('parameters' => $node['properties']), array('id' => $loop_array['id']));
 					}
 					else
 					{
-						// Loop exists, update the params
-						$org_parameters = json_decode($loop_array['parameters'], true);
-						$new_parameters = (empty(!$org_parameters)) ? $org_parameters : array();
-
-						foreach($node AS $n)
-						{
-							if(in_array($n['identifier'], array_column($org_parameters, "identifier")))
-							{
-								continue;
-							}
-
-							$n['content'] = ""; //array(Locale::getLanguage() => $n['content']);
-							$new_parameters[] = $n;
-						}
-
-						if(count($new_parameters) != count($org_parameters))
-						{
-							$db::update(Env::get("db")['database'].".`lcms_nodes`", array('parameters' => $new_parameters), array('id' => $loop_array['id']));
-						}
+						$db::insert(Env::get("db")['database'].".`lcms_nodes`", array(
+							'route_id' 		=> ((!isset($n['global']) || !$n['global']) && $this->instance->namespace != null && isset($this->instance->namespace['id'])) ? $this->instance->namespace['id'] : null,
+							'identifier'	=> $identifier,
+							'type'			=> NodeType::LOOP->value,
+							'parameters'	=> $node['properties'] ?? $node // Snapshot of all nodes to be used here
+						));
 					}
 				}
 				elseif(str_starts_with($node['identifier'], "meta."))
@@ -429,14 +469,13 @@
 				}
 				else
 				{
-					// Default node
 					$db::insert(Env::get("db")['database'].".`lcms_nodes`", array(
 						'route_id' 		=> ((!isset($node['global']) || !$node['global']) && $this->instance->namespace != null && isset($this->instance->namespace['id'])) ? $this->instance->namespace['id'] : null,
 						'identifier'	=> $node['identifier'],
 						'type'			=> $node['type'],
 						'parameters'	=> $node['parameters'] ?? null,
-						'properties'	=> (isset($node['properties'])) ? array(Locale::getLanguage() => $node['properties']) : null,
-						'content'		=> array(Locale::getLanguage() => $node['content'])
+						'properties'	=> (isset($node['properties'])) ? array(Locale::getLanguage() => $node['properties'] ?? array()) : null,
+						'content'		=> array(Locale::getLanguage() => $node['content'] ?? "")
 					));
 				}
 			}
@@ -449,6 +488,12 @@
 			if(!is_writable($this->storage['filename']))
 			{
 				throw new Exception("Cant store nodes in " . $this->storage['filename'] . " (Unwriteable, needs 0666 permission)");
+			}
+
+			// If we've already written to the ini file, let's refresh it
+			if($this->has_written_to_ini && is_array($this->storage) && isset($this->storage['filename']))
+			{
+				$this->storage['content'] = parse_ini_file($this->storage['filename'], true);
 			}
 
 			$existing_file_array = $this->storage['content'];
@@ -478,26 +523,32 @@
 				}
 
 				// Loop
-				if(!isset($node['identifier']))
+				if(!isset($node['identifier']) || (isset($node['type']) && $node['type'] == Node::TYPE_LOOP->value))
 				{
 					if(!isset($loops[$alias]))
 					{
 						$loops[$alias] = array();
 					}
 
-					foreach($node AS $k => $n)
+					$iterator = $node['properties'] ?? $node;
+
+					foreach($iterator AS $prop)
 					{
-						$id = $identifier . ".1." . $n['identifier'];
+						$second_iterator = (isset($node['items'])) ? $node['items'] : array($prop);
 
-						// Only overwrite if necessary
-						if(isset($existing_file_array[$alias][$id]) && $existing_file_array[$alias][$id] == $n['content'])
+						foreach($second_iterator AS $row => $items)
 						{
-							continue;
+							$id = ($node['identifier'] ?? $identifier) . ".".$row.".".$prop['identifier'];
+
+							if(isset($existing_file_array[$alias][$id]))
+							{
+								continue;
+							}
+
+							// New entry
+							$loops[$alias][$id] = $prop['properties'] ?? "";
+							$new_entrys++;
 						}
-
-						$loops[$alias][$id] = $n['content'];
-
-						$new_entrys++;
 					}
 				}
 				else
@@ -508,9 +559,7 @@
 						continue;
 					}
 
-					$properties = (!empty($node['properties'])) ? array_filter($node['properties']) : null;
-
-					if($properties)
+					if($properties = (!empty($node['properties'])) ? array_filter($node['properties']) : null)
 					{
 						$existing_file_array[$alias][$node['identifier']] = array('content' => $node['content']) + $properties;
 					}
@@ -574,6 +623,10 @@
 
 			fclose($fp);
 
+			$this->storage['content'] = $_content;
+
+			$this->has_written_to_ini = true;
+
 			return true;
 		}
 
@@ -586,23 +639,12 @@
 			{
 				foreach($value AS $k => $v)
 				{
-					if(is_array($v))
+					if(is_array($v) && !empty($v)) // Unpack properties
 					{
-						if($content = $v['text'] ?? $v['content'] ?? $v['innertext'] ?? $v['src'] ?? $v['label'] ?? false)
-						{
-							Arr::unflatten($this->nodes[$key], $k, $content);
-							unset($v['text'], $v['content'], $v['innertext'], $v['src'], $v['label'], $content);
-						}
+						Arr::unflatten($this->properties[$key], $k, $v);
+					}
 
-						if(!empty($v))
-						{
-							Arr::unflatten($this->properties[$key], $k, $v);
-						}
-					}
-					else
-					{
-						Arr::unflatten($this->nodes[$key], $k, $v);
-					}
+					Arr::unflatten($this->nodes[$key], $k, (is_array($v)) ? "" : $v);
 				}
 			}
 
@@ -642,19 +684,20 @@
 		/**
 		 * 	2022-02-08: Now handles array values (attributes)
 		 */
-		private function array_to_ini(array $array): string
+		private function array_to_ini(array $_array): string
 		{
-			return array_reduce(array_keys($array), function($str, $sectionName) use ($array) 
+			return array_reduce(array_keys($_array), function($str, $sectionName) use ($_array) 
 			{
-				$sub = $array[$sectionName];
+				$sub = $_array[$sectionName];
 
 				$str .= "[" . $sectionName . "]" . PHP_EOL;
 
 				foreach($sub AS $key => $value)
 				{
+					// Loop
 					if(is_array($value))
 					{
-						foreach($value AS $k => $v)
+						foreach(array_filter($value, fn($k) => !is_numeric($k), ARRAY_FILTER_USE_KEY) AS $k => $v)
 						{
 							$str .= $key . '[' . $k . '] = "' . $v . '"' . PHP_EOL;
 						}
@@ -667,14 +710,6 @@
 
 				return $str . PHP_EOL;
 			});
-
-			/*return array_reduce(array_keys($array), function($str, $sectionName) use ($array) 
-			{
-				$sub = $array[$sectionName];
-
-				return $str . "[$sectionName]" . PHP_EOL .
-					array_reduce(array_keys($sub), fn($str, $key) => $str . $key . ' = "' . $sub[$key] . '"' . PHP_EOL) . PHP_EOL;
-			});*/
 		}
 
 		private function buildNode($row): array
@@ -938,9 +973,9 @@
 					'value' => $value,
 					'type' => match(gettype($value))
 					{
-						"boolean" 	=> Node::TYPE_BOOLEAN,
-						"array" 	=> Node::TYPE_ARRAY,
-						default 	=> Node::TYPE_TEXT
+						"boolean" 	=> NodeType::BOOLEAN->value,
+						"array" 	=> NodeType::ARRAY->value,
+						default 	=> NodeType::TEXT->value
 					}
 				);
 			}
@@ -1193,14 +1228,16 @@
 		private $excluded_keys = ['is_dev', 'db'];
 		private $items;
 
-		public function prepareFromFile($_file): self
+		public function prepareFromFile(string $_file): self
 		{
-			$this->items = require($_file);
+			$from_file = require $_file;
+			$this->items = (empty($this->items)) ? $from_file : array_merge($this->items, $from_file);
+			unset($from_file);
 
 			return $this;
 		}
 
-		public function prepareFromArray($_array): self
+		public function prepareFromArray(array $_array): self
 		{
 			$this->items = (empty($this->items)) ? $_array : array_merge($this->items, $_array);
 
@@ -1209,14 +1246,12 @@
 
 		public function prepareFromDatabase(DB $db): self
 		{
-			$query = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_settings` WHERE `key` NOT IN('".implode("', '", $this->excluded_keys)."')");
-
-			if($db::num_rows($query) == 0)
+			if(!$rows = $db::query("SELECT * FROM ".Env::get("db")['database'].".`lcms_settings` WHERE `key` NOT IN('".implode("', '", $this->excluded_keys)."')")->asArray())
 			{
 				return $this;
 			}
 
-			while($row = $db::fetch_assoc($query))
+			foreach($rows AS $row)
 			{
 				$this->items[$row['key']] = (empty($row['value'])) ? null : ((\LCMS\Util\Toolset::isJson($row['value'])) ? json_decode($row['value'], true) : $row['value']);
 			}

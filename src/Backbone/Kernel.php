@@ -44,16 +44,43 @@
                     $RootObj = $merger[0];
                     unset($merger[0]);
 
-                    $instances = array_map(fn($o) => (is_object($o)) ? get_class($o) : $o, $merger);
-                    $auto_merge = ($RootObj instanceof Node || ($RootObj instanceof Node && !in_array(Database::class, $instances))) ? false : true;
+                   // $instances = array_map(fn($o) => (is_object($o)) ? get_class($o) : $o, $merger);
+                   //  $auto_merge = ($RootObj instanceof Node && in_array(Database::class, $instances)) ? false : true;
 
                     // Either create a new Merge, or re-use
-                    foreach($merger AS $merge)
+                    foreach($merger AS $storage)
                     {
-                        $mergerObject = (new Merge($RootObj))->with($merge, $auto_merge);
-                    }
+                        if(!$mergeObj = Merge::getClassOf($RootObj))
+                        {
+                            continue;
+                        }
 
-                    DI::set($mergerObject::class, $mergerObject);
+                        if(DI::has($mergeObj))
+                        {
+                            $obj = DI::get($mergeObj);
+                            $has_di = true;
+                        }
+                        else 
+                        {
+                            $obj = (new Merge($RootObj))->with($storage);
+                            $has_di = false;
+                        }
+
+                        // Nodes are merge later when using Database (After route initialization)
+                        if(!($RootObj instanceof Node) || ($RootObj instanceof Node && !($storage instanceof Database))) //$auto_merge)
+                        {
+                            $obj->merge($storage);
+                        }
+                        else
+                        {
+                            $obj->setStorage($storage); // For later
+                        }
+
+                        if(!$has_di)
+                        {
+                            DI::set($mergeObj, $obj);
+                        }
+                    }
 
                     /**
                      *  If Env is Local, let's figure out language (Maybe from URL or default).
@@ -192,7 +219,7 @@
 
             if(DI::has(NodeMerge::class) && ($nodeMerger = DI::get(NodeMerge::class)) && $nodeMerger->getStorage() instanceof Database)
             {
-                $nodeMerger->merge(); // Fetch all DB Nodes
+                $nodeMerger->merge(); // Merge Nodes with Database
             }
 
             // Compile page into the end product
@@ -209,6 +236,12 @@
             elseif(is_string($compilation))
             {
                 return $this->trigger("string", $compilation);
+            }
+
+            // If nodes has changed (Been added through a Controller/Page)
+            if(isset($nodeMerger) && !empty($node->getAdded()) && $nodes = array_map(fn($n) => $node->get($n), $node->getAdded()))
+            {
+                $nodeMerger->store($nodes);
             }
 
             /** 

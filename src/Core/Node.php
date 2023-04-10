@@ -4,6 +4,9 @@
 	 *
 	 * 	@author     Mathias Eklöf <mathias@appitude.io>
 	 *	@created 	2018-10-16
+	 * 
+	 * 	Changelog
+	 * 	- 2023-04-05: Added Enum Types + minor fixes for PHP 8.2
 	 */
 	namespace LCMS\Core;
 
@@ -12,49 +15,91 @@
 	use LCMS\Util\Singleton;
 	use LCMS\Util\Arr;
 	use LCMS\Util\Toolset;
+
+	use \Iterator;
 	use \Exception;
+
+	enum NodeType: int
+	{
+		case TEXT 		= 1;
+		case HTML 		= 2;
+		case TEXTAREA 	= 3;
+		//case BOOL 	= 4;
+		case BOOLEAN 	= 4;
+		case ARRAY 		= 6;
+		case IMAGE 		= 10;
+		case BACKGROUND = 11;
+		case FILE 		= 15;
+		case ROUTE 		= 20;
+		case HYPERLINK 	= 25;
+		case LOOP 		= 30;
+	};
 	
 	class Node
 	{
-		use Singleton;
+		use Singleton {
+			Singleton::__construct as private SingletonConstructor;
+		}
 
-		public static $image_endpoint = "https://static.logicalcms.com/";
+		public const TYPE_TEXT 		= NodeType::TEXT;
+		public const TYPE_HTML 		= NodeType::HTML;
+		public const TYPE_TEXTAREA 	= NodeType::TEXTAREA;
+		public const TYPE_BOOL 		= NodeType::BOOLEAN;
+		public const TYPE_BOOLEAN 	= NodeType::BOOLEAN;
+		public const TYPE_ARRAY 	= NodeType::ARRAY;
+		public const TYPE_IMAGE 	= NodeType::IMAGE;
+		public const TYPE_BACKGROUND = NodeType::BACKGROUND;
+		public const TYPE_FILE 		= NodeType::FILE;
+		public const TYPE_ROUTE 	= NodeType::ROUTE;
+		public const TYPE_HYPERLINK	= NodeType::HYPERLINK;
+		public const TYPE_LOOP		= NodeType::LOOP;
 
-		public const TYPE_TEXT 		= 1;
-		public const TYPE_HTML 		= 2;
-		public const TYPE_TEXTAREA 	= 3;
-		public const TYPE_BOOL 		= 4;
-		public const TYPE_BOOLEAN 	= 4;
-		public const TYPE_ARRAY 	= 6;
-		public const TYPE_IMAGE 	= 10;
-		public const TYPE_BACKGROUND 	= 11;
-		public const TYPE_FILE 		= 15;
-		public const TYPE_ROUTE 	= 20;
-		public const TYPE_HYPERLINK	= 25;
-		public const TYPE_LOOP		= 30;
-
-		public $namespace;
-		public static $type_properties = array(
-			Node::TYPE_IMAGE => array(
-				'alt' 	=> null,
-				'title'	=> null,
-				'width' => null,
-				'height' => null
-			),
-			Node::TYPE_ROUTE => array(
-				'route' => null
-			),
-			Node::TYPE_HYPERLINK => array(
-				'href' => null
-			)
+		public array | null $namespace = null;
+		public array $type_properties;
+		private array $parameters;
+		private array $nodes = array();
+		private array $properties = array();
+		private array $private_properties = array(
+			'image_endpoint' => "https://static.logicalcms.com/"
 		);
-		private $parameters;
-		private $nodes;
-		private $properties;
+		private array $added_dynamically = array();
+
+		function __construct()
+		{
+			$this->SingletonConstructor();
+
+			$this->type_properties = array(
+				NodeType::IMAGE->value => array(
+					'alt' 	=> null,
+					'title'	=> null,
+					'width' => null,
+					'height' => null,
+					'src' => null
+				),
+				NodeType::ROUTE->value => array(
+					'route' => null,
+					'title' => null
+				),
+				NodeType::HYPERLINK->value => array(
+					'href' => null,
+					'title' => null
+				)
+			);
+		}
+
+		function __get(string $_key): mixed
+		{
+			return $this->private_properties[$_key] ?? null;
+		}
+
+		function __set(string $_key, mixed $_value): void
+		{
+			$this->private_properties[$_key] = $_value;
+		}
 
 		public static function init(string $_image_endpoint): void
 		{
-			self::getInstance()::$image_endpoint .= $_image_endpoint;
+			self::getInstance()->private_properties['image_endpoint'] .= $_image_endpoint;
 		}
 
 		public function setNamespace(array $_namespace): void
@@ -65,14 +110,76 @@
 		/**
 		 *	@return Array of all nodes
 		 */
-		public function getAll(): array
+		public static function getAll(): array
 		{
-			return $this->nodes;
+			return self::getInstance()->nodes;
 		}
 
-		public function getParameters(): array
+		public static function getParameters(): array
 		{
-			return $this->parameters ?? array();
+			return self::getInstance()->parameters ?? array();
+		}
+
+		/**
+		 *	Prepares all Nodes we want to load before we use them in the document
+		 */
+		public static function prepare(string $_identifier, NodeType $_type, array $_params = array()): NodeObject | bool | array
+		{
+			if($_type == NodeType::LOOP)
+			{
+				$loop_items = array();
+				$loop_items_flat = array();
+
+				foreach($_params AS $key => $value)
+				{
+					if(!($value instanceof NodeType) && (!is_array($value) || !($value[0] instanceof NodeType)))
+					{
+						continue;
+					}
+
+					$type = ($value instanceof NodeType) ? $value->value : $value[0]->value;
+
+					$loop_items[] = array_filter(array(
+						'type' => $type,
+						'identifier' => $key, 
+						'properties' => ((is_array($value) && isset($value[1])) || isset(self::getInstance()->type_properties[$type])) ? array_replace_recursive(self::getInstance()->type_properties[$type] ?? array(), (is_array($value)) ? $value[1] ?? array() : array()) : null
+					));
+
+					$loop_items_flat[] = $key;
+
+					unset($_params[$key]);
+				}
+			}
+
+			// If it already exists, try to update (if new Items)
+			if(self::getInstance()->exists($_identifier) && $node = self::get($_identifier))
+			{
+				if(isset($loop_items)) // is Loop
+				{
+					$props = ($node instanceof NodeObject) ? array_column($node->asArray()['parameters'], "identifier") : array_keys($node[array_key_first($node)]);
+					$has_items = ($node instanceof NodeObject && isset($node->asArray()['items'])) ? true : false;
+
+					// If something hasnt changed, just return it
+					if($props == $loop_items_flat)
+					{
+						return ($has_items) ? $node : false;
+					}
+				}
+				else
+				{
+					// [TODO] Not loop---
+				}
+			}
+
+			// Add this new Node
+			self::set($_identifier, $loop_items ?? "", $_params + ['type' => $_type->value]);
+
+			if(isset($has_items, $node) && $has_items)
+			{
+				return $node;
+			}
+
+			return false;
 		}
 
 		/**
@@ -97,18 +204,14 @@
 				$is_local = false;
 			}
 
-			if(is_array($node))
-			{
-				if(empty($node)) // Loop
-				{
-					return new NodeObject(array());			
-				}
-				
-				return $node;
-			}
-
 			// Look for properties
 			$properties = (empty(self::getInstance()->properties)) ? null : (($is_local) ? Arr::get(self::getInstance()->properties, (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier) : Arr::get(self::getInstance()->properties, "global." . $_identifier));
+
+			// Loop or Array?
+			if(is_array($node))
+			{
+				return (!array_is_list($node)) ? $node : new NodeObject($_identifier, $node, (is_array($properties)) ? $properties : array());
+			}
 
 			$node = (is_string($node)) ? array('content' => $node) : $node;
 			$node += array(
@@ -124,24 +227,47 @@
 				$node['content'] = htmlspecialchars_decode($node['content'][Locale::getLanguage()]);
 			}
 
-			return new NodeObject($node);
+			return new NodeObject($_identifier, $node);
 		}
 
 		/**
 		 *	Check local namespace, with global as fallback
 		 */
-		public static function set(string $_identifier, mixed $_value): void
+		public static function set(string $_identifier, mixed $_value, array $_params = array()): self
 		{
-			if(self::getInstance()->namespace != null)
+			$identifier = "global." . $_identifier;
+
+			if(is_bool($_params['global'] ?? null) && $_params['global'])
 			{
-				$_identifier =  (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier;
+				$identifier = "global" . $_identifier;
 			}
-			else
+			elseif(self::getInstance()->namespace != null)
 			{
-				$_identifier = "global." . $_identifier;
+				$identifier =  (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier;
 			}
 
-			Arr::unflatten(self::getInstance()->nodes, $_identifier, $_value);
+			$_params['type'] = $_params['type'] ?? ((is_array($_value)) ? NodeType::LOOP->value : NodeType::TEXT->value);
+			unset($_params['global']); // Remove, this is decided separately
+
+			// Is this a Loop?
+			$arr = array();
+			Arr::unflatten($arr, $identifier, (is_array($_value)) ? array() : "");
+
+			self::getInstance()->nodes = array_replace_recursive(self::getInstance()->nodes, $arr);
+		
+			// Append properties into Loop, if found
+			if((is_array($_value) && !empty($_value)) || !empty($_params))
+			{
+				$ins = (is_array($_value)) ? ((empty($_value)) ? ['type' => NodeType::LOOP->value] : $_value) : $_params;
+				$props = array();
+				Arr::unflatten($props, $identifier, $ins);
+
+				self::getInstance()->properties = array_replace_recursive(self::getInstance()->properties, $props);
+			}
+			// If not found merged before
+			self::getInstance()->added_dynamically[] = $_identifier; // Let future Merger's know about this
+
+			return self::getInstance();
 		}
 
 		public static function has(string $_identifier): bool
@@ -153,7 +279,7 @@
 		public static function exists(string $_identifier): bool
 		{
 			// Check from namespaced node
-			if(self::getInstance()->namespace != null && !$node = Arr::get((self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier))
+			if(self::getInstance()->namespace != null && (null === $node = Arr::get(self::getInstance()->nodes, (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier)))
 			{
 				return false;
 			}
@@ -187,7 +313,7 @@
 
 			if(!empty($_properties))
 			{
-				$this->properties = array_replace_recursive($this->properties ?? array(), $_properties ?? array());
+				$this->properties = array_replace_recursive($this->properties ?? array(), $_properties);
 			}
 			
 			/**
@@ -199,12 +325,14 @@
 			}
 			
 			// Convert ['static_path' => "https://..."] => ['{{static_path}}' => "https://..."]
-			$parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($parameters)), $parameters);
-			array_walk_recursive($this->nodes, fn(&$item) => (!empty($item) && str_contains($item, "{{")) ? $item = strtr($item, $parameters) : $item);
-			
-			if(!empty($this->properties))
+			if($parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($parameters)), $parameters))
 			{
-				array_walk_recursive($this->properties, fn(&$item) => (!empty($item) && str_contains($item, "{{")) ? $item = strtr($item, $parameters) : $item);	
+				array_walk_recursive($this->nodes, fn(&$item) => (!empty($item) && str_contains($item, "{{")) ? $item = strtr($item, $parameters) : $item);
+				
+				if(!empty($this->properties) && !empty($parameters))
+				{
+					array_walk_recursive($this->properties, fn(&$item) => (!empty($item) && str_contains($item, "{{")) ? $item = strtr($item, $parameters) : $item);	
+				}
 			}
 			
 			return $this;
@@ -232,33 +360,90 @@
 			return self::getInstance();
 		}
 
-		public static function createNodeObject(array $_node): NodeObject
+		public static function getAdded()
+		{
+			return self::getInstance()->added_dynamically;
+		}
+
+		public static function createNodeObject(mixed $_identifier = null, array $_node): NodeObject
 		{
 			if(!empty(self::getInstance()->parameters))
 			{
 				$_node['parameters'] = self::getInstance()->parameters;
 			}
 
-			return new NodeObject($_node);
+			return new NodeObject($_identifier, $_node);
 		}
 	}
 
-	class NodeObject
+	class NodeObject implements Iterator
 	{
-		private $node;
-		private $image_endpoint;
-		private $return_as;
+		private mixed 	$identifier;
+		private int 	$type;
+		private array 	$node;
+		private array 	$properties;
+		private array 	$parameters = [];
+		private array 	$return_as = ["text"]; // Default
+		private int 	$index = 0; // for the iterator
+		private mixed 	$items = false;
 
-		function __construct(array | string $_node)
+		function __construct(string $_identifier = null, array | string $_node, array $_properties = null)
 		{
-			$this->image_endpoint = Node::$image_endpoint;
+			$this->identifier = $_identifier;
 
 			if(is_string($_node))
 			{
 				$_node = array('content' => $_node);
 			}
+			elseif(array_is_list($_node)) // Store Loop structure as 'parameters'
+			{
+				// Convert node to proper loop structure (instead of [identifier => "value") => [identifier => ['content' => "value]])
+				if(($_node = array_map(fn($node) => array_combine(array_keys($node), array_map(fn($val, $id) => ['identifier' => $id] + ((!empty($val)) ? ['content' => $val] : []), $node, array_keys($node))), $_node)) && !empty($_properties))
+				{
+					// Merge with properties
+					foreach($_properties AS $row => $props)
+					{
+						if(($id = array_key_first($props)) && !isset($_node[$row][$id]))
+						{
+							continue;
+						}
+
+						$_node[$row][$id]['properties'] = $props[$id];
+					}
+
+					// If "Root" Loop, and properties differs from Nodes [Parameters = Loop structure]
+					$this->parameters = array_map(fn($n) => array_merge($_node[0][$n], ((isset($_properties[0][$n])) ? ['properties' => $_properties[0][$n]] : [])), array_keys($_node[0]));
+				}
+
+				$_properties = (!empty($_properties)) ? $_properties : ((!empty($_node)) ? array_values($_node[array_key_first($_node)]) : null);
+			}
 
 			$this->node = $_node;
+			$this->properties = (!empty($_properties)) ? $_properties : $this->node['properties'] ?? array();
+
+			if(!empty($this->properties) && !isset($this->properties['type']) && array_is_list($this->properties))
+			{
+				$this->type = NodeType::LOOP->value;
+				$this->items = $this->loop();
+			}
+			else
+			{
+				$this->type = (isset($this->properties['type'])) ? (int) $this->properties['type'] : NodeType::TEXT->value; // default
+			}
+
+			unset($this->properties['type'], $this->properties['identifier'], $this->node['properties']['type']);
+		}
+
+		public function extend(string $_key, mixed $_value)
+		{
+			if($this->type == NodeType::LOOP->value)
+			{
+				$this->items[$this->index][$_key] = $_value;
+			}
+			else
+			{
+				// not yet(?) [TODO]
+			}
 		}
 
 		public function setProperties(array $_properties): self
@@ -273,20 +458,22 @@
 		 */
 		public function text(array $_parameters = array()): self
 		{
-			$this->return_as = __FUNCTION__;
+			$this->return_as = [__FUNCTION__];
 
 			// Any params we should replace 
 			$forbidden_keys = array('name', 'type', 'content', 'as');
 
-			if(str_contains($this->node['content'], "{{") && $_parameters = array_filter(array_replace_recursive($this->node['parameters'] ?? array(), $_parameters), fn($key) => in_array($key, $forbidden_keys), ARRAY_FILTER_USE_KEY))
+			// If route or hyperlink, the 'content' is inside a property
+			if(isset($this->node['content']) && !empty($this->node['content']) && str_contains($this->node['content'], "{{") && $_parameters = array_filter(array_replace_recursive($this->node['parameters'] ?? array(), $_parameters), fn($key) => in_array($key, $forbidden_keys), ARRAY_FILTER_USE_KEY))
 			{
 				// Convert ['static_path' => "https://..."] => ['{{static_path}}' => "https://..."]
 				$_parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($_parameters)), $_parameters);
 	
 				$this->node['parameters'] = array_merge($this->node['parameters'] ?? [], $_parameters);
-
 				$this->node['content'] = strtr($this->node['content'], $this->node['parameters']);
 			}
+
+			$this->return_as[] = $this->node['content'] ?? "";
 
 			return $this;
 		}
@@ -296,26 +483,24 @@
 		 */
 		public function image(int $_width = null, int $_height = null): self
 		{
-			$this->return_as = __FUNCTION__;
+			$this->return_as = [__FUNCTION__];
 
 			// If empty image
-			if(empty($this->node['content']))
+			if(!$src = $this->properties['src'] ?? $this->node['content'] ?? false)
 			{
 				return $this;
 			}
-
-			$size = (!empty($_width) && !empty($_height)) ? $_width . "x" . $_height : ((!empty($_width)) ? $_width : null);
-
-			if(str_starts_with($this->node['content'], "http") || $this->node['content'][0] == "/")
+			elseif(str_starts_with($src, "http") || $src[0] == "/")
 			{
-				$image_url = $this->node['content'];
+				// "local" images cant be resized
+				$image_url = $src;
 			}
 			else
 			{
-				$image_url = $this->image_endpoint . $this->node['content'];
+				$size = (!empty($_width) && !empty($_height)) ? $_width . "x" . $_height : ((!empty($_width)) ? $_width : null);
+				$image_url = Node::getInstance()->image_endpoint . $src;
+				$image_url = (!empty($size)) ? Toolset::resize($image_url, $size) : $image_url;
 			}
-
-			$image_url = (!empty($size)) ? Toolset::resize($image_url, $size) : $image_url;
 
 			$image_props = "";
 
@@ -324,7 +509,7 @@
 				$image_props = implode(" ", array_map(fn($key) => $key . '="' . $properties[$key] . '"', array_keys($properties)));
 			}
 
-			$this->node['content'] = "<img src='".$image_url."'" . $image_props . " />";
+			$this->return_as[] = "<img src='".$image_url."'" . $image_props . " />";
 
 			return $this;
 		}
@@ -334,27 +519,25 @@
 		 */
 		public function picture(int $_width = null, int $_height = null): self
 		{
-			$this->return_as = __FUNCTION__;
+			$this->return_as = [__FUNCTION__];
 
 			// If empty image
-			if(empty($this->node['content']))
+			if(!$src = $this->properties['src'] ?? $this->node['content'] ?? false)
 			{
 				return $this;
 			}
-
-			if(str_starts_with($this->node['content'], "http") || $this->node['content'][0] == "/")
+			elseif(str_starts_with($src, "http") || $src[0] == "/")
 			{
-				$image_url = $this->node['content'];
+				return $this->image($_width, $_height);
 			}
-			else
-			{
-				$image_url = $this->image_endpoint . $this->node['content'];
-			}
+			
+			$image_url = Node::getInstance()->image_endpoint . $src;
 
 			$size = (!empty($_width) && !empty($_height)) ? $_width . "x" . $_height : ((!empty($_width)) ? $_width : null);
 
 			$this->node['properties'] = (isset($this->node['properties']) && !empty($this->node['properties'])) ? array_filter(array_filter($this->node['properties']), fn($k) => !in_array($k, ['width', 'height']), ARRAY_FILTER_USE_KEY) ?? null : null;
-			$this->node['content'] = Toolset::picture($image_url, $this->node['properties'] ?? array(), $size);
+
+			$this->return_as[] = Toolset::picture($image_url, $this->node['properties'] ?? array(), $size);
 
 			return $this;
 		}
@@ -364,31 +547,26 @@
 		 */
 		public function background(int $_width = null, int $_height = null): self
 		{
-			$this->return_as = __FUNCTION__;
+			$this->return_as = [__FUNCTION__];
 
 			// If empty image
-			if(empty($this->node['content']))
+			if(!$src = $this->properties['src'] ?? $this->node['content'] ?? false)
 			{
 				return $this;
 			}
-
-			if(str_starts_with($this->node['content'], "http") || $this->node['content'][0] == "/")
+			elseif(str_starts_with($src, "http") || $src[0] == "/")
 			{
-				return $this->node['content'];
+				// "local" images cant be resized
+				$image_url = $src;
+			}
+			else
+			{
+				$size = (!empty($_width) && !empty($_height)) ? $_width . "x" . $_height : ((!empty($_width)) ? $_width : null);
+				$image_url = Node::getInstance()->image_endpoint . $src;
+				$image_url = (!empty($size)) ? Toolset::resize($image_url, $size) : $image_url;
 			}
 
-			$image_url = $this->image_endpoint;
-
-			if(!empty($_width) && !empty($_height))
-			{
-				$image_url .= $_width . "x" . $_height . "/";
-			}
-			elseif(!empty($_width))
-			{
-				$image_url .= $_width . "/";
-			}
-
-			$this->node['content'] = $image_url .= $this->node['content'];
+			$this->return_as[] = $image_url;
 
 			return $this;
 		}
@@ -398,10 +576,10 @@
 		 */
 		public function href(): self
 		{
-			$this->return_as = __FUNCTION__;
+			$this->return_as = [__FUNCTION__];
 
 			// Any params we should replace
-			if(!isset($this->node['parameters']) || empty($this->node['parameters']))
+			if(!$href = $this->node['properties']['href'] ?? $this->node['content'] ?? false)
 			{
 				return $this;
 			}
@@ -409,15 +587,16 @@
 			$forbidden_properties = array('name', 'type', 'as');
 			$_parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($this->node['parameters'])), $this->node['parameters']);
 	
-			foreach(array_filter($this->node['properties'], fn($v, $k) => !in_array($k, $forbidden_properties) && str_contains($v, "{{"), ARRAY_FILTER_USE_BOTH) AS $prop => $content)
+			// If route or hyperlink, the 'content' is inside a property
+			if(str_contains($href, "{{") && $_parameters = array_filter(array_replace_recursive($this->node['parameters'] ?? array(), $_parameters), fn($key) => in_array($key, $forbidden_keys), ARRAY_FILTER_USE_KEY))
 			{
-				$this->node['properties'][$prop] = strtr($content, $_parameters);
+				// Convert ['static_path' => "https://..."] => ['{{static_path}}' => "https://..."]
+				$_parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($_parameters)), $_parameters);
+				$this->node['parameters'] = array_merge($this->node['parameters'] ?? [], $_parameters);
+				$href = $this->node['properties']['href'] = strtr($this->node['properties']['href'], $this->node['parameters']);
 			}
 
-			if(isset($this->node['content']) && str_contains($this->node['content'], "{{"))
-			{
-				$this->node['content'] = strtr($this->node['content'], $_parameters);
-			}
+			$this->return_as[] = $href;
 
 			return $this;
 		}
@@ -427,480 +606,77 @@
 		 */
 		public function route(array $_properties = array()): self
 		{
-			$this->return_as = __FUNCTION__;
+			$this->return_as = [__FUNCTION__];
 
-			if(!isset($this->node['properties']))
-			{
-				$this->node['properties'] = array();
-			}
+			$this->node['properties']['href'] = (!empty($this->node['properties']['route']) && $this->node['properties']['route'] != "#") ? Route::url($this->node['properties']['route']) : "#";
 
-			$this->node['properties']['href'] = $this->node['content'] = (!empty($this->node['content']) && $this->node['content'] != "#") ? Route::url($this->node['content']) : "#";
+			$this->return_as[] = $this->node['properties']['href'];
+
+			return $this;
+		}
+
+		public function prop(string $_property): self
+		{
+			$this->return_as = [__FUNCTION__, $this->properties[$_property] ?? ""];
 
 			return $this;
 		}
 
 		/**
-		 * 	
+		 * 	Convert all 'items' in loop into NodeObjects
 		 */
 		public function loop(): array
 		{
-			return array_filter($this->node, fn($k, $v) => is_numeric($v), ARRAY_FILTER_USE_BOTH);
+			if($this->type != NodeType::LOOP->value || (is_array($this->items) && !empty($this->items)))
+			{
+				return $this->items;
+			}
+			
+			// Pair properties to it's node
+			$props = $this->properties; //array_combine(array_column($this->properties, "identifier"), $this->properties);
+
+			$items = array_values(
+						array_map(fn($n) => 
+							array_combine(
+								array_keys($n),
+									array_map(fn($v, $k) => new NodeObject($k, $v, $props[$k] ?? null), $n, array_keys($n))), $this->node));
+
+			// If only one item, maybe it's not meant to be used
+			if(count($items) == 1 && !array_filter(array_map(fn($n) => (string) $n, $items[array_key_first($items)])))
+			{
+				return array();
+			}
+
+			return $items;
 		}
 
 		public function asArray(): array
 		{
-			return $this->node;
+			//$this->items = $this->loop();
+
+			$node = ($this->type == NodeType::LOOP->value) ? array() : $this->node;
+			
+			return array_filter($node + ['properties' => $this->properties, 'identifier' => $this->identifier, 'type' => $this->type, 'items' => $this->items, 'parameters' => $this->parameters]);
 		}
 
 		function __toString(): string
 		{
-			if($this->return_as == "href")
+			/*if(in_array($this->return_as, ["href", "route"]))
 			{
 				return $this->node['properties']['href'] ?? $this->node['content'];
 			}
+			elseif($this->return_as == "prop")
+			{
+				return $this->node['properties'][$this->prop] ?? "";
+			}*/
 
-			return $this->node['content'];
+			return $this->return_as[1] ?? $this->node['content'] ?? "";
 		}
+
+		public function rewind(): void { $this->index = 0; $this->items = $this->loop(); }
+		public function current(): mixed { return $this->items[$this->index]; }
+		public function key(): mixed { return $this->index; }
+		public function next(): void { ++$this->index; }
+		public function valid(): bool { return isset($this->items[$this->index]); }
 	}
-/*
-	----Graveyard for later use:
-
-
-	public function picture($width = null, $height = null)
-	{
-			/*
-			if(isWebp($this->node['content']))
-			{
-				return "<picture><source srcset='".$this->node['content']."' type='image/webp'>" . $this->image($_width, $_width) . "</picture>";
-			}
-
-			list($webp_image, $webp_type) = $this->to("webp", $this->node['content']);
-			list($org_image, $org_type) = $this->to(null, $this->node['content']); 
-
-			$picture = "<picture>";
-				$picture .= "<source srcset='".$webp_image."' type='image/".$webp_type."' />";
-				$picture .= "<source srcset='".$org_image."' type='image/".$org_type."' />";
-				$picture .= $this->image($_width, $_height);
-
-			return $picture . "</picture>";
-	}
-
-
-	$section == "header" || array("header" => "hint text")
-
-
-	Node::prepare("me", "hero.image"
-
-
-	Node::set($alias);
-
-	Node::prepare($node_group, $section, Node::TYPE_HTML, $params);
-
-	Node::prepare("hero", array('header' => "Rubrik för ändamålet"), Node::TYPE_HTML, array('width' => 120, 'height' => 80));
-	Node::prepare(['hero' => ['header' => "Rubrik för ändamålet"]], Node::TYPE_HTML, array('width' => 120, 'height' => 80));
-
-
-
-		$LCMS->nodes->prepare("hero", "header", NODE_TYPE_HTML, array('global' => true));
-		$LCMS->nodes->prepare("hero", array("header" => "Hint text"), NODE_TYPE_SELECT, array('values' => array(
-			"one",
-			"two"
-		)));
-		$LCMS->nodes->prepare("hero", "background", NODE_TYPE_IMAGE, array('width' => 500, 'height' => 300));
-
-
-		echo $LCMS->nodes->get("hero", "header");
-		echo $LCMS->nodes->get("hero", "background", array('default' => STATIC_PATH_IMAGES . "/default.jpg"));
-		echo $LCMS->nodes->get("hero", "background", array('url' => true));
-
-
-
-		class Nodes
-		{
-			private $page_id 			= null;
-			private $initialized		= false;
-			private $nodes 				= array("globals" = array(), "locals" => array());
-			private $allowed_types 		= array(
-				NODE_TYPE_TEXT,
-				NODE_TYPE_HTML
-			);
-			private $global_data_params = array();
-			private $s3_image_path		= STATIC_PATH_IMAGES;
-			private $default_image_data	= array('alt' => '', 'title' => '');
-
-			function __construct($_page_id)
-			{
-				$this->page_id = $_page_id;
-			}
-
-			/**
-			 *
-			 *
-			public function setGlobalDataParam($key, $value)
-			{
-				$this->global_data_params[$key] = $value;
-			}
-
-			/**
-			 *
-			 *
-			public function prepare($node_group_name, $section_identifier, $node_type, $params = null)
-			{
-				$hint 					= (is_array($section_identifier)) ? $section_identifier[1] : null;
-				$section_identifier 	= (is_array($section_identifier)) ? $section_identifier[0] : $section_identifier;
-
-				if(!in_array($node_type, $this->allowed_node_types))
-				{
-					throw new Exception("Not allowed node type (".$node_type.") for Node " . $section_identifier . " (" . $group_name.")");
-				}
-
-				$node_scope = (!empty($params) && isset($params['global'])) ? "globals" : "locals";
-
-				// If this Group doesnt exist, create it
-				if(!isset($this->nodes[$node_scope][$group_name]))
-				{
-					$this->nodes[$node_scope][$node_group_name] = array();
-				}
-
-				$this->nodes[$node_scope][$node_group_name][$section_identifier] = array(
-					'type'	=> $node_type
-				);
-
-				if(!empty($hint))
-				{
-					$this->nodes[$node_scope][$node_group_name][$section_identifier]['hint'] = $hint;
-				}
-
-				// Only append $params if not only global
-				if(!empty($params))
-				{
-					unset($params['global']);
-
-					if(!empty($params))
-					{
-						$this->nodes[$node_scope][$node_group_name][$section_identifier]['params'] = $params;
-					}
-				}
-			}
-
-			/**
-			 *
-			 *
-			public function load()
-			{
-				$this->initialized = true;
-
-				if(empty($this->nodes))
-				{
-					return true;
-				}
-
-				if(DB::num_rows($query) > 0)
-				{
-					while($row = DB::fetch_assoc($query))
-					{
-						$node = array(
-							'id'		=> $row['id'],
-							'type'		=> $row['type'],
-							'content'	=> htmlspecialchars_decode($row['content'])
-						);
-
-						if(!empty($row['params']))
-						{
-							$node['params'] = json_decode($row['params'], true);
-						}
-
-						$node_scope = (empty($row['page_id']) ? "globals" : "locals";
-
-						$this->nodes[$node_scope][$row['group_name'][$row['identifier']] => $node);
-					}
-				}
-
-				/** 
-				 * Cool, we've attached the correct data to the already existing nodes.
-				 *		- But; Should we create any new?
-				 *
-				 foreach($this->nodes AS $scope => $node_groups)
-				 {
-				 	foreach($node_groups AS $node_group => $nodes)
-				 	{
-				 		foreach($nodes AS $node_idenfitier => $node)
-				 		{
-				 			// If the ID-key exists, this Node has been loaded from the Database
-				 			if(isset($node['id']))
-				 			{
-				 				continue;
-				 			}
-
-				 			$this->nodes[$scope][$node_group][$node_identifier] = $this->createNode($node);
-				 		}
-				 	}
-				 }
-
-				 return true;
-			}
-
-			/**
-			 *
-			 *
-			private function createNode($_node)
-			{
-				// Make sure If Image, that it has "attributes"-data prepared
-				if($_node['type'] == NODE_TYPE_IMAGE)
-				{
-					if(!isset($_node['params']))
-					{
-						$_node['params'] = array();
-					}
-
-					$_node['params']['data'] = $this->default_image_data;
-				}
-
-				$node = array(
-					'page_id'		=> $this->page_id,
-					'group'			=> $_node['group'],
-					'identifier'	=> $_node['identifier'],
-					'type'			=> $_node['type'],
-					'hint'			=> (isset($_node['hint'])) ? $_node['hint'] : null,
-					'content'		=> null,
-					'params'		=> (isset($_node['params']) && is_array($_node['params'])) ? json_encode($_node['params']) : null
-				);
-
-				DB::insert(PROJECT_DATABASE.".core_nodes", $node);
-
-				$node['id'] = DB::last_insert_id();
-
-				return $node;
-			}
-
-			/**
-			 *
-			 *
-			public function get($node_group_name, $section_identifier, $params = null)
-			{
-				/**
-				 *	
-				 *
-				if(!$this->initialized)
-				{
-					throw new Exception("The Node has not been loaded through load()");
-				}
-
-				/**
-				 *
-				 *
-				if((!isset($this->nodes['locals'][$node_group_name], $this->nodes['locals'][$node_group_name][$section_identifier]) || !isset(!isset($this->nodes['globals'][$node_group_name], $this->nodes['globals'][$node_group_name][$section_identifier]))
-				{
-					throw new Exception("Node " . $section_identifier . " (" . $node_group_name . ") not prepared");
-				}
-
-				$node = (empty($this->page_id)) ? $this->nodes['globals'][$node_group_name][$section_identifier] : $this->nodes['locals'][$node_group_name][$section_identifier];
-
-				// No value
-				if($node['hidden'] || empty($node['content']))
-				{
-					return (isset($params['default'])) ? $params['default'] : null;
-				}
-
-				// If a Route-type, return the URL
-				if($node['type'] == NODE_TYPE_ROUTE)
-				{
-					return Route::get($node['content'], APP_PATH);
-				}
-				elseif($node['type'] == NODE_TYPE_IMAGE)
-				{
-					/**
-					 *
-					 *
-					$image_url = $this->s3_image_path;
-
-					if(isset($node['params']))
-					{
-						if(isset($node['params']['width'], $node['params']['height']) && is_numeric($node['params']['width']) && is_numeric($node['params']['height']))
-						{
-							$image_url .= $node['params']['width'] . "x" . $node['params']['height'] . "/";
-						}
-						elseif(isset($node['params']['width']) && is_numeric($node['params']['width']))
-						{
-							$image_url .= $node['params']['width'] . "/";
-						}
-					}
-
-					$image_url .= $node['content'];
-
-					/**
-					 *
-					 *
-					if(isset($params, $params['url']))
-					{
-						return $image_url;
-					}
-
-					$return_image = "<img src='" . $image_url . "' ";
-
-					if(isset($node['params'], $node['params']['data'])
-					{
-						foreach($node['params']['data'] AS $attribute => $value)
-						{
-							if(empty($value))
-							{
-								continue;
-							}
-							
-							$return_image .= $attribute ."='".$value."' ";
-						}
-					}
-
-					return $return_image . "/>";							
-				}
-
-				return $node['content'];
-			}
-		}
-
-
-
-
-
-		/**
-		 *	Actually loads all nodes, based on preparations
-		 */
-		/*public function load()
-		{
-			if(empty($this->nodes))
-			{
-
-			}
-			else
-			{
-
-			}
-			if(empty($this->nodes))
-			{
-				return true;
-			}
-
-			$aliases = array();
-
-			foreach($this->nodes AS $n)
-			{
-				if(empty($n['alias']))
-				{
-					continue;
-				}
-
-				$aliases[] = $n['alias'];
-			}
-
-			$conditions = "";
-
-			if(!empty($aliases))
-			{
-				$aliases = array_unique($aliases);
-
-				$conditions .= " AND (`alias` IN('".implode("', '", $aliases)."') OR `alias` IS NULL)";
-			}
-
-			$query = DB::query("SELECT * FROM ".WEB_DATABASE.".`core_nodes` WHERE `identifier` IN('".implode("', '", array_keys($this->nodes))."') ".$conditions." AND `language_id`=".$this->language_id." ORDER BY `alias` ASC");
-
-			if(DB::num_rows($query) > 0)
-			{
-				while($row = DB::fetch_assoc($query))
-				{
-					$this->nodes[$row['identifier']]['id'] 		= $row['id'];
-					$this->nodes[$row['identifier']]['content'] = $row['content'];
-					$this->nodes[$row['identifier']]['data'] 	= (!empty($row['data'])) ? json_decode($row['data'], true) : null;
-
-					if(!empty($this->global_data_params))
-					{
-						foreach($this->global_data_params AS $key => $value)
-						{
-							$this->nodes[$row['identifier']]['content'] = str_replace('{'.$key.'}', $value, $this->nodes[$row['identifier']]['content']);
-						}
-					}
-
-					// Inline-route used?
-					$parsed_routes = $this->get_string_between($this->nodes[$row['identifier']]['content'], "{route:", "}");
-
-					if(!empty($parsed_routes))
-					{
-						foreach($parsed_routes AS $route)
-						{
-							$this->nodes[$row['identifier']]['content'] = str_replace($route[0], Route::get($route[1]), $this->nodes[$row['identifier']]['content']);
-						}
-					}					
-				}
-			}
-
-			// Find out which Nodes that didnt get an ID from the DB; create those
-			foreach($this->nodes AS $identifier => $node)
-			{
-				if(isset($node['id']))
-				{
-					continue;
-				}
-
-				DB::insert(WEB_DATABASE.".`core_nodes`", $node);
-			}
-
-			return true;
-		}	
-		
-		
-
-
-		/**
-		 *	Prepares all Nodes we want to load before we use them in the document or wherever
-		 */
-		/*public function prepare2($alias = null, $identifier, $node_type, $data = null)
-		{
-			self::validateType($node_type);
-
-			$params = null;
-
-			if(is_array($data))
-			{
-				if(isset($data['params']))
-				{
-					$params = $data['params'];
-					unset($data['params']);
-				}
-			}
-
-			$this->nodes[$identifier] = array(
-				'alias'			=> (!empty($alias)) ? $alias : null,
-				'type'			=> $node_type,
-				'identifier'	=> $identifier,
-				'data'			=> $data,
-				'params'		=> $params,
-				'content'		=> null,
-				'language_id'	=> $this->language_id
-			);
-		}
-
-		public function bulkPrepare($alias = null, $nodes)
-		{
-			foreach($nodes AS $identifier => $node_type)
-			{
-				self::validateType($node_type);
-
-				$this->nodes[$identifier] = array(
-					'alias'			=> (!empty($alias)) ? $alias : null,
-					'type'			=> $node_type,
-					'identifier'	=> $identifier,
-					'content'		=> null,
-					'language_id'	=> $this->language_id
-				);
-			}
-		}
-
-		private static function validateType($node_type)
-		{
-			if(!in_array($node_type, [self::TYPE_TEXT, self::TYPE_HTML, self::TYPE_TEXTAREA, self::TYPE_BOOL, self::TYPE_IMAGE, self::TYPE_FILE, self::TYPE_ROUTE]))
-			{
-				throw new Exception("Node type: " . $node_type . " not defined");
-			}
-
-			return true;
-		}*/
 ?>

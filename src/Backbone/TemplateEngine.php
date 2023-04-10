@@ -6,7 +6,9 @@
 
     use LCMS\DI;
 	use LCMS\Core\Node;
+    use LCMS\Core\NodeType;
     use LCMS\Util\SimpleHtmlDom;
+    use LCMS\Util\Arr;
 
     use \Closure;
 	use \Exception;
@@ -83,17 +85,21 @@
 
 			$nodes = array();
 
-            $buildElement = (fn($el, $key) => array(
-                'type'         => $this->identifyNodeType($el),
+            $buildElement = (fn($el, $key) => array_filter(array(
+                'type'         => $this->identifyNodeType($el)->value,
                 'properties'   => $this->getPropertiesFromNode($el),
                 'identifier'   => $key,
                 'content'      => $el->attr['src'] ?? (string) $el->innertext ?? "", // Fallback text from document
-                'global'       => array_key_exists("global", $el->attr)
-            ));
+                'global'       => (array_key_exists("global", $el->attr)) ? true : null
+            )));
 
 			foreach($this->elements[self::ELEMENT_UNIDENTIFIED] AS $key => $element)
 			{
-                if(is_array($element))
+                if($element instanceof \LCMS\Util\HtmlNode)
+                {
+                    $nodes[$key] = $buildElement($element, $key);
+                }
+                elseif(is_array($element))
                 {
                     if(!isset($nodes[$key]))
                     {
@@ -102,12 +108,15 @@
 
                     foreach($element AS $e)
                     {
-                        $nodes[$key][] = $buildElement($e, $e->attr['name']);
+                        if($e instanceof \LCMS\Util\HtmlNode)
+                        {
+                            $nodes[$key][] = $buildElement($e, $e->attr['name']);
+                        }
+                        else
+                        {
+                            $nodes[$key][] = $e;
+                        }
                     }
-                }
-                else
-                {
-                    $nodes[$key] = $buildElement($element, $key);
                 }
 			}
 
@@ -154,15 +163,13 @@
                 $new_nodes = array();
 
                 $i = 1;
-
-                foreach($node AS $key => $n) // $n == $node
+            
+                foreach($node AS $key => $item) // $n == $node
                 {
-                    /**
-                     *  Break out the Loop from the tree
-                     */
+                    // Break out the Loop from the tree
                     $loop_element_node = SimpleHtmlDom::string($_loop_element->innertext());
 
-                    foreach($loop_element_node->find("node[name]") AS $element)
+                    foreach($loop_element_node->find("node") AS $element)
                     {
                         $this->parseElement($element, $_loop_element->attr['name'], $key);
                     }
@@ -307,24 +314,24 @@
 
         private function getPropertiesFromNode(object $_element): null | array
         {
-            $type = $this->identifyNodeType($_element); //->attr['type'] ?? (($_element->tag == "node") ? $_element->attr['as'] ?? null : null));
+            $type = $this->identifyNodeType($_element)->value; //->attr['type'] ?? (($_element->tag == "node") ? $_element->attr['as'] ?? null : null));
 
-            if(!in_array($type, [Node::TYPE_IMAGE, Node::TYPE_HYPERLINK])) //, Node::TYPE_ROUTE]))
+            if(!isset(Node::getInstance()->type_properties[$type]))
             {
                 return null;
             }
 
             $self = array();
 
-            foreach(Node::$type_properties[$type] AS $k => $v)
+            foreach(Node::getInstance()->type_properties[$type] AS $k => $v)
             {
                 $self[$k] = $_element->attr[$k] ?? $v;
             }
 
-           return $self;
+            return $self;
         }
 
-		private function identifyNodeType(object $_element): string
+		private function identifyNodeType(object $_element): NodeType
 		{
             // If no 'type' found, check if it contains html tags, then it's a wysiwyg
             if(!$type = $_element->attr['type'] ?? (($_element->tag == "node") ? $_element->attr['as'] ?? null : $_element->tag ?? null))
@@ -338,15 +345,15 @@
             
             return match($type)
             {
-                "image", "picture", "img" => Node::TYPE_IMAGE,
-                "background"        => Node::TYPE_BACKGROUND,
-                "loop"              => Node::TYPE_LOOP,
-                "wysiwyg", "html"   => Node::TYPE_HTML,
-                "bool", "boolean"   => Node::TYPE_BOOLEAN,
-                "route"             => Node::TYPE_ROUTE,
-                "a"                 => Node::TYPE_HYPERLINK,
-                "textarea"          => Node::TYPE_TEXTAREA,
-                default             => Node::TYPE_TEXT
+                "image", "picture", "img" => NodeType::IMAGE,
+                "background"        => NodeType::BACKGROUND,
+                "loop"              => NodeType::LOOP,
+                "wysiwyg", "html"   => NodeType::HTML,
+                "bool", "boolean"   => NodeType::BOOLEAN,
+                "route"             => NodeType::ROUTE,
+                "a"                 => NodeType::HYPERLINK,
+                "textarea"          => NodeType::TEXTAREA,
+                default             => NodeType::TEXT
             };
 		}
 
@@ -360,7 +367,7 @@
                 unset($_properties['as'], $_properties['name']);
                 $props = (!empty($_properties)) ? array('properties' => $_properties) : array();
 
-                $node = Node::createNodeObject(array('content' => $_fallback) + $props);
+                $node = Node::createNodeObject($_identifier, array('content' => $_fallback) + $props);
                 $stored = false;
             }
 

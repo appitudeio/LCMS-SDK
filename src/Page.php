@@ -62,7 +62,7 @@
 		 */
 		public function initMeta(View $_view, SEO $seo, Node $node, Request $request): Self
 		{
-			// Meta built by Controller -> i18n -> DB 
+			// Meta built by Controller -> i18n -> DB
 			$meta = array_replace_recursive($node->get("meta") ?: array(), array_filter($this->meta));
 			$meta['canonical_url'] = $meta['canonical_url'] ?? $request->url();
 
@@ -81,8 +81,9 @@
 					$viewData = array_filter(array_values((array) $_view)[0], fn($value) => !empty($value) && (is_string($value) || (is_array($value) && count(array_filter(array_keys($value), 'is_string')) > 0)));
 					return (empty($viewData)) ? array() : (($viewData = Arr::flatten($viewData)) ? array_combine(array_map(fn($k) => "{{" . $k . "}}", array_keys($viewData)), $viewData) : array());
 				})();
-
-				array_walk($meta, fn($v, $k) => $node->set("meta." . $k, ((!empty($extendable_data) && !empty($v) && str_contains($v, "{{")) ? strtr($v, $extendable_data) : ((is_null($v) && $node = $node->get("meta." . $k)) ? $node->get("meta." . $k)->text() : (string) $v))));
+				
+				// Extend / replace {{variables}} if possible
+				array_walk($meta, fn($v, $k) => $node->set("meta." . $k, ((!empty($extendable_data) && !empty($v) && str_contains($v, "{{")) ? strtr($v, $extendable_data) : ((is_null($v) && $node = $node->get("meta." . $k)) ? (string) $node->get("meta." . $k)->text() : (string) $v))));
 		
 				foreach($meta AS $key => $value)
 				{

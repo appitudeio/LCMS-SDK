@@ -84,6 +84,7 @@
 				return $_url;
 			}
 
+			$parsed_url = parse_url($_url);
 			$parts = explode("/", $_url);
 
 			if($parts[1] == "")
@@ -93,7 +94,7 @@
 
 			array_splice($parts, count($parts) - 1, 0, [$_size]);
 		
-			return "https://" . implode("/", $parts);
+			return (isset($parsed_url['scheme'])) ? $parsed_url['scheme'] . "://" . implode("/", $parts) : implode("/", $parts);
 		}
 		
 		public static function getStringBetween(string $_string, string $_start, string $_end): mixed
