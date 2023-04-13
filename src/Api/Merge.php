@@ -366,9 +366,9 @@
 								array_walk_recursive($arr, fn(&$v) => $v = $properties);
 								$this->properties = array_replace_recursive($this->properties, $arr);
 							}
-
-							unset($arr);
 						}
+
+						unset($arr);
 					}
 				}
 			}
@@ -398,7 +398,8 @@
 				return array();
 			}
 
-			$loop['parameters'] = json_decode($loop['parameters'], true);
+			$loop['parameters'] = (!empty($loop['parameters'])) ? json_decode($loop['parameters'], true) : null;
+
 			return $loop;
 		}
 
@@ -437,13 +438,14 @@
 					// Update existing loop
 					if($loop_array = $this->getLoop($db, $identifier))
 					{
-						if($loop_array['parameters'] == $node['properties'])
+						// If the 'incoming' loop structure is actually the one we have stored, just skip this
+						if(count($loop_array['parameters']) == count(($node['properties'] ?? $node)) && !array_diff(array_column($loop_array['parameters'], "identifier"), array_column(($node['properties'] ?? $node), "identifier")))
 						{
 							continue;
 						}
 
 						// Update!
-						$db::update(Env::get("db")['database'].".`lcms_nodes`", array('parameters' => $node['properties']), array('id' => $loop_array['id']));
+						$db::update(Env::get("db")['database'].".`lcms_nodes`", array('parameters' => $node['properties'] ?? $node), array('id' => $loop_array['id']));
 					}
 					else
 					{

@@ -134,21 +134,9 @@
          */
         private function handleLoop(object $_loop_element): void
         {
-            // Items found, let's put them into the loop (Merge with nodes)
-            if(false === $node = Node::get($_loop_element->attr['name']))
+            // Items found, let's put them into the loop (Merge with nodes) OR If empty, maybe the elements are unidentified
+            if((false === $node = Node::get($_loop_element->attr['name'])) || ($node instanceof Node && empty($node->loop())))
             {
-                $this->elements[self::ELEMENT_UNIDENTIFIED][$_loop_element->attr['name']] = array();
-
-                foreach($_loop_element->find("node[name]") AS $element)
-                {
-                    $this->elements[self::ELEMENT_UNIDENTIFIED][$_loop_element->attr['name']][] = $element;
-                }
-
-                $_loop_element->remove();
-            }
-            elseif($node instanceof Node && empty($node->loop()))
-            {
-                // If empty, maybe the elements are unidentified
                 $this->elements[self::ELEMENT_UNIDENTIFIED][$_loop_element->attr['name']] = array();
 
                 foreach($_loop_element->find("node[name]") AS $element)

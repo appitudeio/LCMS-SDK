@@ -127,9 +127,8 @@
 		{
 			if($_type == NodeType::LOOP)
 			{
-				$loop_items = array();
-				$loop_items_flat = array();
-
+				$loop_items = $loop_items_flat = array();
+				
 				foreach($_params AS $key => $value)
 				{
 					if(!($value instanceof NodeType) && (!is_array($value) || !($value[0] instanceof NodeType)))
@@ -152,15 +151,15 @@
 			}
 
 			// If it already exists, try to update (if new Items)
-			if(self::getInstance()->exists($_identifier) && $node = self::get($_identifier))
+			if(self::exists($_identifier) && $node = self::get($_identifier))
 			{
 				if(isset($loop_items)) // is Loop
 				{
-					$props = ($node instanceof NodeObject) ? array_column($node->asArray()['parameters'], "identifier") : array_keys($node[array_key_first($node)]);
+					$props = ($node instanceof NodeObject) ? array_column($node->asArray()['parameters'] ?? $node->asArray()['properties'], "identifier") : array_keys($node[array_key_first($node)]);
 					$has_items = ($node instanceof NodeObject && isset($node->asArray()['items'])) ? true : false;
 
 					// If something hasnt changed, just return it
-					if($props == $loop_items_flat)
+					if(count($loop_items_flat) == count($props) && !array_diff($loop_items_flat, $props))
 					{
 						return ($has_items) ? $node : false;
 					}
@@ -191,10 +190,10 @@
 		 */
 		public static function get(string $_identifier): bool | array | NodeObject
 		{
-			// Check local namespace first with Global as fallback
-			$is_local = true;
+			$id = (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier;
+			$is_local = true; // Check local namespace first with Global as fallback
 
-			if(is_bool($node = Arr::get(self::getInstance()->nodes, (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier, false)))
+			if(is_bool($node = Arr::get(self::getInstance()->nodes, $id, false)) && is_bool($props = Arr::get(self::getInstance()->properties, $id, false)))
 			{
 				if(is_bool($node = Arr::get(self::getInstance()->nodes, "global." . $_identifier, false)))
 				{
@@ -205,12 +204,12 @@
 			}
 
 			// Look for properties
-			$properties = (empty(self::getInstance()->properties)) ? null : (($is_local) ? Arr::get(self::getInstance()->properties, (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier) : Arr::get(self::getInstance()->properties, "global." . $_identifier));
+			$properties = (empty(self::getInstance()->properties)) ? null : (($is_local) ? $props ?? Arr::get(self::getInstance()->properties, $id) : Arr::get(self::getInstance()->properties, "global." . $_identifier));
 
 			// Loop or Array?
-			if(is_array($node))
+			if(is_array($node) || is_array($properties))
 			{
-				return (!array_is_list($node)) ? $node : new NodeObject($_identifier, $node, (is_array($properties)) ? $properties : array());
+				return (is_array($node) && !array_is_list($node)) ? $node : new NodeObject($_identifier, $node ?: array(), (is_array($properties)) ? $properties : array());
 			}
 
 			$node = (is_string($node)) ? array('content' => $node) : $node;
@@ -235,7 +234,7 @@
 		 */
 		public static function set(string $_identifier, mixed $_value, array $_params = array()): self
 		{
-			$identifier = "global." . $_identifier;
+			$identifier = $_identifier;
 
 			if(is_bool($_params['global'] ?? null) && $_params['global'])
 			{
@@ -262,8 +261,11 @@
 				$props = array();
 				Arr::unflatten($props, $identifier, $ins);
 
+				// Remove if any 'old' loop layes here
+				Arr::forget(self::getInstance()->properties, $identifier);
 				self::getInstance()->properties = array_replace_recursive(self::getInstance()->properties, $props);
 			}
+
 			// If not found merged before
 			self::getInstance()->added_dynamically[] = $_identifier; // Let future Merger's know about this
 
@@ -279,12 +281,13 @@
 		public static function exists(string $_identifier): bool
 		{
 			// Check from namespaced node
-			if(self::getInstance()->namespace != null && (null === $node = Arr::get(self::getInstance()->nodes, (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier)))
+			$id = (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier;
+
+			if(self::getInstance()->namespace != null && (null === $node = Arr::get(self::getInstance()->nodes, $id)))
 			{
 				return false;
 			}
-
-			if(Arr::has(self::getInstance()->nodes, $_identifier))
+			elseif(Arr::has(self::getInstance()->nodes, $_identifier))
 			{
 				return true;
 			}
@@ -293,7 +296,7 @@
 				return false;
 			}
 
-			return Arr::has(self::getInstance()->nodes,  (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier);
+			return Arr::has(self::getInstance()->nodes, $id) || Arr::has(self::getInstance()->properties, $id);
 		}	
 
 		/**
@@ -421,7 +424,7 @@
 			$this->node = $_node;
 			$this->properties = (!empty($_properties)) ? $_properties : $this->node['properties'] ?? array();
 
-			if(!empty($this->properties) && !isset($this->properties['type']) && array_is_list($this->properties))
+			if(array_is_list($_node))
 			{
 				$this->type = NodeType::LOOP->value;
 				$this->items = $this->loop();
@@ -585,10 +588,10 @@
 			}
 
 			$forbidden_properties = array('name', 'type', 'as');
-			$_parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($this->node['parameters'])), $this->node['parameters']);
+			$_parameters = (isset($this->node['parameters']) && !empty($this->node['parameters'])) ? array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($this->node['parameters'])), $this->node['parameters']) : array();
 	
 			// If route or hyperlink, the 'content' is inside a property
-			if(str_contains($href, "{{") && $_parameters = array_filter(array_replace_recursive($this->node['parameters'] ?? array(), $_parameters), fn($key) => in_array($key, $forbidden_keys), ARRAY_FILTER_USE_KEY))
+			if(str_contains($href, "{{") && !empty($_parameters) && $_parameters = array_filter(array_replace_recursive($this->node['parameters'] ?? array(), $_parameters), fn($key) => in_array($key, $forbidden_properties), ARRAY_FILTER_USE_KEY))
 			{
 				// Convert ['static_path' => "https://..."] => ['{{static_path}}' => "https://..."]
 				$_parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($_parameters)), $_parameters);
@@ -661,15 +664,6 @@
 
 		function __toString(): string
 		{
-			/*if(in_array($this->return_as, ["href", "route"]))
-			{
-				return $this->node['properties']['href'] ?? $this->node['content'];
-			}
-			elseif($this->return_as == "prop")
-			{
-				return $this->node['properties'][$this->prop] ?? "";
-			}*/
-
 			return $this->return_as[1] ?? $this->node['content'] ?? "";
 		}
 
