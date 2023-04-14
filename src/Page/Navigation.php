@@ -182,14 +182,15 @@
 							continue;
 						}
 
-						$this->items[$child_item['key']]['active'] = true;
-						$this->setActiveKey($child_item['key']);
-
 						// All parents to become active
 						foreach($this->asTreeParents($child_item['key']) AS $parent_key)
 						{
 							$this->items[$parent_key]['active'] = true;
+							$this->setActiveKey($parent_key);
 						}
+
+						$this->items[$child_item['key']]['active'] = true;
+						$this->setActiveKey($child_item['key']);						
 					}
 
 					continue;
