@@ -245,29 +245,34 @@
 				$identifier =  (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier;
 			}
 
-			$_params['type'] = $_params['type'] ?? ((is_array($_value)) ? NodeType::LOOP->value : NodeType::TEXT->value);
+			//$_params['type'] = $_params['type'] ?? ((is_array($_value)) ? NodeType::LOOP->value : NodeType::TEXT->value);
 			unset($_params['global']); // Remove, this is decided separately
 
-			// Is this a Loop?
-			$arr = array();
-			Arr::unflatten($arr, $identifier, (is_array($_value)) ? array() : "");
-
-			self::getInstance()->nodes = array_replace_recursive(self::getInstance()->nodes, $arr);
-		
 			// Append properties into Loop, if found
 			if((is_array($_value) && !empty($_value)) || !empty($_params))
 			{
+				$arr = $props = array();
 				$ins = (is_array($_value)) ? ((empty($_value)) ? ['type' => NodeType::LOOP->value] : $_value) : $_params;
-				$props = array();
+				
+				Arr::unflatten($arr, $identifier, (is_array($_value)) ? array() : "");
 				Arr::unflatten($props, $identifier, $ins);
+
+				self::getInstance()->nodes = array_replace_recursive(self::getInstance()->nodes, $arr);
 
 				// Remove if any 'old' loop layes here
 				Arr::forget(self::getInstance()->properties, $identifier);
 				self::getInstance()->properties = array_replace_recursive(self::getInstance()->properties, $props);
 			}
+			elseif(!is_array($_value))
+			{
+				Arr::unflatten(self::getInstance()->nodes, $identifier, $_value);
+			}
 
-			// If not found merged before
-			self::getInstance()->added_dynamically[] = $_identifier; // Let future Merger's know about this
+			// If not found merged before (Exclude 'meta')
+			if(!str_contains($_identifier, "meta."))
+			{
+				self::getInstance()->added_dynamically[] = $_identifier; // Let future Merger's know about this
+			}
 
 			return self::getInstance();
 		}
