@@ -472,8 +472,8 @@
 				// Convert ['static_path' => "https://..."] => ['{{static_path}}' => "https://..."]
 				$_parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($_parameters)), $_parameters);
 	
-				$this->node['parameters'] = array_merge($this->node['parameters'] ?? [], $_parameters);
-				$this->node['content'] = strtr($this->node['content'], $this->node['parameters']);
+				//$this->node['parameters'] = array_merge($this->node['parameters'] ?? [], $_parameters);
+				$this->node['content'] = strtr($this->node['content'], $_parameters);
 			}
 
 			$this->return_as[] = $this->node['content'] ?? "";
@@ -587,16 +587,12 @@
 				return $this;
 			}
 
-			$forbidden_properties = array('name', 'type', 'as');
-			$_parameters = (isset($this->node['parameters']) && !empty($this->node['parameters'])) ? array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($this->node['parameters'])), $this->node['parameters']) : array();
-	
+			//$forbidden_properties = array('name', 'type', 'as');
+
 			// If route or hyperlink, the 'content' is inside a property
-			if(str_contains($href, "{{") && !empty($_parameters) && $_parameters = array_filter(array_replace_recursive($this->node['parameters'] ?? array(), $_parameters), fn($key) => in_array($key, $forbidden_properties), ARRAY_FILTER_USE_KEY))
+			if(str_contains($href, "{{") && $_parameters = (isset($this->node['parameters']) && !empty($this->node['parameters'])) ? array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($this->node['parameters'])), $this->node['parameters']) : array()) // && $_parameters = array_filter(array_replace_recursive($this->node['parameters'] ?? array(), $_parameters), fn($key) => in_array($key, $forbidden_properties), ARRAY_FILTER_USE_KEY))
 			{
-				// Convert ['static_path' => "https://..."] => ['{{static_path}}' => "https://..."]
-				$_parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($_parameters)), $_parameters);
-				$this->node['parameters'] = array_merge($this->node['parameters'] ?? [], $_parameters);
-				$href = $this->node['properties']['href'] = strtr($this->node['properties']['href'], $this->node['parameters']);
+				$href = $this->node['properties']['href'] = strtr($href, $_parameters);
 			}
 
 			$this->return_as[] = $href;
