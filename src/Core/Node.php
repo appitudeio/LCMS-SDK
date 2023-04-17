@@ -166,7 +166,7 @@
 				}
 				else
 				{
-					// [TODO] Not loop---
+					return $node;
 				}
 			}
 
@@ -207,7 +207,7 @@
 			$properties = (empty(self::getInstance()->properties)) ? null : (($is_local) ? $props ?? Arr::get(self::getInstance()->properties, $id) : Arr::get(self::getInstance()->properties, "global." . $_identifier));
 
 			// Loop or Array?
-			if(is_array($node) || is_array($properties))
+			if(is_array($node) || (!is_string($node) && is_array($properties)))
 			{
 				return (is_array($node) && !array_is_list($node)) ? $node : new NodeObject($_identifier, $node ?: array(), (is_array($properties)) ? $properties : array());
 			}
@@ -224,7 +224,7 @@
 			elseif(!is_string($node['content']))
 			{
 				$node['content'] = htmlspecialchars_decode($node['content'][Locale::getLanguage()]);
-			}
+			}		
 
 			return new NodeObject($_identifier, $node);
 		}
@@ -246,7 +246,8 @@
 			}
 
 			//$_params['type'] = $_params['type'] ?? ((is_array($_value)) ? NodeType::LOOP->value : NodeType::TEXT->value);
-			unset($_params['global']); // Remove, this is decided separately
+			$type = $_params['type'] ?? Node::TYPE_TEXT;
+			unset($_params['global'], $_params['type']); // Remove, this is decided separately
 
 			// Append properties into Loop, if found
 			if((is_array($_value) && !empty($_value)) || !empty($_params))
@@ -265,7 +266,12 @@
 			}
 			elseif(!is_array($_value))
 			{
+				$props = array();
+				$ins = array_merge($_params ?? array(), ['type' => $type]);
+				
 				Arr::unflatten(self::getInstance()->nodes, $identifier, $_value);
+				Arr::unflatten($props, $identifier, $ins);
+				self::getInstance()->properties = array_replace_recursive(self::getInstance()->properties, $props);
 			}
 
 			// If not found merged before (Exclude 'meta')
@@ -436,7 +442,7 @@
 			}
 			else
 			{
-				$this->type = (isset($this->properties['type'])) ? (int) $this->properties['type'] : NodeType::TEXT->value; // default
+				$this->type = (isset($this->properties['type'])) ? (($this->properties['type'] instanceof NodeType) ? $this->properties['type']->value : (int) $this->properties['type']) : NodeType::TEXT->value; // default
 			}
 
 			unset($this->properties['type'], $this->properties['identifier'], $this->node['properties']['type']);
