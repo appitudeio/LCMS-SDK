@@ -211,30 +211,19 @@
                     list($_element->content, $stored) = $this->handle($identifier ?? null, $_element->attr, $_element->innertext);
                 }
             }
-            elseif((isset($_element->attr['type']) && in_array($_element->attr['type'], ['route', 'a'])) || (isset($_element->attr['as']) && in_array($_element->attr['as'], ['route', 'a'])))
+            elseif(($type = $_element->attr['type'] ?? $_element->attr['as'] ?? false) && in_array($type, ['route', 'a']))
             {
                 list($href, $stored) = $this->handle($identifier ?? null, $_element->attr, $_element->innertext ?? "");
 
-                if(isset($href->asArray()['properties']) && !empty($href->asArray()['properties']))
+                if(isset($href->asArray()['properties']) && !empty($href->asArray()['properties']) && $props = array_filter($href->asArray()['properties'], fn($k, $v) => !in_array($k, ['as', 'name']) && $_element->$k != $v, ARRAY_FILTER_USE_BOTH))
                 {
-                    $excluded_data = ['as', 'name'];
-
-                    foreach(array_filter($href->asArray()['properties'], fn($d) => !in_array($d, $excluded_data), ARRAY_FILTER_USE_KEY) AS $tag => $value)
+                    foreach($props AS $tag => $value)
                     {
-                        if($_element->$tag == $value)
-                        {
-                            continue;
-                        }
-
                         $_element->$tag = $value;
                     }
                 }
 
-                if(isset($_element->attr['type']) && $_element->attr['type'] == "route")
-                {
-                    $_element->innertext = (string) $href;
-                }
-                
+                $_element->innertext = ($type == "route") ? (string) $href : $href->prop("title");
                 $_element->attr['as'] = "a";
             }
             elseif((isset($_element->attr['type']) && in_array($_element->attr['type'], ['img', 'image', 'picture'])) || (isset($_element->attr['as']) && in_array($_element->attr['as'], ['img', 'image', 'picture'])))
