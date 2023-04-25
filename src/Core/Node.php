@@ -618,7 +618,14 @@
 		{
 			$this->return_as = [__FUNCTION__];
 
-			$this->node['properties']['href'] = (!empty($this->node['properties']['route']) && $this->node['properties']['route'] != "#") ? Route::url($this->node['properties']['route']) : "#";
+			if(($route = $this->node['content'] ?? $this->node['properties']['route']) && $route != "#")
+			{
+				$this->node['properties']['href'] = Route::url($route);
+			}
+			else
+			{
+				$this->node['properties']['href'] = "#";
+			}
 
 			$this->return_as[] = $this->node['properties']['href'];
 
