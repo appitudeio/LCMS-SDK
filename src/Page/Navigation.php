@@ -17,7 +17,7 @@
 		private int 	$index = 0;
 		private array 	$currents;
 		private array 	$params;
-		private array 	$root;
+		private array 	$root = array();
 		private bool 	$sorted = true;
 		private array 	$active_keys = array();
 		public array 	$items = array();
