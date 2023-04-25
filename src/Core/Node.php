@@ -585,10 +585,10 @@
 			}
 
 			$forbidden_properties = array('name', 'type', 'as');
-			$_parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($this->node['parameters'])), $this->node['parameters']);
+			$_parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($this->node['parameters'] ?? array())), $this->node['parameters'] ?? array());
 	
 			// If route or hyperlink, the 'content' is inside a property
-			if(str_contains($href, "{{") && $_parameters = array_filter(array_replace_recursive($this->node['parameters'] ?? array(), $_parameters), fn($key) => in_array($key, $forbidden_keys), ARRAY_FILTER_USE_KEY))
+			if(str_contains($href, "{{") && $_parameters = array_filter(array_replace_recursive($this->node['parameters'] ?? array(), $_parameters), fn($key) => in_array($key, $forbidden_properties), ARRAY_FILTER_USE_KEY))
 			{
 				// Convert ['static_path' => "https://..."] => ['{{static_path}}' => "https://..."]
 				$_parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($_parameters)), $_parameters);

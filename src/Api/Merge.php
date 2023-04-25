@@ -398,7 +398,8 @@
 				return array();
 			}
 
-			$loop['parameters'] = json_decode($loop['parameters'], true);
+			$loop['parameters'] = (!empty($loop['parameters'])) ? json_decode($loop['parameters'], true) : null;
+		
 			return $loop;
 		}
 
@@ -437,13 +438,13 @@
 					// Update existing loop
 					if($loop_array = $this->getLoop($db, $identifier))
 					{
-						if($loop_array['parameters'] == $node['properties'])
+						if($loop_array['parameters'] == ($node['properties'] ?? $node))
 						{
 							continue;
 						}
 
 						// Update!
-						$db::update(Env::get("db")['database'].".`lcms_nodes`", array('parameters' => $node['properties']), array('id' => $loop_array['id']));
+						$db::update(Env::get("db")['database'].".`lcms_nodes`", array('parameters' => ($node['properties'] ?? $node)), ['id' => $loop_array['id']]);
 					}
 					else
 					{
