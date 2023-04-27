@@ -4,11 +4,10 @@
 	 */
 	namespace LCMS\Backbone;
 
-    use LCMS\DI;
 	use LCMS\Core\Node;
     use LCMS\Core\NodeType;
     use LCMS\Util\SimpleHtmlDom;
-    use LCMS\Util\Arr;
+    use LCMS\Util\HtmlNode;
 
     use \Closure;
 	use \Exception;
@@ -95,7 +94,7 @@
 
 			foreach($this->elements[self::ELEMENT_UNIDENTIFIED] AS $key => $element)
 			{
-                if($element instanceof \LCMS\Util\HtmlNode)
+                if($element instanceof HtmlNode)
                 {
                     $nodes[$key] = $buildElement($element, $key);
                 }
@@ -108,7 +107,7 @@
 
                     foreach($element AS $e)
                     {
-                        if($e instanceof \LCMS\Util\HtmlNode)
+                        if($e instanceof HtmlNode)
                         {
                             $nodes[$key][] = $buildElement($e, $e->attr['name']);
                         }
@@ -190,7 +189,7 @@
                 $name = (isset($_element->attr['name']) && str_starts_with($_element->attr['name'], "meta.")) ? $_element->attr['name'] : "meta." . ($_element->attr['name'] ?? $_element->tag);
             }
 
-            if($name ??= $_element->attr['alias'] ?? $_element->attr['name'] ?? null)
+            if($name ??= $_element->attr['alias'] ?? $_element->attr['name'] ?? false)
             {
                 $identifier = (!empty($_parent)) ? $_parent . "." . $_key . "." . $name : $name;
             }
@@ -223,10 +222,12 @@
                     }
                 }
 
-                $_element->content = ($type == "route") ? (string) $href : (string) $href->prop("title");
+                $tag = ($_element->hasChildNodes()) ? "content" : "innertext";
+
+                $_element->$tag = ($type == "route") ? (string) $href : (string) $href->prop("title");
                 $_element->attr['as'] = "a";
             }
-            elseif((isset($_element->attr['type']) && in_array($_element->attr['type'], ['img', 'image', 'picture'])) || (isset($_element->attr['as']) && in_array($_element->attr['as'], ['img', 'image', 'picture'])))
+            elseif(($type = $_element->attr['type'] ?? $_element->attr['as'] ?? false) && in_array($type, ['img', 'image', 'picture']))
             {
                 list($image, $stored) = $this->handle($identifier ?? null, $_element->attr, $_element->attr['src'] ?? $_element->innertext);
                 $_element->outertext = (string) $image;
@@ -353,7 +354,7 @@
 				$_properties = array_merge($_properties, array_filter($node->asArray()['properties']));
 			}
 
-            if(!in_array($type, ['text', 'html', 'textarea', 'meta', 'image', 'picture', 'route', 'a', 'img']))
+            if(empty($type) || !in_array($type, ['text', 'html', 'textarea', 'meta', 'image', 'picture', 'route', 'a', 'img']))
             {
                 return array($node->text($_properties), $stored);
             }
