@@ -634,7 +634,14 @@
 
 		public function prop(string $_property): self
 		{
-			$this->return_as = [__FUNCTION__, $this->properties[$_property] ?? ""];
+			$prop = $this->properties[$_property] ?? $this->node['content'] ?? "";
+
+			if(str_contains($prop, "{{") && $_parameters = (isset($this->node['parameters']) && !empty($this->node['parameters'])) ? array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($this->node['parameters'])), $this->node['parameters']) : array())
+			{
+				$prop = strtr($prop, $_parameters);
+			}
+
+			$this->return_as = [__FUNCTION__, $prop];
 
 			return $this;
 		}
