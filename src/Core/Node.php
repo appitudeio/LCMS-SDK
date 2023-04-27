@@ -608,7 +608,7 @@
 
 			$this->return_as[] = $href;
 
-			return $this;
+			return $this->prop("title");
 		}
 
 		/**
