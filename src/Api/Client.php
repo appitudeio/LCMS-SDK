@@ -68,7 +68,6 @@
 			if(isset($_request_data['form_params']))
 			{
 				$query_data['form_params'] = $_request_data['form_params'];
-				//$_method = "post";
 			}
 
             try
