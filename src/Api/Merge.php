@@ -1020,11 +1020,6 @@
 
 			foreach($navs AS $row)
 			{
-				/*if(!empty($row['hidden_at']) && ($hidden_at = json_decode($row['hidden_at'], true)) && isset($hidden_at[Locale::getLanguage()]) && !empty($hidden_at[Locale::getLanguage()]))
-				{
-					continue;
-				}*/
-
 				if(!isset($this->database_navs[$row['navigation']]))
 				{
 					$this->database_navs[$row['navigation']] = array();

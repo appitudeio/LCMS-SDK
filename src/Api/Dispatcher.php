@@ -4,32 +4,14 @@
      */
     namespace LCMS\Api;
 
-    use GuzzleHttp\Client as Guzzle;
-    use GuzzleHttp\RequestOptions;
-    use GuzzleHttp\Psr7\Response;
-    use GuzzleHttp\Exception\ClientException;
+    use LCMS\Api\Client;
     use \Exception;
 
-    class Dispatcher
+    class Dispatcher extends Client
     {
-        const CLIENT_NAME = "LCMS-SDK";
-        const CLIENT_VERSION = "0.1-beta";
-        const CLIENT_URL = "https://github.com/appitudeio/lcms-sdk";
-        
-        private $methods = array("send", "email", "sms", "slack"); //, "push");
-        private $urls = array(
-            'production' => "https://api.logicalcms.com",
-            'sandbox' => "https://api-sandbox.logicalcms.com"
-        );
-        private $api_key;
-        private $options = array();
-        private $timings;
-    
-        function __construct(string $_api_key, array $_options = array())
-        {
-            $this->api_key = $_api_key;
-            $this->options = array_replace_recursive($this->options, $_options, ['headers' => ['User-Agent' => $this->setUserAgent()]]);
-        }
+        private function send(){}
+        private function email(){}
+        private function sms(){}
 
         function __call(string $_method, array $_arguments): array
         {
@@ -48,97 +30,26 @@
                 $request_data['payload'] = $payload;
             }
 
-            return $this->sendRequest($mode, $_method, $request_data);
-        }
-
-        private function sendRequest(string $_mode = "sandbox", string $_method = "send", array $_request_data = array()): array
-        {
-            $query_data = array_replace_recursive(array(
-                'headers' => array(
-                    'Authorization' => $this->api_key
-                )
-            ), $this->options);
-
-            if(isset($query_data['batch']))
-            {
-                $query_data[RequestOptions::JSON] = $query_data[RequestOptions::JSON] ?? array();
-                $query_data[RequestOptions::JSON]['users'] = $_request_data['user']; 
-             
-                unset($query_data['batch']);
-            }
-            elseif(isset($_request_data['user']))
-            {  
-                $query_data[RequestOptions::JSON] = $query_data[RequestOptions::JSON] ?? array();
-                $query_data[RequestOptions::JSON]['user'] = $_request_data['user'];
-            }
+            // Append {?interface} to the endpoint
+            $endpoint = "dispatch/" . $request_data['event'] . (($_method == "send") ? null : "/" . $_method);
             
-            if(isset($_request_data['payload']))
-            {
-                $query_data[RequestOptions::JSON] = $query_data[RequestOptions::JSON] ?? array();
-                $query_data[RequestOptions::JSON]['payload'] = $_request_data['payload'];
-            }            
+            return $this->sendRequest($mode, $endpoint, $request_data);
+        }        
 
-            try
-            {
-                // Append {?interface} to the endpoint
-                $endpoint = "dispatch/" . $_request_data['event'] . (($_method == "send") ? null : "/" . $_method);
-                
-                if(isset($query_data['silent']))
-                {
-                    // Send this message silently
-                    $cmd = "curl -L -X POST -H 'Content-Type: application/json' -H 'Authorization: ".$query_data['headers']['Authorization']."'";
-                    $cmd .= " -d '" . json_encode($query_data[RequestOptions::JSON] ?? "") . "' '".$this->urls[$_mode] . "/" . $endpoint . "'";
-                    $cmd .= " > /dev/null 2>&1 &"; // Don't wait for response
-
-                    exec($cmd, $output, $exit);
-
-                    return array('success' => $exit == 0);
-                }
-                else
-                {
-                    $client = new Guzzle(['base_uri' => $this->urls[$_mode]]);
-                    $request = $client->post($endpoint, $query_data);
-
-                    if(!$response_array = json_decode((string) $request->getBody(), true))
-                    {
-                        throw new Exception($request->getBody());
-                    }
-                    elseif(isset($response_array['error']))
-                    {
-                        throw new Exception($response_array['error']);
-                    }
-                    elseif(isset($response_array['errors']))
-                    {
-                        $error = (is_array($response_array['errors'][0]['message'])) ? $response_array['errors'][0]['message'][array_key_first($response_array['errors'][0]['message'])] : $response_array['errors'][0]['message'];
-                        throw new Exception($error);
-                    }
-                }
-            }
-			catch(ClientException $e)
-			{
-				throw new Exception($e->getResponse()->getBody()->getContents());
-			}
-            catch(Exception $e)
-            {
-                throw new Exception($e->getMessage());
-            }
-
-            return $response_array + ['execution_time' => (microtime(true) - $this->timings[0])];
-        }
-
-        private function validate(string $_method, array $_arguments): array
+        protected function validate(string $_method, array $_arguments): array
         {
             $mode = "sandbox";
             $request_data = array();
+			$methods = get_class_methods($this);
 
             // Depending on which api_key that comes in, decides mode
             if(!str_starts_with($this->api_key, "live_") && !str_starts_with($this->api_key, "test_"))
             {
                 throw new Exception("Dispatcher ApiKey requires to start with test_ || live_");
             }
-            elseif(!in_array($_method, $this->methods))
+            elseif(!in_array($_method, $methods))
             {
-                throw new Exception("Dispatch method ".$_method." not allowed (".implode(", ", $this->methods).")");
+                throw new Exception("Dispatch method ".$_method." not allowed (".implode(", ", $methods).")");
             }
             elseif((!$request_data['event'] = trim($_arguments[0] ?? "")) || !is_string($request_data['event']) || empty($request_data['event']))
             {
@@ -183,32 +94,6 @@
             }
 
             return array($mode, $request_data);
-        }
-
-        public function setUserAgent(): string
-        {
-            return self::CLIENT_NAME.'/'.self::CLIENT_VERSION.' (+'.self::CLIENT_URL.')';
-        }
-
-        public function debug(): self
-        {
-            $this->options['debug'] = true;
-            return $this;
-        }
-
-        /**
-         *  
-         */
-        public function silent(): self
-        {
-            $this->options['silent'] = true;
-            return $this;
-        }
-
-        public function batch(): self
-        {
-            $this->options['batch'] = true;
-            return $this;
         }
     }
 ?>

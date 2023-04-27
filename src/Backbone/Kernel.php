@@ -17,7 +17,6 @@
 	use LCMS\View;
     use LCMS\DI;
     use LCMS\Page;
-    use LCMS\Page\Navigations;
     use LCMS\Util\Toolset;
     use LCMS\Util\Arr;
 	use \Exception;
@@ -126,7 +125,6 @@
             $env = DI::get(Env::class);
             $node = DI::get(Node::class);
             $route = DI::get(Route::class);
-            // $navigations = DI::get(Navigations::class);
             
             /**
              *  If LCMS-environment, set ImageFactory 
