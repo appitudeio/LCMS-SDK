@@ -593,20 +593,22 @@
 			$this->return_as = [__FUNCTION__];
 
 			// Any params we should replace
-			if(!$href = $this->node['properties']['href'] ?? $this->node['content'] ?? false)
+			if($href = $this->node['properties']['href'] ?? $this->node['content'] ?? false)
 			{
-				return $this;
+				//$forbidden_properties = array('name', 'type', 'as');
+
+				// If route or hyperlink, the 'content' is inside a property
+				if(str_contains($href, "{{") && $_parameters = (isset($this->node['parameters']) && !empty($this->node['parameters'])) ? array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($this->node['parameters'])), $this->node['parameters']) : array()) // && $_parameters = array_filter(array_replace_recursive($this->node['parameters'] ?? array(), $_parameters), fn($key) => in_array($key, $forbidden_properties), ARRAY_FILTER_USE_KEY))
+				{
+					$href = $this->node['properties']['href'] = strtr($href, $_parameters);
+				}
+			}
+			else
+			{
+				$href = "#";
 			}
 
-			//$forbidden_properties = array('name', 'type', 'as');
-
-			// If route or hyperlink, the 'content' is inside a property
-			if(str_contains($href, "{{") && $_parameters = (isset($this->node['parameters']) && !empty($this->node['parameters'])) ? array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($this->node['parameters'])), $this->node['parameters']) : array()) // && $_parameters = array_filter(array_replace_recursive($this->node['parameters'] ?? array(), $_parameters), fn($key) => in_array($key, $forbidden_properties), ARRAY_FILTER_USE_KEY))
-			{
-				$href = $this->node['properties']['href'] = strtr($href, $_parameters);
-			}
-
-			$this->return_as[] = $href;
+			$this->return_as[] = $this->node['properties']['href'] = $href;
 
 			return $this->prop("title");
 		}
@@ -629,7 +631,7 @@
 
 			$this->return_as[] = $this->node['properties']['href'];
 
-			return $this;
+			return $this->prop("title");
 		}
 
 		public function prop(string $_property): self
@@ -641,7 +643,12 @@
 				$prop = strtr($prop, $_parameters);
 			}
 
-			$this->return_as = [__FUNCTION__, $prop];
+			$this->properties[$_property] = $prop;
+
+			/*if(empty($this->return_as))
+			{*/
+				$this->return_as = [__FUNCTION__, $prop];
+			//}
 
 			return $this;
 		}
