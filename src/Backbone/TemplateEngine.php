@@ -223,7 +223,7 @@
                     }
                 }
 
-                $_element->innertext = ($type == "route") ? (string) $href : $href->prop("title");
+                $_element->content = ($type == "route") ? (string) $href : (string) $href->prop("title");
                 $_element->attr['as'] = "a";
             }
             elseif((isset($_element->attr['type']) && in_array($_element->attr['type'], ['img', 'image', 'picture'])) || (isset($_element->attr['as']) && in_array($_element->attr['as'], ['img', 'image', 'picture'])))
