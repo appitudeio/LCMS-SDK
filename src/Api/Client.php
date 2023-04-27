@@ -6,68 +6,150 @@
 
 	use LCMS\Core\Request;
 	use LCMS\Core\Env;
+	use LCMS\Util\Singleton;
+
+    use GuzzleHttp\Client as Guzzle;
+    use GuzzleHttp\RequestOptions;
+    use GuzzleHttp\Psr7\Response;
+    use GuzzleHttp\Exception\ClientException;	
 	use \ReflectionClass;
 	use \Exception;
 
 	class Client
 	{
-		private static $instance;
-		private $instances = array();
-		public static $ips = array("16.170.44.93");
+		use Singleton;
 
-		/**
-		 *	Makes instances of the application reachable through this class, statically
-		 */
-		public static function initialize($_objects = array())
-		{
-			$self = new Static();
+        const CLIENT_NAME = "LCMS-SDK";
+        const CLIENT_VERSION = "3.1";
+        const CLIENT_URL = "https://github.com/appitudeio/lcms-sdk";
+        
+        protected $methods = array();
+        protected $urls = array(
+            'production' => "https://api.logicalcms.com",
+            'sandbox' => "https://api-sandbox.logicalcms.com"
+        );
+        protected $api_key;
+        protected $options = array();
+        protected $timings;
 
-			foreach($_objects AS $obj)
+        function __construct(string $_api_key, array $_options = array())
+        {
+            $this->api_key = $_api_key;
+            $this->options = array_replace_recursive($this->options, $_options, ['headers' => ['User-Agent' => $this->setUserAgent()]]);
+        }
+
+        protected function sendRequest(string $_mode = "sandbox", string $_endpoint = "", array $_request_data = array(), string $_method = "post"): array
+        {
+            $query_data = array_replace_recursive(array(
+                'headers' => array(
+                    'Authorization' => $this->api_key
+                )
+            ), $this->options);
+
+            if(isset($query_data['batch']))
+            {
+                $query_data[RequestOptions::JSON] = $query_data[RequestOptions::JSON] ?? array();
+                $query_data[RequestOptions::JSON]['users'] = $_request_data['user']; 
+             
+                unset($query_data['batch']);
+            }
+            elseif(isset($_request_data['user']))
+            {  
+                $query_data[RequestOptions::JSON] = $query_data[RequestOptions::JSON] ?? array();
+                $query_data[RequestOptions::JSON]['user'] = $_request_data['user'];
+            }
+            
+            if(isset($_request_data['payload']))
+            {
+                $query_data[RequestOptions::JSON] = $query_data[RequestOptions::JSON] ?? array();
+                $query_data[RequestOptions::JSON]['payload'] = $_request_data['payload'];
+            }
+
+			if(isset($_request_data['form_params']))
 			{
-				$reflection = new ReflectionClass($obj);
-				$self->instances[$reflection->getShortName()] = $obj;
+				$query_data['form_params'] = $_request_data['form_params'];
+				//$_method = "post";
 			}
 
-			self::$instance = $self;
+            try
+            {
+                if(isset($query_data['silent']))
+                {
+                    // Send this message silently
+                    $cmd = "curl -L -X POST -H 'Content-Type: application/json' -H 'Authorization: ".$query_data['headers']['Authorization']."'";
+                    $cmd .= " -d '" . json_encode($query_data[RequestOptions::JSON] ?? "") . "' '".$this->urls[$_mode] . "/" . $endpoint . "'";
+                    $cmd .= " > /dev/null 2>&1 &"; // Don't wait for response
 
-			return self::$instance;
-		}
+                    exec($cmd, $output, $exit);
 
-		public static function set($_object)
-		{
-			$reflection = new ReflectionClass($_object);
-			self::$instance->instances[$reflection->getShortName()] = $_object;
-		}
+                    return array('success' => $exit == 0);
+                }
+                else
+                {
+                    $client = new Guzzle(); //['base_uri' => $this->urls[$_mode]]);
+                    $request = $client->$_method($this->urls[$_mode] . "/" . ltrim($_endpoint, "/"), $query_data);
 
-		public static function __callStatic($_method, $_arguments)
-		{
-			if(!isset(self::$instance->instances[$_method]))
+                    if(!$response_array = json_decode((string) $request->getBody(), true))
+                    {
+                        throw new Exception($request->getBody());
+                    }
+                    elseif(isset($response_array['error']))
+                    {
+                        throw new Exception($response_array['error']);
+                    }
+                    elseif(isset($response_array['errors']))
+                    {
+                        $error = (is_array($response_array['errors'][0]['message'])) ? $response_array['errors'][0]['message'][array_key_first($response_array['errors'][0]['message'])] : $response_array['errors'][0]['message'];
+                        throw new Exception($error);
+                    }
+                }
+            }
+			catch(ClientException $e)
 			{
-				throw new Exception("Trying to use non existing instance (".$_method.") from: " . implode(", " , array_keys(self::$instance->instances)));
+				throw new Exception($e->getResponse()->getBody()->getContents());
+			}
+            catch(Exception $e)
+            {
+                throw new Exception($e->getMessage());
+            }
+
+			if(isset($this->timings[0]))
+			{
+				return $response_array + ['execution_time' => (microtime(true) - $this->timings[0])];
 			}
 
-			return self::$instance->instances[$_method];
-		}
+            return $response_array;
+        }
 
-		public function validate(Request $_request)
-		{
-			/**
-			 *	If Request comes from the CMS, this is a "FieldCreating"-request 
-			 */
-			if(!in_array($_request->ip(), self::$ips))
-			{
-				throw new Exception("Request outside of LCMS");
-			}
-			elseif(!$_request->has("api_key"))
-			{
-				throw new Exception("API_KEY missing");
-			}
-			elseif($_request->get("api_key") !== Env::get("lcms_api_key"))
-			{
-				throw new Exception("API_KEY mismatch");
-			}
+        protected function validate(string $_method, array $_arguments): array
+        {
+            return array("sandbox", $_arguments);
+        }
 
-			return true;
-		}
+        public function setUserAgent(): string
+        {
+            return self::CLIENT_NAME.'/'.self::CLIENT_VERSION.' (+'.self::CLIENT_URL.')';
+        }
+
+        public function debug(): self
+        {
+            $this->options['debug'] = true;
+            return $this;
+        }
+
+        /**
+         *  
+         */
+        public function silent(): self
+        {
+            $this->options['silent'] = true;
+            return $this;
+        }
+
+        public function batch(): self
+        {
+            $this->options['batch'] = true;
+            return $this;
+        }		
 	}
 ?>
