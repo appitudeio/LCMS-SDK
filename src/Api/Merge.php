@@ -1209,12 +1209,12 @@
 				$row['route'] = $row['snapshot']['route'];
 			}
 
-			if(isset($row['hidden_at']) && !empty($row['hidden_at']) && !is_array($row['hidden_at']) && $hidden_at = array_filter(json_decode($row['hidden_at'], true)))
+			$hidden_at = (!empty($row['hidden_at'])) ? array_filter(json_decode($row['hidden_at'], true)) : null;
+			unset($row['hidden_at']);
+
+			if(!empty($hidden_at) && isset($hidden_at[Locale::getLanguage()]))
 			{
-				if(isset($hidden_at[Locale::getLanguage()]))
-				{
-					$row['hidden_at'] = $hidden_at[Locale::getLanguage()];
-				}
+				$row['hidden_at'] = $hidden_at[Locale::getLanguage()];
 			}
 
 			$row['order'] = (int) $row['order'];
