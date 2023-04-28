@@ -203,6 +203,11 @@
 
 		private function asTreeParents(int $child_key, array $parents = array()): array // Recursive
 		{
+			if(!isset($this->items[$child_key]['parent']))
+			{
+				return $parents;
+			}
+
 			$parents[] = $this->items[$child_key]['parent'];
 
 			if(isset($this->items[$this->items[$child_key]['parent']]['parent']))
