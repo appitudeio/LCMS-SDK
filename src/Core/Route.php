@@ -371,7 +371,7 @@
 			$maps += ($_is_ajax_request && isset($this->map[Request::METHOD_AJAX])) ? array(Request::METHOD_AJAX => $this->map[Request::METHOD_AJAX]) : array();
 			$maps = array_reverse($maps); // Ajax first
 
-			foreach($maps AS $map_group => $map_keys)
+			foreach($maps AS $map_keys)
 			{
 				// Prioritizes routes from Controllers (Based on if having requirements)
 				$routes = array_combine($map_keys, array_map(fn($route_key) => $this->routes[$route_key], $map_keys));

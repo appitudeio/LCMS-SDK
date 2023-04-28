@@ -1158,7 +1158,7 @@
 			 */
 			foreach($this->database_navs AS $nav_identifier => $nav_items)
 			{
-				foreach($nav_items AS $key => $nav_item)
+				foreach($nav_items AS $nav_item)
 				{
 					$re_key = count($system_items[$nav_identifier]);
 					$nav_item['key'] = $re_key;
@@ -1166,7 +1166,7 @@
 					if(!empty($nav_item['parent_id']))
 					{
 						// Find parent
-						if(!$find_key = $relations[$nav_identifier][$nav_item['parent_id']] ?? $nav_items[$nav_item['parent_id']]['key'] ?? false)
+						if(false === $find_key = $relations[$nav_identifier][$nav_item['parent_id']] ?? $nav_items[$nav_item['parent_id']]['key'] ?? $system_items[$nav_identifier][$nav_item['parent_id']] ?? false)
 						{
 							continue;
 						}
@@ -1176,6 +1176,7 @@
 						}
 
 						$system_items[$nav_identifier][$find_key]['children'][] = $re_key;
+						$nav_item['parent'] = $find_key;
 					}
 
 					$system_items[$nav_identifier][$re_key] = $nav_item; //[$key];
