@@ -1211,7 +1211,10 @@
 
 			if(isset($row['hidden_at']) && !empty($row['hidden_at']) && !is_array($row['hidden_at']) && $hidden_at = array_filter(json_decode($row['hidden_at'], true)))
 			{
-				$row['hidden_at'] = $hidden_at;
+				if(isset($hidden_at[Locale::getLanguage()]))
+				{
+					$row['hidden_at'] = $hidden_at[Locale::getLanguage()];
+				}
 			}
 
 			$row['order'] = (int) $row['order'];
