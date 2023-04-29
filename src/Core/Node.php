@@ -171,7 +171,7 @@
 			}
 
 			// Add this new Node
-			self::set($_identifier, $loop_items ?? "", $_params + ['type' => $_type->value]);
+			self::set($_identifier, $loop_items ?? false, $_params + ['type' => $_type->value]);
 
 			if(isset($has_items, $node) && $has_items)
 			{
@@ -190,12 +190,13 @@
 		 */
 		public static function get(string $_identifier): bool | array | NodeObject
 		{
-			$id = (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier;
 			$is_local = true; // Check local namespace first with Global as fallback
-
-			if(is_bool($node = Arr::get(self::getInstance()->nodes, $id, false)) && is_bool($props = Arr::get(self::getInstance()->properties, $id, false)))
+			$id = (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier;
+			
+			if(null === ($node = Arr::get(self::getInstance()->nodes, $id, null))
+				&& null === ($props = Arr::get(self::getInstance()->properties, $id, null)))
 			{
-				if(is_bool($node = Arr::get(self::getInstance()->nodes, "global." . $_identifier, false)))
+				if(null === ($node = Arr::get(self::getInstance()->nodes, "global." . $_identifier, null)))
 				{
 					return false;
 				}
@@ -204,15 +205,15 @@
 			}
 
 			// Look for properties
-			$properties = (empty(self::getInstance()->properties)) ? null : (($is_local) ? $props ?? Arr::get(self::getInstance()->properties, $id) : Arr::get(self::getInstance()->properties, "global." . $_identifier));
+			$properties = (empty(self::getInstance()->properties)) ? null : (($is_local) ? $props ?? Arr::get(self::getInstance()->properties, $id) : Arr::get(self::getInstance()->properties, "global." . $_identifier));			
 
 			// Loop or Array?
-			if(is_array($node) || (!is_string($node) && is_array($properties)))
+			if(is_array($node) || ((!is_string($node) && !is_bool($node)) && is_array($properties)))
 			{
 				return (is_array($node) && !array_is_list($node)) ? $node : new NodeObject($_identifier, $node ?: array(), (is_array($properties)) ? $properties : array());
 			}
 
-			$node = (is_string($node)) ? array('content' => $node) : $node;
+			$node = (is_string($node) || is_bool($node)) ? array('content' => $node) : $node;
 			$node += array(
 				'properties' => $properties ?: null
 			);
@@ -224,7 +225,7 @@
 			elseif(!is_string($node['content']))
 			{
 				$node['content'] = htmlspecialchars_decode($node['content'][Locale::getLanguage()]);
-			}		
+			}
 
 			return new NodeObject($_identifier, $node);
 		}
@@ -238,7 +239,7 @@
 
 			if(is_bool($_params['global'] ?? null) && $_params['global'])
 			{
-				$identifier = "global" . $_identifier;
+				$identifier = "global." . $_identifier;
 			}
 			elseif(self::getInstance()->namespace != null)
 			{
@@ -247,6 +248,7 @@
 
 			//$_params['type'] = $_params['type'] ?? ((is_array($_value)) ? NodeType::LOOP->value : NodeType::TEXT->value);
 			$type = $_params['type'] ?? Node::TYPE_TEXT;
+			$global = $_params['global'] ?? false;
 			unset($_params['global'], $_params['type']); // Remove, this is decided separately
 
 			// Append properties into Loop, if found
@@ -267,22 +269,22 @@
 			elseif(!is_array($_value))
 			{
 				$props = array();
-				$ins = array_merge($_params ?? array(), ['type' => $type]);
-				
+				$ins = array_merge($_params ?? array(), array_filter(['type' => $type, 'global' => $global ?? null]));
 				Arr::unflatten(self::getInstance()->nodes, $identifier, $_value);
 				Arr::unflatten($props, $identifier, $ins);
 				self::getInstance()->properties = array_replace_recursive(self::getInstance()->properties, $props);
 			}
 
 			// If not found merged before (Exclude 'meta')
-			if(!str_contains($_identifier, "meta."))
+			if(!str_starts_with($_identifier, "meta."))
 			{
-				self::getInstance()->added_dynamically[] = $_identifier; // Let future Merger's know about this
+				self::getInstance()->added_dynamically[] = $_identifier; // Let future Merger's know about this	
 			}
 
 			return self::getInstance();
 		}
 
+		// Alias to 'exists'
 		public static function has(string $_identifier): bool
 		{
 			return self::getInstance()->exists($_identifier);
@@ -291,8 +293,8 @@
 		// Check Local namespace first, then as fallback Global"
 		public static function exists(string $_identifier): bool
 		{
-			// Check from namespaced node
-			$id = (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier;
+			$ns = self::getInstance()->namespace ?? array('alias' => "global");
+			$id = ($ns['alias'] ?? $ns['pattern'] ?? "global") . "." . $_identifier;
 
 			if(self::getInstance()->namespace != null && (null === $node = Arr::get(self::getInstance()->nodes, $id)))
 			{
@@ -307,7 +309,9 @@
 				return false;
 			}
 
-			return Arr::has(self::getInstance()->nodes, $id) || Arr::has(self::getInstance()->properties, $id);
+			return Arr::has(self::getInstance()->nodes, $id) 
+				|| ($ns['alias'] != "global" && Arr::has(self::getInstance()->nodes, "global.".$_identifier))
+					|| Arr::has(self::getInstance()->properties, $id);
 		}	
 
 		/**
@@ -374,8 +378,32 @@
 			return self::getInstance();
 		}
 
-		public static function getAdded()
+		// The dynamically added Nodes could have been added after preparation
+		public static function getAdded(): array
 		{
+			if(empty(self::getInstance()->added_dynamically) && empty(self::getInstance()->nodes))
+			{
+				return array();
+			}
+
+			if(!empty(self::getInstance()->nodes) && $dotted_nodes = Arr::dot(self::getInstance()->nodes))
+			{
+				$ns = self::getInstance()->namespace ?? array('alias' => "global");
+
+				foreach(self::getInstance()->added_dynamically AS $k => $identifier)
+				{
+					if(false === $node = Arr::get(self::getInstance()->nodes, $ns['alias'] . ".". $identifier))
+					{
+						if($ns['alias'] == "global" || false === $node = Arr::get(self::getInstance()->nodes, "global.". $identifier))
+						{
+							continue;
+						}
+					}
+					
+					unset(self::getInstance()->added_dynamically[$k]);
+				}
+			}
+
 			return self::getInstance()->added_dynamically;
 		}
 
