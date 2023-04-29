@@ -268,7 +268,7 @@
 					{
 						$identifier = array("global" => array($identifier => $value));
 					}
-
+					
 					$identifier_flat = "global." . $identifier_flat;
 				}
 				elseif($this->instance->namespace != null)
@@ -431,6 +431,14 @@
 			foreach($_nodes AS $key => $node)
 			{
 				// If a loop
+				$global = (isset($node['properties'], $node['properties']['global']) || isset($node['global'])) ? true : false;	
+				unset($node['properties']['global'], $node['global']);
+
+				if(isset($node['properties']) && empty($node['properties']))
+				{
+					unset($node['properties']);
+				}
+
 				if(array_is_list($node) || (isset($node['type']) && $node['type'] == NodeType::LOOP->value))
 				{
 					$identifier = $node['identifier'] ?? $key;
@@ -450,7 +458,7 @@
 					else
 					{
 						$db::insert(Env::get("db")['database'].".`lcms_nodes`", array(
-							'route_id' 		=> ((!isset($n['global']) || !$n['global']) && $this->instance->namespace != null && isset($this->instance->namespace['id'])) ? $this->instance->namespace['id'] : null,
+							'route_id' 		=> ($global) ? null : (($this->instance->namespace != null && isset($this->instance->namespace['id'])) ? $this->instance->namespace['id'] : null),
 							'identifier'	=> $identifier,
 							'type'			=> NodeType::LOOP->value,
 							'parameters'	=> $node['properties'] ?? $node // Snapshot of all nodes to be used here
@@ -472,7 +480,7 @@
 				else
 				{
 					$db::insert(Env::get("db")['database'].".`lcms_nodes`", array(
-						'route_id' 		=> ((!isset($node['global']) || !$node['global']) && $this->instance->namespace != null && isset($this->instance->namespace['id'])) ? $this->instance->namespace['id'] : null,
+						'route_id' 		=> ($global) ? null : (($this->instance->namespace != null && isset($this->instance->namespace['id'])) ? $this->instance->namespace['id'] : null),
 						'identifier'	=> $node['identifier'],
 						'type'			=> $node['type'],
 						'parameters'	=> $node['parameters'] ?? null,

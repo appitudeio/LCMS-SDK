@@ -14,7 +14,7 @@
 		/**
 		 * 	If an int occurs in the key, stop and treat it as an array
 		 */
-		public static function get($array, $key, $default = null)
+		public static function get($array, $key, $default = false)
 		{
 			if(!is_array($array))
 			{
@@ -24,38 +24,29 @@
 			{
 				return $array;
 			}
-			elseif(isset($array[$key])) 
+			elseif(array_key_exists($key, $array)) 
 			{
 				return $array[$key];
 			}
-			elseif(strpos($key, '.') === false) 
+			elseif(!str_contains($key, '.')) 
 			{
 				return $array[$key] ?? $default;
 			}
 			
 			foreach(explode('.', $key) AS $segment) 
 			{
-				if (is_array($array)) 
-				{
-					if(isset($array[$segment]))
-					{
-						$array = $array[$segment];
-					}
-					else
-					{
-						return false;
-					}
-				}
-				else 
+				if(!is_array($array) || !array_key_exists($segment, $array)) 
 				{
 					return $default;
 				}
+					
+				$array = $array[$segment];
 			}
 
 			return $array;
 		}	
 
-		public static function has($array, $keys)
+		public static function has($array, $keys): bool
 		{
 			$keys = (array) $keys;
 
@@ -102,7 +93,7 @@
 				return;
 			}
 
-			foreach($keys as $key) 
+			foreach($keys AS $key) 
 			{
 				// if the exact key exists in the top-level, remove it
 				$parts = explode('.', $key);
