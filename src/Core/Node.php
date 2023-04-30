@@ -638,7 +638,7 @@
 
 			$this->return_as[] = $this->node['properties']['href'] = $href;
 
-			return $this->prop("title");
+			return $this; //$this->prop("title");
 		}
 
 		/**
@@ -648,7 +648,7 @@
 		{
 			$this->return_as = [__FUNCTION__];
 
-			if(($route = $this->node['content'] ?? $this->node['properties']['route']) && $route != "#")
+			if(($route = $this->node['properties']['route'] ?? $this->node['content'] ?? false) && $route != "#")
 			{
 				$this->node['properties']['href'] = Route::url($route);
 			}
@@ -659,7 +659,7 @@
 
 			$this->return_as[] = $this->node['properties']['href'];
 
-			return $this->prop("title");
+			return $this; //$this->prop("title");
 		}
 
 		public function prop(string $_property): self
