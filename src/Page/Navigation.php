@@ -152,52 +152,36 @@
 			return isset($this->root[$this->key()]);
 		}
 
+		private function recursiveSortActive(array $_item): void
+		{
+			if(isset($_item['parent']) && null !== $_item['parent'])
+			{
+				$this->recursiveSortActive($this->items[$_item['parent']]);
+			}
+
+			$this->items[$_item['key']]['active'] = true;
+			$this->setActiveKey($_item['key']);			
+		}
+
 		private function sortActive()
 		{
 			// Get whole Route Tree aliases
 			$route = DI::get(Route::class);
 
-			if(!$current_route = $route->getCurrentMatched())
+			if(!$current_route = $route->getCurrentMatched()) // No active Route found
+			{
+				return;
+			}
+			elseif(!($current_route_aliases = $route->asTreeAliases($current_route)) // No menu item matching route found (no active item)
+				|| !$active_items = array_filter($this->items, fn($i) => (isset($i['route']) && in_array($i['route'], $current_route_aliases))))
 			{
 				return;
 			}
 
-			$current_route_aliases = $route->asTreeAliases($current_route);
-
-			foreach(array_filter($this->items, fn($i) => isset($i['route'])) AS $item)
+			// All parents are active too
+			foreach($active_items AS $item)
 			{
-				// If direct hit
-				if(!in_array($item['route'], $current_route_aliases))
-				{
-					// Try to grab from children
-					if(!isset($item['children']))
-					{
-						continue;
-					}
-
-					foreach(array_filter(array_map(fn($k) => $this->items[$k], $item['children']), fn($i) => isset($i['route'])) AS $child_item)
-					{
-						if(!in_array($child_item['route'], $current_route_aliases))
-						{
-							continue;
-						}
-
-						// All parents to become active
-						foreach($this->asTreeParents($child_item['key']) AS $parent_key)
-						{
-							$this->items[$parent_key]['active'] = true;
-							$this->setActiveKey($parent_key);
-						}
-
-						$this->items[$child_item['key']]['active'] = true;
-						$this->setActiveKey($child_item['key']);						
-					}
-
-					continue;
-				}
-
-				$this->items[$item['key']]['active'] = true;
-				$this->setActiveKey($item['key']);
+				$this->recursiveSortActive($item);			
 			}
 		}
 
