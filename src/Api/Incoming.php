@@ -22,7 +22,7 @@
 			self::getInstance()->instances[$reflection->getShortName()] = $_object;
 		}
 
-		public static function __callStatic($_method, $_arguments)
+		public static function __callStatic(string $_method, array $_args): mixed
 		{
 			if(!isset(self::getInstance()->instances[$_method]))
 			{
@@ -32,7 +32,7 @@
 			return self::getInstance()->instances[$_method];
 		}        
 
-		public function validate(Request $_request)
+		public function validateRequest(Request $_request)
 		{
 			/**
 			 *	If Request comes from the CMS, this is a "FieldCreating"-request 
