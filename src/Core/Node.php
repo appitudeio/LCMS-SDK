@@ -626,7 +626,9 @@
 				//$forbidden_properties = array('name', 'type', 'as');
 
 				// If route or hyperlink, the 'content' is inside a property
-				if(str_contains($href, "{{") && $_parameters = (isset($this->node['parameters']) && !empty($this->node['parameters'])) ? array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($this->node['parameters'])), $this->node['parameters']) : array()) // && $_parameters = array_filter(array_replace_recursive($this->node['parameters'] ?? array(), $_parameters), fn($key) => in_array($key, $forbidden_properties), ARRAY_FILTER_USE_KEY))
+				$params = array_merge(Node::getParameters() ?? array(), $this->node['parameters'] ?? array());
+
+				if(str_contains($href, "{{") && $_parameters = (!empty($params)) ? array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($params)), $params) : array()) // && $_parameters = array_filter(array_replace_recursive($this->node['parameters'] ?? array(), $_parameters), fn($key) => in_array($key, $forbidden_properties), ARRAY_FILTER_USE_KEY))
 				{
 					$href = $this->node['properties']['href'] = strtr($href, $_parameters);
 				}
