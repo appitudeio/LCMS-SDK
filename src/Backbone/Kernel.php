@@ -1,6 +1,7 @@
 <?php
 	/**
-	 *
+	 *  Changelog:
+     *      - 2023-06-15: Added simple middleware stacking (Inspo from: https://github.com/idealo/php-middleware-stack)
 	 */
 	namespace LCMS\Backbone;
 
@@ -17,22 +18,44 @@
 	use LCMS\View;
     use LCMS\DI;
     use LCMS\Page;
+    use LCMS\Middleware;
     use LCMS\Util\Toolset;
     use LCMS\Util\Arr;
+    use \Closure;
 	use \Exception;
 
 	class Kernel
 	{
-        private $events;
+        private array $events;
+        private array $middlewares = [];
 
         /**
          *  What the Init returns get's parsed into either Merger or into the Container
          *  +++ Node+Database merge happens after Route identification ("namespace")
          */
-        public function init(\Closure $_callback): self
+        public function init(Closure $_callback): self
         {
             // Set itself
             DI::set(DI::class, DI::getInstance());
+
+            /**
+             *  First off, run Middlewares
+             */
+            if(!empty($this->middlewares))
+            {
+                if(!DI::has(Request::class))
+                {
+                    DI::set(Request::class, Request::getInstance());
+                }
+
+                $middlewaresStack = new MiddlewareStack(...$this->middlewares);
+                $middlewaresResponse = DI::call([$middlewaresStack, "handle"]);
+
+                if($middlewaresResponse instanceof Redirect)
+                {
+                    return $this->trigger("redirect", $middlewaresResponse);
+                }           
+            }                    
 
             // Set rest
             foreach(DI::call($_callback) AS $key => $merger)
@@ -101,6 +124,13 @@
             return $this;
         }
 
+        public function middlewares(array $_mw): self
+        {
+            $this->middlewares = array_merge($this->middlewares, $_mw);
+
+            return $this;
+        }
+
         public function on($_event, $_callback): self
         {
             $this->events[strtolower($_event)] = $_callback;
@@ -141,7 +171,7 @@
             
             /**
              *	Any response|redirect from Routes?
-            */
+             */
             if($response instanceof Redirect)
             {
                 return $this->trigger("redirect", $response);
@@ -154,7 +184,7 @@
             {
                 return $this->trigger("callback", $response['callback'], $response['parameters'] ?? null);
             }
-           /* elseif(is_string($response))
+            /* elseif(is_string($response))
             {
                 return $this->trigger("string", $response);
             }*/
@@ -312,5 +342,40 @@
 
             return DI::call([$this, "trigger"], ["page"]);
         }
+    }
+
+    class MiddlewareStack
+    {
+        protected array $middlewares = array();
+        protected $middleware;
+
+        function __construct(...$middlewares)
+        {
+            array_walk($middlewares, fn(&$mw) => $mw = (is_string($mw)) ? new $mw() : $mw);
+            $this->middlewares = $middlewares;
+        }
+
+        private function without($middleware)
+        {
+            return new self(
+                ...array_filter(
+                    $this->middlewares,
+                    fn($mw) => $middleware !== $mw
+                )
+            );
+        }
+
+        public function handle(Request $request)
+        {
+            $middleware = $this->middlewares[0] ?? false;
+            $middleware = (is_string($middleware)) ? new $middleware() : $middleware;
+
+            return $middleware ? DI::call([$middleware::class, "process"], ['next' => $this->without($middleware)]) : null;
+        }
+
+        function __invoke(Request $request)
+        {
+            return $this->handle($request);
+        }        
     }
 ?>

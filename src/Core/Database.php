@@ -297,7 +297,7 @@
 
 		public static function select_db(string $_db_name, int $_connection_key = null)
 		{
-			return self::getInstance()->query("USE " . $_db_name, $_connection_key);
+			return self::getInstance()->query("USE " . $_db_name); //, $_connection_key);
 		}
 
 		/* New way to fetch just one column instad of mysql_result */

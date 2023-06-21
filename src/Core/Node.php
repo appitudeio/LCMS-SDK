@@ -236,16 +236,22 @@
 		public static function set(string $_identifier, mixed $_value, array $_params = array()): self
 		{
 			$identifier = $_identifier;
-
-			if(is_bool($_params['global'] ?? null) && $_params['global'])
+		
+			/*if(is_bool($_params['global'] ?? null) && $_params['global'])
 			{
 				$identifier = "global." . $_identifier;
 			}
-			elseif(self::getInstance()->namespace != null)
+			else*/
+			if(self::getInstance()->namespace != null)
 			{
 				$identifier =  (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier;
 			}
-
+			elseif(!str_starts_with($_identifier, "meta."))
+			{
+				$identifier = "global." . $_identifier;
+				$_params['global'] = true;
+			}
+			
 			//$_params['type'] = $_params['type'] ?? ((is_array($_value)) ? NodeType::LOOP->value : NodeType::TEXT->value);
 			$type = $_params['type'] ?? Node::TYPE_TEXT;
 			$global = $_params['global'] ?? false;
@@ -260,9 +266,12 @@
 				Arr::unflatten($arr, $identifier, (is_array($_value)) ? array() : "");
 				Arr::unflatten($props, $identifier, $ins);
 
-				self::getInstance()->nodes = array_replace_recursive(self::getInstance()->nodes, $arr);
-
-				// Remove if any 'old' loop layes here
+				if(!empty($arr))
+				{
+					//self::getInstance()->nodes = array_replace_recursive(self::getInstance()->nodes, $arr);
+				}
+				
+				// Remove if any 'old' loop lays here
 				Arr::forget(self::getInstance()->properties, $identifier);
 				self::getInstance()->properties = array_replace_recursive(self::getInstance()->properties, $props);
 			}
@@ -503,10 +512,10 @@
 			$this->return_as = [__FUNCTION__];
 
 			// Any params we should replace 
-			$forbidden_keys = array('name', 'type', 'content', 'as');
-
+			//$forbidden_keys = array('name', 'type', 'content', 'as');
+			
 			// If route or hyperlink, the 'content' is inside a property
-			if(isset($this->node['content']) && !empty($this->node['content']) && str_contains($this->node['content'], "{{") && $_parameters = array_filter(array_replace_recursive($this->node['parameters'] ?? array(), $_parameters), fn($key) => in_array($key, $forbidden_keys), ARRAY_FILTER_USE_KEY))
+			if(isset($this->node['content']) && !empty($this->node['content']) && str_contains($this->node['content'], "{{") && $_parameters = array_replace_recursive($this->node['parameters'] ?? array(), $_parameters)) //array_filter(array_replace_recursive($this->node['parameters'] ?? array(), $_parameters), fn($key) => in_array($key, $forbidden_keys), ARRAY_FILTER_USE_KEY))
 			{
 				// Convert ['static_path' => "https://..."] => ['{{static_path}}' => "https://..."]
 				$_parameters = array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($_parameters)), $_parameters);
