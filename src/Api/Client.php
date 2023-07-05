@@ -58,6 +58,12 @@
                 $query_data[RequestOptions::JSON] = $query_data[RequestOptions::JSON] ?? array();
                 $query_data[RequestOptions::JSON]['user'] = $_request_data['user'];
             }
+
+            if(isset($_request_data['from']))
+            {  
+                $query_data[RequestOptions::JSON] = $query_data[RequestOptions::JSON] ?? array();
+                $query_data[RequestOptions::JSON]['from'] = $_request_data['from'];
+            }
             
             if(isset($_request_data['payload']))
             {
