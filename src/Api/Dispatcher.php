@@ -27,7 +27,16 @@
 
             if($payload = $_arguments[2] ?? false)
             {
-                $request_data['payload'] = $payload;
+                if(isset($payload['from']))
+                {
+                    $request_data['from'] = $payload['from'];
+                    unset($payload['from']);
+                }
+
+                if(!empty($payload))
+                {
+                    $request_data['payload'] = $payload;
+                }
             }
 
             // Append {?interface} to the endpoint
