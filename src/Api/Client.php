@@ -32,13 +32,13 @@
         protected $options = array();
         protected $timings;
 
-        function __construct(string $_api_key = null, array $_options = array())
+        function __construct(string $_api_key, array $_options = array())
         {
             $this->api_key = $_api_key;
             $this->options = array_replace_recursive($this->options, $_options, ['headers' => ['User-Agent' => $this->setUserAgent()]]);
         }
 
-        protected function sendRequest(string $_mode = "sandbox", string $_endpoint = "", array $_request_data = array(), string $_method = "post"): array
+        protected function sendRequest(string $_mode = "sandbox", string $_endpoint = "", array $_request_data = array(), string $_method = "post"): ClientResponse
         {
             $query_data = array_replace_recursive(array(
                 'headers' => array(
@@ -120,10 +120,10 @@
 
 			if(isset($this->timings[0]))
 			{
-				return $response_array + ['execution_time' => (microtime(true) - $this->timings[0])];
+				return new ClientResponse($response_array + ['execution_time' => (microtime(true) - $this->timings[0])]);
 			}
 
-            return $response_array;
+            return new ClientResponse($response_array);
         }
 
         protected function validate(string $_method, array $_arguments): array
@@ -157,4 +157,24 @@
             return $this;
         }		
 	}
+
+    class ClientResponse
+    {
+        private array $response;
+
+        function __construct(array $_array)
+        {
+            $this->response = $_array;
+        }
+
+        function __toString()
+        {
+            return $this->response['data'][0][array_key_first($this->response['data'][0])];
+        }
+
+        public function asArray()
+        {
+            return $this->response;
+        }
+    }
 ?>

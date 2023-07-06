@@ -13,7 +13,7 @@
         private function email(){}
         private function sms(){}
 
-        function __call(string $_method, array $_arguments): array
+        function __call(string $_method, array $_arguments): ClientResponse
         {
             $this->timings = array(microtime(true));
             $_method = strtolower($_method);
@@ -41,7 +41,7 @@
 
             // Append {?interface} to the endpoint
             $endpoint = "dispatch/" . $request_data['event'] . (($_method == "send") ? null : "/" . $_method);
-            
+
             return $this->sendRequest($mode, $endpoint, $request_data);
         }        
 
