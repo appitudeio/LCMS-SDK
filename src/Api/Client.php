@@ -32,7 +32,7 @@
         protected $options = array();
         protected $timings;
 
-        function __construct(string $_api_key, array $_options = array())
+        function __construct(string $_api_key = null, array $_options = array())
         {
             $this->api_key = $_api_key;
             $this->options = array_replace_recursive($this->options, $_options, ['headers' => ['User-Agent' => $this->setUserAgent()]]);
