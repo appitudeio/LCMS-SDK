@@ -38,7 +38,7 @@
             $this->options = array_replace_recursive($this->options, $_options, ['headers' => ['User-Agent' => $this->setUserAgent()]]);
         }
 
-        protected function sendRequest(string $_mode = "sandbox", string $_endpoint = "", array $_request_data = array(), string $_method = "post"): ClientResponse
+        protected function sendRequest(string $_mode = "sandbox", string $_endpoint = "", array $_request_data = array(), string $_method = "post"): ClientResponse | array
         {
             $query_data = array_replace_recursive(array(
                 'headers' => array(
@@ -82,7 +82,7 @@
                 {
                     // Send this message silently
                     $cmd = "curl -L -X POST -H 'Content-Type: application/json' -H 'Authorization: ".$query_data['headers']['Authorization']."'";
-                    $cmd .= " -d '" . json_encode($query_data[RequestOptions::JSON] ?? "") . "' '".$this->urls[$_mode] . "/" . $endpoint . "'";
+                    $cmd .= " -d '" . json_encode($query_data[RequestOptions::JSON] ?? "") . "' '".$this->urls[$_mode] . "/" . ltrim($_endpoint, "/") . "'";
                     $cmd .= " > /dev/null 2>&1 &"; // Don't wait for response
 
                     exec($cmd, $output, $exit);
