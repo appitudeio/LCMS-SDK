@@ -13,7 +13,7 @@
         private function email(){}
         private function sms(){}
 
-        function __call(string $_method, array $_arguments): ClientResponse
+        function __call(string $_method, array $_arguments): ClientResponse | array
         {
             $this->timings = array(microtime(true));
             $_method = strtolower($_method);
