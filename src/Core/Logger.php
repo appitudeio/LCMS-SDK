@@ -228,7 +228,7 @@
         		'level'				=> $_level,
         		'endpoint'			=> $endpoint,
 				'created'			=> gmdate("Y-m-d H:i:s"),
-				'data'				=> (!empty($context)) ? $context : null,
+				'data'				=> (!empty($_context)) ? $_context : null,
 				'user_identifier'	=> self::getInstance()->user ?? null,
 				'tag'				=> self::getInstance()->tag ?? null
         	);
