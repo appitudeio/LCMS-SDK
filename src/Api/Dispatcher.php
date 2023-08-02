@@ -45,7 +45,7 @@
             return $this->sendRequest($mode, $endpoint, $request_data);
         }        
 
-        protected function validate(string $_method, array $_arguments): array
+        public function validate(string $_method, array $_arguments): array
         {
             $mode = "sandbox";
             $request_data = array();
