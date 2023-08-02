@@ -126,7 +126,7 @@
             return new ClientResponse($response_array);
         }
 
-        protected function validate(string $_method, array $_arguments): array
+        public function validate(string $_method, array $_arguments): array
         {
             return array("sandbox", $_arguments);
         }
