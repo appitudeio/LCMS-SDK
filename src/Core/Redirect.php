@@ -56,7 +56,7 @@
 			return self::getInstance();
 		}
 
-		protected function code(int $_code): self
+		public function code(int $_code): self
 		{
 			$this->code = $_code;
 
