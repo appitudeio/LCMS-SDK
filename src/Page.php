@@ -5,10 +5,10 @@
 	namespace LCMS;
 
 	use LCMS\DI;
+	use LCMS\View;
 	use LCMS\Core\Request;
 	use LCMS\Core\Node;
 	use LCMS\Core\Locale;
-	use LCMS\View;
 	use LCMS\Page\SEO;
 	use LCMS\Util\Arr;
 	use \Exception;
@@ -60,7 +60,7 @@
 		/**
 		 * 	
 		 */
-		public function initMeta(View $_view, SEO $seo, Node $node, Request $request): Self
+		public function initMeta(View $_view, SEO $seo, Node $node, Request $request): self
 		{
 			// Meta built by Controller -> i18n -> DB
 			$meta = array_replace_recursive($node->get("meta") ?: array(), array_filter($this->meta));
@@ -152,7 +152,6 @@
 		{
 			if(!empty($_value))
 			{
-				// Set
 				if(!isset($this->settings[$this->locale->getLanguage()]))
 				{
 					$this->settings[$this->locale->getLanguage()] = array();
@@ -196,30 +195,30 @@
             return $this->compilation;
 		}
 
-		public function asArray(): Array
+		public function asArray(): array
 		{
 			return $this->route; 
 		}
 
-		public function render()
+		public function render(): string
 		{
 			return $this->compilation; // HTML from View
 		}
 
-		public function __get($_key)
+		public function __get(string $name): mixed
 		{
-			return $this->route[$_key] ?? null;
+			return $this->route[$name] ?? null;
 		}
 
-		public function __isset($_key)
+		public function __isset($name): bool
 		{
-			return isset($this->route[$_key]);
+			return isset($this->route[$name]);
 		}
 
 		/**
 		 *
 		 */
-		public function __toString(): String
+		public function __toString(): string
 		{
 			if(empty($this->compilation))
 			{

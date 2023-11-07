@@ -9,11 +9,6 @@
 
     class Middleware
     {
-        /*public function process(Request $request, Closure $next)
-        {
-            return $next($request);
-        }*/
-
         function __invoke(Request $request, $next)
         {
             if(!method_exists($this, "process"))

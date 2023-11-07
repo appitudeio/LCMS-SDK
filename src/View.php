@@ -19,14 +19,14 @@
 		private $keys;
 		private $index = 0;
 
-		protected function get(string $_key): mixed
+		protected function get(string $name): mixed
 		{
-			return self::getInstance()->data[$_key] ?? DI::get($_key); //(DI::has($_key)) ? DI::get($_key) : false;
+			return self::getInstance()->data[$name] ?? DI::get($name);
 		}
 
-		protected function has(string $_key): bool
+		protected function has(string $name): bool
 		{
-			return (isset(self::getInstance()->data[$_key]) || DI::has($_key));
+			return (isset(self::getInstance()->data[$name]) || DI::has($name));
 		}
 
 		/**
@@ -35,9 +35,9 @@
 		 * @param  string  $key
 		 * @return mixed
 		 */
-		public function &__get(string $_key): mixed
+		public function &__get(string $name): mixed
 		{
-		 	return $this->data[$_key];
+		 	return $this->data[$name];
 		}
 
 		/**
@@ -47,9 +47,9 @@
 		 * @param  mixed  $value
 		 * @return void
 		 */
-		public function __set(string $_key, mixed $_value)
+		public function __set(string $name, mixed $value): void
 		{
-			$this->with($_key, $_value);
+			$this->with($name, $value);
 		}
 
 		/**
@@ -58,9 +58,9 @@
 		 * @param  string  $key
 		 * @return bool
 		 */
-		public function __isset(string $_key): bool
+		public function __isset(string $name): bool
 		{
-			return isset($this->data[$_key]);
+			return isset($this->data[$name]);
 		}
 
 		/**
@@ -70,7 +70,7 @@
 		 * @param  mixed  $value
 		 * @return $this
 		 */
-		public static function with($key, $value = null): self
+		public static function with(string $key, mixed $value = null): self
 		{
 			if(is_array($key))
 			{
@@ -123,11 +123,6 @@
 
 			return self::getInstance();
 		}
-
-		/*public function setPage(Page $_page): void
-		{
-			$this->page = $_page;
-		}*/
 
 		protected function getPage(): Page
 		{
