@@ -9,7 +9,7 @@
 
 	abstract class Controller
 	{
-		private $magic_methods = ['middleware', 'before', 'after', 'first', 'last'];
+		private array $magic_methods = ['middleware', 'before', 'after', 'first', 'last'];
 		private array $properties = [];
 
 		private function first(...$args){}
