@@ -70,7 +70,7 @@
 		 * @param  mixed  $value
 		 * @return $this
 		 */
-		public static function with(string $key, mixed $value = null): self
+		public static function with(array | string $key, mixed $value = null): self
 		{
 			if(is_array($key))
 			{

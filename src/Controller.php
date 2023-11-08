@@ -46,7 +46,7 @@
 
 		public function __get(string $name): mixed
 		{
-			return $this->properties[$name] ?? false;
+			return $this->properties[$name] ?? null;
 		}
 
 		public function __set(string $name, mixed $value): void

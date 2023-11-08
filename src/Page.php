@@ -200,7 +200,7 @@
 			return $this->route; 
 		}
 
-		public function render(): string
+		public function render(): View
 		{
 			return $this->compilation; // HTML from View
 		}
