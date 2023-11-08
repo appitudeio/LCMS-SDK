@@ -63,6 +63,5 @@
 		{
 			return (bool) isset($this->properties[$name]);
 		}
-
 	}
 ?>
