@@ -1,6 +1,6 @@
 <?php
 	/**
-	 *
+	 *	2023-11-07: Added support for PHP 8.3 with __set + __get
 	 */
 	namespace LCMS;
 
@@ -9,9 +9,12 @@
 
 	abstract class Controller
 	{
-		//protected $route;
-		//protected $page;
-		private $magic_methods = ['middleware', 'before', 'after', 'first', 'last'];
+		private array $magic_methods = ['middleware', 'before', 'after', 'first', 'last'];
+		private array $properties = [];
+
+		private function first(...$args){}
+		private function middleware(...$args){}
+		private function after(...$args){}
 
 	    /**
 	     * Magic method called when a non-existent or inaccessible method is
@@ -24,25 +27,41 @@
 	     *
 	     * @return void
 	     */
-	    public function __call(string $_action, array $_arguments)
+	    public function __call(string $name, array $arguments): mixed
 	    {
-			if(in_array($_action, $this->magic_methods))
+			if(in_array($name, $this->magic_methods))
 			{
-				if(!method_exists($this, $_action))
+				if(!method_exists($this, $name))
 				{
-					return;
+					return false;
 				}
 
-				return $this->$_action(...$_arguments);
+				return $this->$name(...$arguments);
 			}
-	        elseif(!method_exists($this, $_action))
+	        elseif(!method_exists($this, $name))
 	        {
-	        	throw new \Exception("Method ".$_action." not found in controller " . get_class($this));
+	        	throw new \Exception("Method ".$name." not found in controller " . get_class($this));
 	        }
 	    }
 
-		private function first(...$args){}
-		private function middleware(...$args){}
-		private function after(...$args){}
+		public function __get(string $name): mixed
+		{
+			return $this->properties[$name] ?? null;
+		}
+
+		public function __set(string $name, mixed $value): void
+		{
+			$this->properties[$name] = $value;
+		}
+
+		public function __unset(string $name): void
+		{
+			unset($this->properties[$name]);
+		}
+
+		public function __isset(string $name): bool
+		{
+			return (bool) isset($this->properties[$name]);
+		}
 	}
 ?>

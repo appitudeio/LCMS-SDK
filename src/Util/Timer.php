@@ -11,9 +11,9 @@
 
 	class Timer
 	{
-		private static $timers = array();
+		private static array $timers = array();
 
-		public static function set($_identifier)
+		public static function set($_identifier): void
 		{
 			if(isset(self::$timers[$_identifier]))
 			{
@@ -23,7 +23,7 @@
 			self::$timers[$_identifier] = (new TimerObject())->start();
 		}
 
-		public static function get($_identifier)
+		public static function get($_identifier): TimerObject
 		{
 			if(!isset(self::$timers[$_identifier]))
 			{
@@ -36,29 +36,29 @@
 
 	class TimerObject
 	{
-		private $format = "s";
-		private $formats = array("s", "m", "h", "d"); // Seconds, Minutes, Hours, Days
+		private $format = "ms";
+		private $formats = array("ms", "s", "m", "h", "d"); // Milliseconds, Seconds, Minutes, Hours, Days
 		private $timestamp;
 		private $timestamp_to = null;
 
-		public function start()
+		public function start(): self
 		{
 			$this->timestamp = microtime(true);
 
 			return $this;
 		}
 
-		public function stop()
+		public function stop(): void
 		{
 			$this->timestamp_to = microtime(true);
 		}
 
-		public function pause()
+		public function pause(): void
 		{
 
 		}
 
-		public function as($_format)
+		public function as(string $_format): void
 		{
 			if(!in_array($_format, $this->formats))
 			{
@@ -74,11 +74,13 @@
 			{
 				$this->stop();
 			}
-			
-			if($this->format == "s")
+
+			return match($this->format)
 			{
-				return round($this->timestamp_to - $this->timestamp, 1);
-			}
+				'ms' => $this->timestamp_to - $this->timestamp,
+				's' => round($this->timestamp_to - $this->timestamp, 1),
+				default => round($this->timestamp_to - $this->timestamp) / 1000
+			};
 		}
 	}
 ?>
