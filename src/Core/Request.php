@@ -108,7 +108,7 @@
 			{
 				$instance->headers = new HeaderBag($instance->server->getHeaders());
 			}
-
+			
 			if($instance->session === null && isset($_SESSION))
 			{
 				$instance->session = new SessionBag($_SESSION);
@@ -133,7 +133,7 @@
 			$instance->cookies->setSecure(self::$instance->isSecure());
 		}
 
-		public function __call(string $_method, array $_args)
+		/*public function __call(string $_method, array $_args)
 		{
 			if(method_exists($this, $_method))
 			{
@@ -150,7 +150,7 @@
 	 	public static function __callStatic(string $_method, array $_args)
 		{
 			return self::getInstance()->__call($_method, $_args);
-		}
+		}*/
 
 		/**
 		 *	Strip first part of the segment

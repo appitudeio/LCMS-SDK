@@ -33,7 +33,7 @@
 		];
 		private bool $is_default = false;
 
-		public function setLanguages(array $_languages): self
+		protected function setLanguages(array $_languages): self
 		{
 			$this->languages = $_languages;
 
@@ -45,13 +45,13 @@
 			return $this;
 		}
 		
-		public function setLanguage(string $_language, bool $_is_default = false): void
+		protected function setLanguage(string $_language, bool $_is_default = false): void
 		{
 			$this->config[LANGUAGE_CODE] = $_language;
 			$this->is_default = $_is_default;
 		}
 
-		public function setCountry(string $_country_code): void
+		protected function setCountry(string $_country_code): void
 		{
 			if(!$ct = CountryType::find($_country_code))
 			{
@@ -68,48 +68,48 @@
 			];
 		}
 
-		public function setCurrency(string $_currency): void
+		protected function setCurrency(string $_currency): void
 		{
 			$this->config[CURRENCY] = $_currency;
 		}
 
-		public static function getLanguage(): string
+		protected function getLanguage(): string
 		{
-			return self::getInstance()->asArray()[LANGUAGE_CODE] ?? false;
+			return $this->asArray()[LANGUAGE_CODE] ?? false;
 		}
 
-		public static function getLocale(): string | false
+		protected function getLocale(): string | false
 		{
-			return self::getInstance()->asArray()[LOCALE] ?? false;
+			return $this->asArray()[LOCALE] ?? false;
 		}
 
 		/**
 		 * 	Not sure why this looks like this
 		 */
-		public static function getCountry(string $_country_code = null): array | bool
+		protected function getCountry(): array | bool
 		{
 			return self::getInstance()->asArray()[COUNTRY_NAME] ?? false;
 		}
 
-		public function getCurrency(string $_country_code): string | false
+		protected function getCurrency(): string | false
 		{
-			return self::getInstance()->asArray()[CURRENCY] ?? false;
+			return $this->asArray()[CURRENCY] ?? false;
 		}
 
-		public function asArray()
+		protected function asArray()
 		{
 			return array_filter($this->config);
 		}
 
-		public static function isDefault(): bool
+		protected function isDefault(): bool
 		{
-			return self::getInstance()->is_default;
+			return $this->is_default;
 		}
 
 		/**
 		 *	Parse Locale from URL
 		 */
-		public function extract(Request $request): string | bool
+		protected function extract(Request $request): string | bool
 		{
 			if(!$test_language = (count($request->segments()) > 0 && strlen($request->segments()[0]) == 2) ? strtolower($request->segments()[0]) : false)
 			{

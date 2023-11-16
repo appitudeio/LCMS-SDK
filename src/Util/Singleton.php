@@ -6,6 +6,8 @@
 
 	use LCMS\DI;
 
+	use \Exception;
+
 	trait Singleton 
 	{
 	    private static $instance = false;
@@ -27,15 +29,29 @@
 
 			return self::$instance;
 	    }
-
-		static function __callStatic(string $_method, array $_args): mixed
+		
+		public function __call(string $name, array $arguments): mixed
 		{
-			if(empty($_args))
+			if(method_exists($this, $name))
 			{
-				return DI::call([self::getInstance(), $_method]);
+				return $this->$name(...$arguments);
+			}
+			elseif(isset($this->$name))
+			{
+				return $this->$name;
 			}
 			
-			return self::getInstance()->$_method(...$_args);
+			throw new Exception("Undefined class method: " . $name);
+		}		
+
+		static function __callStatic(string $name, array $arguments): mixed
+		{
+			if(empty($arguments))
+			{
+				return DI::call([self::getInstance(), $name]);
+			}
+			
+			return self::getInstance()->$name(...$arguments);
 		}
 	}
 ?>
