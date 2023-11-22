@@ -13,6 +13,11 @@
 	{
 		private static array $timers = array();
 
+		function __construct()
+		{
+			self::$timers[] = (new TimerObject())->start();
+		}
+
 		public static function set($_identifier): void
 		{
 			if(isset(self::$timers[$_identifier]))
@@ -31,6 +36,16 @@
 			}
 
 			return self::$timers[$_identifier];
+		}
+
+		function __invoke($format = "ms"): string
+		{
+			return (string) self::$timers[array_key_first(self::$timers)]->as($format);
+		}
+
+		function __toString(): string
+		{
+			return (string) self::$timers[array_key_first(self::$timers)];
 		}
 	}
 
@@ -58,7 +73,7 @@
 
 		}
 
-		public function as(string $_format): void
+		public function as(string $_format): self
 		{
 			if(!in_array($_format, $this->formats))
 			{
@@ -66,6 +81,8 @@
 			}
 
 			$this->format = $_format;
+
+			return $this;
 		}
 
 		function __toString()
@@ -77,8 +94,8 @@
 
 			return match($this->format)
 			{
-				'ms' => $this->timestamp_to - $this->timestamp,
-				's' => round($this->timestamp_to - $this->timestamp, 1),
+				'ms' => ($this->timestamp_to - $this->timestamp) * 1000 . "ms",
+				's' => round($this->timestamp_to - $this->timestamp, 1) . "s",
 				default => round($this->timestamp_to - $this->timestamp) / 1000
 			};
 		}
