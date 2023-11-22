@@ -7,26 +7,28 @@
 	use LCMS\DI;
 	use LCMS\Page;
 	use LCMS\Util\Singleton;
+
+	use \Iterator;
+	use \Closure;
 	use \Exception;
 
-	class View implements \Iterator
+	class View implements Iterator
 	{
 		use Singleton;
 
-		private $data = array();
-		private $view_file;
-		//private $page;
-		private $keys;
-		private $index = 0;
+		private array 	$data = array();
+		private string 	$view_file;
+		private array 	$keys;
+		private int 	$index = 0;
 
 		protected function get(string $name): mixed
 		{
-			return self::getInstance()->data[$name] ?? DI::get($name);
+			return $this->data[$name] ?? DI::get($name);
 		}
 
 		protected function has(string $name): bool
 		{
-			return (isset(self::getInstance()->data[$name]) || DI::has($name));
+			return (isset($this->data[$name]) || DI::has($name));
 		}
 
 		/**
@@ -89,7 +91,7 @@
 
 				self::getInstance()->data[$key] += $value; // Keeps keys
 			}
-			elseif($value instanceof \Closure)
+			elseif($value instanceof Closure)
 			{
 				self::getInstance()->data[$key] = $value; //();
 			}
@@ -103,8 +105,12 @@
 
 		public static function make(string $_view, mixed $_with = null): self
 		{
-			$file = str_replace(".", "/", $_view);
-			$file = getcwd() . "/../App/Views/" . $file . ".php";  // relative to Root
+			if(!$ext = pathinfo($_view, PATHINFO_EXTENSION))
+			{
+				$_view = str_replace(".", "/", $_view) . ".php";
+			}
+			
+			$file = getcwd() . "/../App/Views/" . $_view;  // relative to Root
 
 			if(!is_readable($file)) 
 			{
