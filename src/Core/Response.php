@@ -6,7 +6,7 @@
 
 	class Response
 	{
-		private static $data;
+		private static array $data;
 
 		public static function json(array $_array): self
 		{
@@ -20,6 +20,11 @@
 			header('content-type: application/json; charset=utf-8');
 			echo json_encode(self::$data, JSON_PRETTY_PRINT);	
 			exit();
+		}
+
+		public function __toString(): string
+		{
+			return json_encode(self::$data);
 		}
 	}
 ?>
