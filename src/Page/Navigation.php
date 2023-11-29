@@ -10,7 +10,6 @@
 
 	use \Iterator;
 	use \Closure;
-	use \Exception;
 
 	class Navigation implements Iterator
 	{
@@ -27,34 +26,16 @@
 			$this->params = array('identifier' => $_identifier);
 		}
 
-		function __invoke(): self
-		{
-			return $this;
-		}
-
 		public function add(string $_title = null, string $_route = null, array $_params = null): self
 		{
-			$item = array(
+			$this->items[] = array(
 				'key'	=> $this->getCurrentKey() + 1,
 				'order'	=> count($this->items)
-			);
-
-			if(!empty($_title))
-			{
-				$item['title'] = $_title;
-			}
-
-			if(!empty($_route))
-			{
-				$item['route'] = $_route;
-			}
-
-			if(!empty($_params))
-			{
-				$item['parameters'] = $_params;
-			}			
-
-			$this->items[] = $item;
+			) + array_filter([
+				'title' => $_title,
+				'route' => $_route,
+				'parameters' => $_params
+			]);
 
 			/**
 			 *	Chain this added item into it's parent
@@ -181,7 +162,7 @@
 			// All parents are active too
 			foreach($active_items AS $item)
 			{
-				$this->recursiveSortActive($item);			
+				$this->recursiveSortActive($item);
 			}
 		}
 
@@ -313,5 +294,10 @@
 
 			return array_column($items, "key");
 		}
+
+		public function __invoke(): self
+		{
+			return $this;
+		}		
 	}
 ?>

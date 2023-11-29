@@ -5,13 +5,12 @@
 	namespace LCMS\Page;
 
 	use LCMS\Page\Navigation;
-	use LCMS\Core\Route;
+	
 	use \Exception;
 
 	class Navigations
 	{
-		private $collection = array();
-		private $route;
+		private array $collection = array();
 
 		public function add(string $_identifier, Navigation $_menu): self
 		{
@@ -27,7 +26,7 @@
 				throw new Exception("Menu ".$_identifier." does not exist among " . implode(", ", array_keys($this->collection)));
 			}
 
-			return $this->collection[$_identifier]($this->route);
+			return $this->collection[$_identifier]();
 		}
 
 		public function has(string $_identifier): bool
@@ -51,13 +50,6 @@
 			{
 				$this->collection[$menu_identifier]->merge($menu_items);
 			}
-
-			return $this;
-		}
-
-		public function setRoute(Route $_route): self
-		{
-			$this->route = $_route;
 
 			return $this;
 		}
