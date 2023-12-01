@@ -5,6 +5,9 @@
 	 */
 	namespace LCMS\Backbone;
 
+    use LCMS\DI;
+	use LCMS\View;
+    use LCMS\Page;
     use LCMS\Api\Merge;
     use LCMS\Api\NodeMerge;
 	use LCMS\Core\Request;
@@ -15,12 +18,9 @@
 	use LCMS\Core\Locale;
     use LCMS\Core\Env;
     use LCMS\Core\Database;
-	use LCMS\View;
-    use LCMS\DI;
-    use LCMS\Page;
-    use LCMS\Middleware;
     use LCMS\Util\Toolset;
     use LCMS\Util\Arr;
+
     use \Closure;
 	use \Exception;
 
@@ -53,7 +53,7 @@
 
                 if($middlewaresResponse instanceof Redirect)
                 {
-                    return $this->trigger("redirect", $middlewaresResponse);
+                    return $this->on("middlewareredirect", $middlewaresResponse);
                 }           
             }                    
 
@@ -120,7 +120,7 @@
                     DI::set($key, $merger);
                 }
             }
-
+            
             return $this;
         }
 
@@ -140,6 +140,8 @@
 
         public function trigger(string $_event, ...$_args): mixed
         {
+            $_event = ($_event == "middlewareredirect") ? "redirect" : $_event;
+
             if(!isset($this->events[strtolower($_event)]))
             {
                 return false;
@@ -150,6 +152,11 @@
 
         public function dispatch(): mixed
         {
+            if(isset($this->events['middlewareredirect']))
+            {
+                $this->trigger("middlewareredirect");
+            }
+
             $locale = DI::get(Locale::class);
             $request = DI::get(Request::class);
             $env = DI::get(Env::class);
