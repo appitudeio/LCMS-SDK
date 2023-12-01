@@ -4,9 +4,6 @@
 	 */
 	namespace LCMS;
 
-	use LCMS\Core\Request;
-	use LCMS\Page;
-
 	abstract class Controller
 	{
 		private array $magic_methods = ['middleware', 'before', 'after', 'first', 'last'];

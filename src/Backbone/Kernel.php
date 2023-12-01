@@ -5,6 +5,9 @@
 	 */
 	namespace LCMS\Backbone;
 
+    use LCMS\DI;
+	use LCMS\View;
+    use LCMS\Page;
     use LCMS\Api\Merge;
     use LCMS\Api\NodeMerge;
 	use LCMS\Core\Request;
@@ -15,12 +18,9 @@
 	use LCMS\Core\Locale;
     use LCMS\Core\Env;
     use LCMS\Core\Database;
-	use LCMS\View;
-    use LCMS\DI;
-    use LCMS\Page;
     use LCMS\Util\Toolset;
     use LCMS\Util\Arr;
-    
+
     use \Closure;
 	use \Exception;
 
@@ -120,7 +120,7 @@
                     DI::set($key, $merger);
                 }
             }
-
+            
             return $this;
         }
 

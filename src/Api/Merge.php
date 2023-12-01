@@ -100,7 +100,7 @@
 		function __construct(object $_instance, mixed $_storage = null)
 		{
 			$this->instance = $_instance;
-
+			
 			if(!empty($_storage))
 			{
 				$this->storage = $_storage;
