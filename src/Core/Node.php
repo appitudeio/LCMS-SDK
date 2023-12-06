@@ -416,7 +416,7 @@
 			return self::getInstance()->added_dynamically;
 		}
 
-		public static function createNodeObject(mixed $_identifier = null, array $_node): NodeObject
+		public static function createNodeObject(mixed $_identifier = null, array $_node = array()): NodeObject
 		{
 			if(!empty(self::getInstance()->parameters))
 			{

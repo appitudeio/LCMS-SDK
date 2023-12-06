@@ -54,7 +54,11 @@
                 if($middlewaresResponse instanceof Redirect)
                 {
                     return $this->on("middlewareredirect", $middlewaresResponse);
-                }           
+                }
+                elseif($middlewaresResponse instanceof Response)
+                {
+                    return $this->on("middlewareresponse", $middlewaresResponse);
+                }
             }                    
 
             // Set rest
@@ -140,7 +144,12 @@
 
         public function trigger(string $_event, ...$_args): mixed
         {
-            $_event = ($_event == "middlewareredirect") ? "redirect" : $_event;
+            $_event = match($_event)
+            {
+                "middlewareredirect" => "redirect",
+                "middlewareresponse" => "response",
+                default => $_event
+            };
 
             if(!isset($this->events[strtolower($_event)]))
             {
@@ -152,9 +161,9 @@
 
         public function dispatch(): mixed
         {
-            if(isset($this->events['middlewareredirect']))
+            if(isset($this->events['middlewareredirect']) || isset($this->events['middlewareresponse']))
             {
-                $this->trigger("middlewareredirect");
+                return (isset($this->events['middlewareredirect'])) ? $this->trigger("middlewareredirect") : $this->trigger("middlewareresponse");
             }
 
             $locale = DI::get(Locale::class);

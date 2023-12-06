@@ -15,7 +15,7 @@
 		private $to;
 		private $code;
 
-		public static function to($_url = null): self
+		public static function to(string $_url = null): self
 		{
 			self::getInstance()->to = (isset(parse_url($_url)['scheme'])) ? $_url : "/" . ltrim($_url, "/");
 
@@ -39,7 +39,7 @@
 		/**
 		 *	This method requires to be static
 		 */
-		public static function with(string | array $key, $value = null): self
+		public static function with(string | array $key, mixed $value = null): self
 		{
 			if(is_array($key))
 			{
