@@ -77,7 +77,7 @@
 			$this->initialize($this, $query, $request, $attributes, $cookies, $files, $server);
 		}
 
-		protected static function initialize($instance, array $query = null, array $request = null, array $attributes = null, array $cookies = null, array $files = null, array $server = null)
+		protected static function initialize(object $instance, array $query = null, array $request = null, array $attributes = null, array $cookies = null, array $files = null, array $server = null): void
 		{
 			if($instance->query === null)
 			{
@@ -133,25 +133,6 @@
 			$instance->cookies->setSecure(self::$instance->isSecure());
 		}
 
-		/*public function __call(string $_method, array $_args)
-		{
-			if(method_exists($this, $_method))
-			{
-				return $this->$_method(...$_args);
-			}
-			elseif(isset($this->$_method))
-			{
-				return $this->$_method;
-			}
-			
-			throw new Exception("Undefined method: " . $_method);
-		}
-
-	 	public static function __callStatic(string $_method, array $_args)
-		{
-			return self::getInstance()->__call($_method, $_args);
-		}*/
-
 		/**
 		 *	Strip first part of the segment
 		 */
@@ -173,7 +154,7 @@
 		 *
 		 * @return string
 		 */
-		protected function root()
+		protected function root(): string
 		{
 			return rtrim($this->getSchemeAndHttpHost().$this->getBaseUrl(), '/');
 		}
@@ -183,7 +164,7 @@
 		 *
 		 * @return string
 		 */
-		protected static function url()
+		protected static function url(): string
 		{
 			return rtrim(preg_replace('/\?.*/', '', self::getInstance()->getUri()), "/");
 		}
@@ -193,7 +174,7 @@
 		 *
 		 * @return string
 		 */
-		protected static function fullUrl()
+		protected static function fullUrl(): string
 		{
 			$query = self::getInstance()->getQueryString();
 
@@ -206,7 +187,7 @@
 		 * @param  array  $query
 		 * @return string
 		 */
-		protected function fullUrlWithQuery(array $query)
+		protected function fullUrlWithQuery(array $query): string
 		{
 			$question = $this->getBaseUrl().$this->getPathInfo() === '/' ? '/?' : '?';
 
@@ -220,7 +201,7 @@
 		 *
 		 * @return string
 		 */
-		protected function path()
+		protected function path(): string
 		{
 			$pattern = trim($this->getPathInfo(), '/');
 
@@ -232,14 +213,11 @@
 		 *
 		 * @return array
 		 */
-		protected function segments()
+		protected function segments(): array
 		{
 			$segments = explode('/', $this->decodedPath());
 
-			return array_values(array_filter($segments, function ($value)
-			{
-				return $value !== '';
-			}));
+			return array_values(array_filter($segments, fn($value) => $value !== ""));
 		}
 
 		/**
@@ -247,7 +225,7 @@
 		 *
 		 * @return string
 		 */
-		protected function decodedPath()
+		protected function decodedPath(): string
 		{
 			return rawurldecode($this->path());
 		}
@@ -267,7 +245,7 @@
 		 *
 		 * @see getRealMethod()
 		 */
-		protected function getMethod()
+		protected function getMethod(): string
 		{
 			if (null !== $this->method)
 			{
@@ -315,7 +293,7 @@
 		 *
 		 * @see getMethod()
 		 */
-		protected function getRealMethod()
+		protected function getRealMethod(): string
 		{
 			return strtoupper($this->server->get('REQUEST_METHOD', 'GET'));
 		}
@@ -327,7 +305,7 @@
 		 *
 		 * @return bool
 		 */
-		protected function isMethod(string $method)
+		protected function isMethod(string $method): string
 		{
 			return $this->getMethod() === strtoupper($method);
 		}
@@ -341,7 +319,7 @@
 		 *
 		 * @throws \LogicException
 		 */
-		protected function getContent(bool $asResource = false)
+		protected function getContent(bool $asResource = false): mixed
 		{
 			$currentContentIsResource = is_resource($this->content);
 
@@ -389,7 +367,7 @@
 		 *
 		 * @return \Symfony\Component\HttpFoundation\ParameterBag
 		 */
-		protected function getInputSource()
+		protected function getInputSource(): mixed
 		{
 			/*if ($this->isJson())
 			{
@@ -409,7 +387,7 @@
 		 *
 		 * @return string The raw URL (i.e. not urldecoded)
 		 */
-		protected function getBaseUrl()
+		protected function getBaseUrl(): string
 		{
 			if (null === $this->baseUrl)
 			{
@@ -426,7 +404,7 @@
 		 *
 		 * @see getQueryString()
 		 */
-		protected function getUri()
+		protected function getUri(): string
 		{
 			if (null !== $qs = $this->getQueryString())
 			{
@@ -450,7 +428,7 @@
 		 *
 		 * @return string The raw path (i.e. not urldecoded)
 		 */
-		protected function getPathInfo()
+		protected function getPathInfo(): string
 		{
 			if (null === $this->pathInfo)
 			{
@@ -460,7 +438,7 @@
 			return $this->pathInfo;
 		}
 
-		protected function resetPathInfo()
+		protected function resetPathInfo(): void
 		{
 			$this->pathInfo = null;
 			$this->requestUri = null;
@@ -474,7 +452,7 @@
 		 *
 		 * @return string|null A normalized query string for the Request
 		 */
-		protected function getQueryString()
+		protected function getQueryString(): string
 		{
 			return $this->server->get("REQUEST_URI", null);
 			/*
@@ -491,7 +469,7 @@
 		 *
 		 * @return string A normalized query string for the Request
 		 */
-		protected static function normalizeQueryString(?string $qs)
+		protected static function normalizeQueryString(?string $qs): string
 		{
 			if ('' === ($qs ?? ''))
 			{
@@ -509,7 +487,7 @@
 		 *
 		 * @return string path info
 		 */
-		protected function preparePathInfo()
+		protected function preparePathInfo(): string
 		{
 			if (null === ($requestUri = $this->getRequestUri()))
 			{
@@ -550,7 +528,7 @@
 		 *
 		 * Copyright (c) 2005-2010 Zend Technologies USA Inc. (https://www.zend.com/)
 		 */
-		protected function prepareRequestUri()
+		protected function prepareRequestUri(): string
 		{
 			$requestUri = '';
 
@@ -609,7 +587,7 @@
 			return $requestUri;
 		}
 
-		protected function resetUri()
+		protected function resetUri(): void
 		{
 			$this->requestUri = null;
 		}
@@ -619,7 +597,7 @@
 		 *
 		 * @return string
 		 */
-		protected function prepareBaseUrl()
+		protected function prepareBaseUrl(): string
 		{
 			$filename = basename($this->server->get('SCRIPT_FILENAME'));
 
@@ -726,7 +704,7 @@
 		 *
 		 * @return string The raw URI (i.e. not URI decoded)
 		 */
-		protected function getRequestUri()
+		protected function getRequestUri(): string
 		{
 			if (null === $this->requestUri)
 			{
@@ -741,7 +719,7 @@
 		 *
 		 * @return string
 		 */
-		protected function getScheme()
+		protected function getScheme(): string
 		{
 			return $this->isSecure() ? 'https' : 'http';
 		}
@@ -756,7 +734,7 @@
 		 *
 		 * @return int|string can be a string if fetched from the server bag
 		 */
-		protected function getPort()
+		protected function getPort(): int | string
 		{
 			/*if ($this->isFromTrustedProxy() && $host = $this->getTrustedValues(self::HEADER_X_FORWARDED_PORT))
 			{
@@ -797,7 +775,7 @@
 		 *
 		 * @return string The scheme and HTTP host
 		 */
-		protected function getSchemeAndHttpHost()
+		protected function getSchemeAndHttpHost(): string
 		{
 			return $this->getScheme().'://'.$this->getHttpHost();
 		}
@@ -809,7 +787,7 @@
 		 *
 		 * @return string
 		 */
-		protected function getHttpHost()
+		protected function getHttpHost(): string
 		{
 			$scheme = $this->getScheme();
 			$port = $this->getPort();
@@ -832,7 +810,7 @@
 		 *
 		 * @return bool
 		 */
-		protected function isSecure(): Bool
+		protected function isSecure(): bool
 		{
 			/*if ($this->isFromTrustedProxy() && $proto = $this->getTrustedValues(self::HEADER_X_FORWARDED_PROTO))
 			{
@@ -856,7 +834,7 @@
 	     *
 	     * @throws SuspiciousOperationException when the host name is invalid or not trusted
 	     */
-	    protected function getHost()
+	    protected function getHost(): string
 	    {
 			/*if ($this->isFromTrustedProxy() && $host = $this->getTrustedValues(self::HEADER_X_FORWARDED_HOST))
 			{
@@ -927,7 +905,7 @@
 		 * @param  mixed  ...$patterns
 		 * @return bool
 		 */
-		protected function is(...$patterns)
+		protected function is(...$patterns): bool
 		{
 			$path = $this->decodedPath();
 
@@ -947,7 +925,7 @@
 		 *
 		 * @return bool
 		 */
-		protected function ajax()
+		protected function ajax(): bool
 		{
 			return $this->isXmlHttpRequest();
 		}
@@ -964,7 +942,7 @@
 	     *
 	     * @api
 	     */
-	    protected function isXmlHttpRequest()
+	    protected function isXmlHttpRequest(): bool
 	    {
 	        return 'XMLHttpRequest' == $this->headers->get('X-Requested-With');
 	    }
@@ -974,7 +952,7 @@
 		 *
 		 * @return bool
 		 */
-		protected function prefetch()
+		protected function prefetch(): bool
 		{
 			return strcasecmp($this->server->get('HTTP_X_MOZ'), 'prefetch') === 0 ||
 				strcasecmp($this->headers->get('Purpose'), 'prefetch') === 0;
@@ -985,7 +963,7 @@
 		 *
 		 * @return bool
 		 */
-		protected function secure()
+		protected function secure(): bool
 		{
 			return $this->isSecure();
 		}
@@ -995,7 +973,7 @@
 		 *
 		 * @return string|null
 		 */
-		protected function ip()
+		protected function ip(): ?string
 		{
 			return $this->getClientIp();
 		}
@@ -1005,7 +983,7 @@
 		 *
 		 * @return array
 		 */
-		protected function ips()
+		protected function ips(): array
 		{
 			return $this->getClientIps();
 		}
@@ -1015,7 +993,7 @@
 		 *
 		 * @return string
 		 */
-		protected function userAgent()
+		protected function userAgent(): string
 		{
 			return $this->headers->get('User-Agent');
 		}
@@ -1026,7 +1004,7 @@
 		 * @param  array  $input
 		 * @return $this
 		 */
-		protected function merge(array $input)
+		protected function merge(array $input): self
 		{
 			$this->getInputSource()->add($input);
 
@@ -1039,7 +1017,7 @@
 		 * @param  array  $input
 		 * @return $this
 		 */
-		protected function replace(array $input)
+		protected function replace(array $input): self
 		{
 			$this->getInputSource()->replace($input);
 
@@ -1059,7 +1037,7 @@
 		 *
 		 * @see getClientIp()
 		 */
-		protected function getClientIps()
+		protected function getClientIps(): array
 		{
 	        if($this->server->get("HTTP_CF_CONNECTING_IP"))
 	        {
@@ -1106,7 +1084,7 @@
 		 * @see getClientIps()
 		 * @see https://wikipedia.org/wiki/X-Forwarded-For
 		 */
-		protected function getClientIp()
+		protected function getClientIp(): ?string
 		{
 			return $this->getClientIps()[0];
 		}
@@ -1119,7 +1097,7 @@
 		*
 		* @return bool true if the request came from a trusted proxy, false otherwise
 		*/
-		protected function isFromTrustedProxy()
+		protected function isFromTrustedProxy(): bool
 		{
 			return self::$trustedProxies && IpUtils::checkIp($this->server->get('REMOTE_ADDR'), self::$trustedProxies);
 		}
@@ -1254,7 +1232,7 @@
 		 * @param  mixed  $default
 		 * @return \Illuminate\Routing\Route|object|string|null
 		 */
-		protected function route($param = null, $default = null)
+		protected function route($param = null, $default = null): mixed
 		{
 			$route = call_user_func($this->getRouteResolver());
 
@@ -1272,7 +1250,7 @@
 		 * @param  string  $key
 		 * @return bool
 		 */
-		public function __isset($key)
+		public function __isset($key): bool
 		{
 			return ! is_null($this->__get($key));
 		}
@@ -1283,7 +1261,7 @@
 		 * @param  string  $key
 		 * @return mixed
 		 */
-		public function __get($key)
+		public function __get($key): mixed
 		{
 			return Arr::flatten($this->all(), $key, fn($key) => $this->route($key));
 		}
@@ -1301,7 +1279,7 @@
 		 *
 		 * @return mixed
 		 */
-		protected function get(string $key, $default = null)
+		protected function get(string $key, $default = null): mixed
 		{
 			if ($this !== $result = $this->attributes->get($key, $this))
 			{
@@ -1321,7 +1299,7 @@
 			return $default;
 		}
 
-		protected function set(string $key, $value)
+		protected function set(string $key, $value): mixed
 		{
 			return $this->attributes->set($key, $value);
 		}		
@@ -1338,7 +1316,7 @@
 		 *
 		 * @return static
 		 */
-		protected function duplicate(array $query = null, array $request = null, array $attributes = null, array $cookies = null, array $files = null, array $server = null)
+		protected function duplicate(array $query = null, array $request = null, array $attributes = null, array $cookies = null, array $files = null, array $server = null): self
 		{
 			$dup = clone $this;
 
@@ -1393,7 +1371,7 @@
 		 * Note that the session is not cloned as duplicated requests
 		 * are most of the time sub-requests of the main one.
 		 */
-		protected function __clone()
+		protected function __clone(): void
 		{
 			$this->query 		= clone $this->query;
 			$this->request 		= clone $this->request;
@@ -1417,22 +1395,22 @@
 			$this->parameters = $parameters;
 		}
 
-		public function all()
+		public function all(): array
 		{
 			return $this->parameters;
 		}
 
-		public function keys()
+		public function keys(): array
 		{
 			return array_keys($this->parameters);
 		}
 
-		public function add(array $parameters = array())
+		public function add(array $parameters = array()): void
 		{
 			$this->parameters = array_replace($this->parameters, $parameters);
 		}
 
-		public function replace(array $parameters = array())
+		public function replace(array $parameters = array()): void
 		{
 			$this->parameters = $parameters;
 		}
@@ -1448,7 +1426,7 @@
 		 *
 		 * @throws \InvalidArgumentException
 		 */
-		public function get($path, $default = null, $deep = false)
+		public function get(string $path, mixed $default = null, bool $deep = false): mixed
 		{
 			if (!$deep || false === $pos = strpos($path, '['))
 			{
@@ -1523,17 +1501,17 @@
 			return $value;
 		}
 
-		public function set($key, $value)
+		public function set(string $key, mixed $value): void
 		{
 			$this->parameters[$key] = $value;
 		}
 
-		public function has($key)
+		public function has(string $key): bool
 		{
 			return array_key_exists($key, $this->parameters);
 		}
 
-		public function remove($key)
+		public function remove(string $key): void
 		{
 			unset($this->parameters[$key]);
 		}
@@ -1547,7 +1525,7 @@
 		 *
 		 * @return string The filtered value
 		 */
-		public function getAlpha($key, $default = '', $deep = false)
+		public function getAlpha(string $key, string $default = '', bool $deep = false): string
 		{
 			return preg_replace('/[^[:alpha:]]/', '', $this->get($key, $default, $deep));
 		}
@@ -1561,7 +1539,7 @@
 		 *
 		 * @return string The filtered value
 		 */
-		public function getAlnum($key, $default = '', $deep = false)
+		public function getAlnum(string $key, string $default = '', bool $deep = false): string
 		{
 			return preg_replace('/[^[:alnum:]]/', '', $this->get($key, $default, $deep));
 		}
@@ -1575,7 +1553,7 @@
 		 *
 		 * @return string The filtered value
 		 */
-		public function getDigits($key, $default = '', $deep = false)
+		public function getDigits(string $key, string $default = '', bool $deep = false): string
 		{
 			// we need to remove - and + because they're allowed in the filter
 			return str_replace(array('-', '+'), '', $this->filter($key, $default, $deep, FILTER_SANITIZE_NUMBER_INT));
@@ -1590,7 +1568,7 @@
 		 *
 		 * @return int The filtered value
 		 */
-		public function getInt($key, $default = 0, $deep = false)
+		public function getInt(string $key, int $default = 0, bool $deep = false): int
 		{
 			return (int) $this->get($key, $default, $deep);
 		}
@@ -1608,7 +1586,7 @@
 		 *
 		 * @return mixed
 		 */
-		public function filter($key, $default = null, $deep = false, $filter = FILTER_DEFAULT, $options = array())
+		public function filter(string $key, mixed $default = null, bool $deep = false, int $filter = FILTER_DEFAULT, array $options = array()): mixed
 		{
 			$value = $this->get($key, $default, $deep);
 
@@ -1632,12 +1610,12 @@
 		 *
 		 * @return \ArrayIterator An \ArrayIterator instance
 		 */
-		public function getIterator()
+		public function getIterator(): \ArrayIterator
 		{
 			return new \ArrayIterator($this->parameters);
 		}
 
-		public function count()
+		public function count(): int
 		{
 			return count($this->parameters);
 		}
@@ -1656,11 +1634,9 @@
 					$this->set($k, $v);
 				}
 			}
-
-			//$this->replace($parameters);
 		}
 
-		public function set($key, $value)
+		public function set(string $key, mixed $value): void
 		{
 			if (!is_array($value) && !$value instanceof UploadedFile)
 			{
@@ -1670,7 +1646,7 @@
 			parent::set($key, $this->convertFileInformation($value));
 		}
 
-		public function add(array $files = array())
+		public function add(array $files = array()): void
 		{
 			foreach ($files AS $key => $file)
 			{
@@ -1685,7 +1661,7 @@
 		 *
 		 * @return array A (multi-dimensional) array of UploadedFile instances
 		 */
-		protected function convertFileInformation($file)
+		protected function convertFileInformation(mixed $file): array
 		{
 			if ($file instanceof UploadedFile)
 			{
@@ -1735,7 +1711,7 @@
 		 *
 		 * @return array
 		 */
-		protected function fixPhpFilesArray($data)
+		protected function fixPhpFilesArray(mixed $data): array
 		{
 			if (!is_array($data))
 			{
@@ -1785,33 +1761,34 @@
 			}
 		}
 
-		public function flash(string $key, $value = true)
+		public function flash(string $key, mixed $value = true): void
 		{
 			$this->set($key, $value);
 
 			$this->push("_flash.new", $key);
 		}
 
-		public function push($key, $value)
+		public function push(string $key, mixed $value): void
 		{
-			if(!$this->has($key))
+			if($this->has($key))
 			{
-				return $this->set($key, $value);
+				$values = (array) $this->get($key);
+				$this->set($key, array_unique(array_merge($values, array($key, $value))));
 			}
-
-			$values = (array) $this->get($key);
-
-			$this->set($key, array_unique(array_merge($values, array($key, $value))));
+			else
+			{
+				$this->set($key, $value);
+			}
 		}
 
-		public function set($key, $value)
+		public function set(string $key, mixed $value): void
 		{
 			$_SESSION[$key] = $value;
 
 			parent::set($key, $value);
 		}
 
-		public function forget($key)
+		public function forget(mixed $key): void
 		{
 			if(is_array($key))
 			{
@@ -1826,7 +1803,7 @@
 			}
 		}
 
-		public function destroy()
+		public function destroy(): void
 		{
 			session_write_close();
 		}
@@ -1852,7 +1829,7 @@
 			));
 		}
 
-		public function setDomain($_domain)
+		public function setDomain($_domain): void
 		{
 			// Remove subdomain
 			$_domain = implode('.', array_slice(explode('.', parse_url($_domain)['path']), -2));
@@ -1860,12 +1837,12 @@
 			$this->defaults['domain'] = "." . $_domain;
 		}
 
-		public function setSecure($_secure)
+		public function setSecure($_secure): void
 		{
 			$this->defaults['secure'] = $_secure;
 		}
 
-		public function set($key, $value, $options = array())
+		public function set(string $key, mixed $value, array $options = array()): void
 		{
 			$value = (is_array($value)) ? json_encode($value) : $value;
 
@@ -1874,7 +1851,7 @@
 			parent::set($key, $value);
 		}
 
-		public function forget($key, $options = array())
+		public function forget(string $key, array $options = array()): void
 		{
 			setCookie($key, "", array_merge($this->defaults, $options, array(
 				'expires' => time() - 3600
@@ -1891,7 +1868,7 @@
 		 *
 		 * @return array
 		 */
-		public function getHeaders()
+		public function getHeaders(): array
 		{
 			$headers = array();
 			$contentHeaders = array('CONTENT_LENGTH' => true, 'CONTENT_MD5' => true, 'CONTENT_TYPE' => true);
@@ -1999,7 +1976,7 @@
 		 *
 		 * @return string The headers
 		 */
-		public function __toString()
+		public function __toString(): string
 		{
 			if (empty($this->headers))
 			{
@@ -2025,17 +2002,17 @@
 			return $content;
 		}
 
-		public function all()
+		public function all(): array
 		{
 			return $this->headers;
 		}
 
-		public function keys()
+		public function keys(): array
 		{
 			return array_keys($this->headers);
 		}
 
-		public function add(array $headers)
+		public function add(array $headers): void
 		{
 			foreach ($headers AS $key => $values)
 			{
@@ -2052,7 +2029,7 @@
 		 *
 		 * @return string|array The first header value if $first is true, an array of values otherwise
 		 */
-		public function get($key, $default = null, $first = true)
+		public function get(string $key, mixed $default = null, bool $first = true): mixed
 		{
 			$key = str_replace('_', '-', strtolower($key));
 
@@ -2081,7 +2058,7 @@
 		 * @param string|array $values  The value or an array of values
 		 * @param bool         $replace Whether to replace the actual value or not (true by default)
 		 */
-		public function set($key, $values, $replace = true)
+		public function set(string $key, mixed $values, bool $replace = true): void
 		{
 			$key = str_replace('_', '-', strtolower($key));
 
@@ -2102,17 +2079,17 @@
 			}
 		}
 
-		public function has($key)
+		public function has(string $key): bool
 		{
 			return array_key_exists(str_replace('_', '-', strtolower($key)), $this->headers);
 		}
 
-		public function contains($key, $value)
+		public function contains(string $key, mixed $value): bool
 		{
 			return in_array($value, $this->get($key, null, false));
 		}
 
-		public function remove($key)
+		public function remove(string $key): void
 		{
 			$key = str_replace('_', '-', strtolower($key));
 
@@ -2129,7 +2106,7 @@
 		 *
 		 * @return int The number of headers
 		 */
-		public function count()
+		public function count(): int
 		{
 			return count($this->headers);
 		}
@@ -2141,7 +2118,7 @@
 		 *
 		 * @return array An array representing the attribute values
 		 */
-		protected function parseCacheControl($header)
+		protected function parseCacheControl(string $header): array
 		{
 			$cacheControl = array();
 
@@ -2165,7 +2142,7 @@
 		 *
 		 * @return string|null
 		 */
-		public function get($key, $default = null, $deep = false)
+		public function get(string $key, mixed $default = null, bool $deep = false): ?string
 		{
 			$value = parent::get($key, $this);
 
@@ -2197,7 +2174,7 @@
 		/**
 		* Replaces the current input values by a new set.
 		*/
-		public function replace(array $inputs = [])
+		public function replace(array $inputs = []): void
 		{
 			$this->parameters = [];
 			$this->add($inputs);
@@ -2206,7 +2183,7 @@
 		/**
 		* Adds input values.
 		*/
-		public function add(array $inputs = [])
+		public function add(array $inputs = []): void
 		{
 			foreach ($inputs AS $input => $value)
 			{
@@ -2266,7 +2243,7 @@
 	     *
 	     * @return \Illuminate\Http\Testing\FileFactory
 	     */
-	    public static function fake()
+	    public static function fake(): FileFactory
 	    {
 	        return new FileFactory;
 	    }
@@ -2278,7 +2255,7 @@
 	     * @param  array|string  $options
 	     * @return string|false
 	     */
-	    public function store($path, $options = [])
+	    public function store(string $path, array | string $options = []): string | false
 	    {
 	        return $this->storeAs($path, $this->hashName(), $this->parseOptions($options));
 	    }
@@ -2290,7 +2267,7 @@
 	     * @param  array|string  $options
 	     * @return string|false
 	     */
-	    public function storePublicly($path, $options = [])
+	    public function storePublicly(string $path, array | string $options = []): string | false
 	    {
 	        $options = $this->parseOptions($options);
 
@@ -2307,7 +2284,7 @@
 	     * @param  array|string  $options
 	     * @return string|false
 	     */
-	    public function storePubliclyAs($path, $name, $options = [])
+	    public function storePubliclyAs(string $path, string $name, array | string $options = []): string | false
 	    {
 	        $options = $this->parseOptions($options);
 
@@ -2324,7 +2301,7 @@
 	     * @param  array|string  $options
 	     * @return string|false
 	     */
-	    public function storeAs($path, $name, $options = [])
+	    public function storeAs(string $path, string $name, array | string $options = []): string | false
 	    {
 	        $options = $this->parseOptions($options);
 
@@ -2342,7 +2319,7 @@
 	     *
 	     * @throws \Illuminate\Contracts\Filesystem\FileNotFoundException
 	     */
-	    public function get()
+	    public function get(): bool | string
 	    {
 	        if (! $this->isValid()) {
 	            throw new FileNotFoundException("File does not exist at path {$this->getPathname()}.");
@@ -2356,7 +2333,7 @@
 	     *
 	     * @return string
 	     */
-	    public function clientExtension()
+	    public function clientExtension(): string
 	    {
 	        return $this->guessClientExtension();
 	    }
@@ -2368,7 +2345,7 @@
 	     * @param  bool  $test
 	     * @return static
 	     */
-	    public static function createFromBase(File $file, $test = false)
+	    public static function createFromBase(File $file, bool $test = false): self
 	    {
 	        return $file instanceof static ? $file : new static(
 	            $file->getPathname(),
@@ -2385,7 +2362,7 @@
 	     * @param  array|string  $options
 	     * @return array
 	     */
-	    protected function parseOptions($options)
+	    protected function parseOptions(array | string $options): array
 	    {
 	        if (is_string($options)) {
 	            $options = ['disk' => $options];
@@ -2404,7 +2381,7 @@
 	     * @param  string|array|null  $default
 	     * @return string|array|null
 	     */
-	    public function server($key = null, $default = null)
+	    public function server(?string $key = null, mixed $default = null): mixed
 	    {
 	        return $this->retrieveItem('server', $key, $default);
 	    }
@@ -2415,7 +2392,7 @@
 	     * @param  string  $key
 	     * @return bool
 	     */
-	    public function hasHeader($key)
+	    public function hasHeader(string $key): bool
 	    {
 	        return ! is_null($this->header($key));
 	    }
@@ -2427,7 +2404,7 @@
 	     * @param  string|array|null  $default
 	     * @return string|array|null
 	     */
-	    public function header($key = null, $default = null)
+	    public function header(?string $key = null, mixed $default = null): mixed
 	    {
 	        return $this->retrieveItem('headers', $key, $default);
 	    }
@@ -2437,7 +2414,7 @@
 	     *
 	     * @return string|null
 	     */
-	    public function bearerToken()
+	    public function bearerToken(): ?string
 	    {
 	        $header = $this->header('Authorization', '');
 
@@ -2452,7 +2429,7 @@
 	     * @param  string|array  $key
 	     * @return bool
 	     */
-	    public function exists($key)
+	    public function exists(string $key): bool
 	    {
 	        return $this->has($key);
 	    }
@@ -2463,7 +2440,7 @@
 	     * @param  string|array  $key
 	     * @return bool
 	     */
-	    public function has($key)
+	    public function has(string $key): bool
 	    {
 	        $keys = is_array($key) ? $key : func_get_args();
 
@@ -2484,7 +2461,7 @@
 	     * @param  string|array  $keys
 	     * @return bool
 	     */
-	    public function hasAny($keys)
+	    public function hasAny(string | array $keys): bool
 	    {
 	        $keys = is_array($keys) ? $keys : func_get_args();
 
@@ -2499,7 +2476,7 @@
 	     * @param  string|array  $key
 	     * @return bool
 	     */
-	    public function filled($key)
+	    public function filled(string | array $key): bool
 	    {
 	        $keys = is_array($key) ? $key : func_get_args();
 
@@ -2518,7 +2495,7 @@
 	     * @param  string|array  $keys
 	     * @return bool
 	     */
-	    public function anyFilled($keys)
+	    public function anyFilled(string | array $keys): bool
 	    {
 	        $keys = is_array($keys) ? $keys : func_get_args();
 
@@ -2537,7 +2514,7 @@
 	     * @param  string|array  $key
 	     * @return bool
 	     */
-	    public function missing($key)
+	    public function missing(string | array $key): bool
 	    {
 	        $keys = is_array($key) ? $key : func_get_args();
 
@@ -2550,7 +2527,7 @@
 	     * @param  string  $key
 	     * @return bool
 	     */
-	    protected function isEmptyString($key)
+	    protected function isEmptyString(string $key): bool
 	    {
 	        $value = $this->input($key);
 
@@ -2562,7 +2539,7 @@
 	     *
 	     * @return array
 	     */
-	    public function keys()
+	    public function keys(): array
 	    {
 	        return array_merge(array_keys($this->input()), $this->files->keys());
 	    }
@@ -2573,7 +2550,7 @@
 	     * @param  array|mixed|null  $keys
 	     * @return array
 	     */
-	    public function all($keys = null)
+	    public function all(mixed $keys = null): array
 	    {
 	        $input = array_replace_recursive($this->input(), $this->allFiles());
 
@@ -2597,7 +2574,7 @@
 	     * @param  mixed  $default
 	     * @return mixed
 	     */
-	    public function input($key = null, $default = null)
+	    public function input(string | null $key = null, mixed $default = null): mixed
 	    {
 			return $this->getInputSource()->all() + $this->query->all();
 
@@ -2615,7 +2592,7 @@
 	     * @param  bool  $default
 	     * @return bool
 	     */
-	    public function boolean($key = null, $default = false)
+	    public function boolean(?string $key = null, bool $default = false): bool
 	    {
 	        return filter_var($this->input($key, $default), FILTER_VALIDATE_BOOLEAN);
 	    }
@@ -2626,7 +2603,7 @@
 	     * @param  array|mixed  $keys
 	     * @return array
 	     */
-	    public function only($keys)
+	    public function only(mixed $keys): array
 	    {
 	        $results = [];
 
@@ -2651,7 +2628,7 @@
 	     * @param  array|mixed  $keys
 	     * @return array
 	     */
-	    public function except($keys)
+	    public function except(mixed $keys): array
 	    {
 	        $keys = is_array($keys) ? $keys : func_get_args();
 
@@ -2669,7 +2646,7 @@
 	     * @param  string|array|null  $default
 	     * @return string|array|null
 	     */
-	    public function query($key = null, $default = null)
+	    public function query(?string $key = null, mixed $default = null): mixed
 	    {
 	        return $this->retrieveItem('query', $key, $default);
 	    }
@@ -2681,7 +2658,7 @@
 	     * @param  string|array|null  $default
 	     * @return string|array|null
 	     */
-	    public function post($key = null, $default = null)
+	    public function post(?string $key = null, mixed $default = null): mixed
 	    {
 	        return $this->retrieveItem('request', $key, $default);
 	    }
@@ -2692,7 +2669,7 @@
 	     * @param  string  $key
 	     * @return bool
 	     */
-	    public function hasCookie($key)
+	    public function hasCookie(string $key): bool
 	    {
 	        return ! is_null($this->cookie($key));
 	    }
@@ -2704,7 +2681,7 @@
 	     * @param  string|array|null  $default
 	     * @return string|array|null
 	     */
-	    public function cookie($key = null, $default = null)
+	    public function cookie(?string $key = null, mixed $default = null): mixed
 	    {
 	        return $this->retrieveItem('cookies', $key, $default);
 	    }
@@ -2714,7 +2691,7 @@
 	     *
 	     * @return array
 	     */
-	    public function allFiles()
+	    public function allFiles(): array
 	    {
 	        $files = $this->files->all();
 
@@ -2727,7 +2704,7 @@
 	     * @param  array  $files
 	     * @return array
 	     */
-	    protected function convertUploadedFiles(array $files)
+	    protected function convertUploadedFiles(array $files): array
 	    {
 			if($this->is_multi($files))
 			{
@@ -2755,7 +2732,7 @@
 	     * @param  string  $key
 	     * @return bool
 	     */
-	    public function hasFile($key)
+	    public function hasFile(string $key): bool
 	    {
 	        if (! is_array($files = $this->file($key))) {
 	            $files = [$files];
@@ -2776,7 +2753,7 @@
 	     * @param  mixed  $file
 	     * @return bool
 	     */
-	    protected function isValidFile($file)
+	    protected function isValidFile(mixed $file): bool
 	    {
 	        return $file instanceof SplFileInfo && $file->getPath() !== '';
 	    }
@@ -2788,7 +2765,7 @@
 	     * @param  mixed  $default
 	     * @return \Illuminate\Http\UploadedFile|\Illuminate\Http\UploadedFile[]|array|null
 	     */
-	    public function file($key = null, $default = null)
+	    public function file(?string $key = null, mixed $default = null): mixed
 	    {
 	        return data_get($this->allFiles(), $key, $default);
 	    }
@@ -2801,7 +2778,7 @@
 	     * @param  string|array|null  $default
 	     * @return string|array|null
 	     */
-	    protected function retrieveItem($source, $key, $default)
+	    protected function retrieveItem(string $source, string $key, mixed $default): mixed
 	    {
 	        if (is_null($key)) 
 			{
@@ -2811,8 +2788,8 @@
 	        return $this->$source->get($key, $default);
 	    }
 
-		protected function is_multi(array $_array) {
-      
+		protected function is_multi(array $_array): bool
+		{
 			$rv = array_filter($_array, 'is_array');
 			  
 			if(count($rv) == 0)

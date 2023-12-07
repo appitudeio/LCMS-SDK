@@ -20,7 +20,7 @@
 		/**
 		 * 	Returns Dependency injection instead of self
 		 */
-	    public static function getInstance()
+	    public static function getInstance(): self
 	    {
 			if(false === self::$instance)
 			{
@@ -46,7 +46,7 @@
 
 		static function __callStatic(string $name, array $arguments): mixed
 		{
-			if(empty($arguments))
+			if(empty($arguments) && method_exists(self::getInstance(), $name))
 			{
 				return DI::call([self::getInstance(), $name]);
 			}
