@@ -335,7 +335,7 @@
             };
 		}
 
-		private function handle(string | null $_identifier = null, array $_properties, string $_fallback): array | string
+		private function handle(?string $_identifier, ?array $_properties, string $_fallback): array | string
 		{
             $stored = true;
             $type = $_properties['type'] ?? $_properties['as'] ?? null;
