@@ -149,6 +149,14 @@
 			$this->requestUri = null;
 		}
 
+		protected function setUrl(string $_string): void
+		{
+			$this->server->set('REQUEST_URI', $_string);
+
+			$this->pathInfo = null; // So the pathInfo gets re-used
+			$this->requestUri = null;
+		}
+
 		/**
 		 * Get the root URL for the application.
 		 *
