@@ -492,10 +492,10 @@
 				}
 			}
 
-			// Construct URL
+			// Construct URL (Prepend Language if needed)
 			$url_parts = array();
 
-			if(!Locale::isDefault())
+			if(!Locale::isDefault() && Locale::getLanguage() != "")
 			{
 				$url_parts[] = Locale::getLanguage();
 			}

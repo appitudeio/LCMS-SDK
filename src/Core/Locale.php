@@ -11,12 +11,12 @@
 
 	use \Exception;
 
-	define("COUNTRY_CODE", 'code');
-	define("COUNTRY_PHONE", 'phone');
-	define("COUNTRY_NAME", 'name');	
-	define("LANGUAGE_CODE", 'language');
-	define("CURRENCY", 'currency');
-	define("LOCALE", "locale");
+	define(__NAMESPACE__ . '\COUNTRY_CODE', 	'code');
+	define(__NAMESPACE__ . '\COUNTRY_PHONE', 	'phone');
+	define(__NAMESPACE__ . '\COUNTRY_NAME', 	'name');	
+	define(__NAMESPACE__ . '\LANGUAGE_CODE', 	'language');
+	define(__NAMESPACE__ . '\CURRENCY', 		'currency');
+	define(__NAMESPACE__ . '\LOCALE', 			'locale');
 
 	class Locale
 	{
@@ -413,7 +413,7 @@
 			return $this->getData(CURRENCY);
 		}
 	
-		public function getData(string | null $_type = null): string 
+		public function getData(string | null $_type = null): string | array
 		{
 			$country = match($this) 
 			{

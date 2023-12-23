@@ -5,8 +5,10 @@
 	*	With heavy inspiration from
 	* 	- https://github.com/illuminate/http/blob/master/Request.php
 	*	- https://github.com/symfony/http-foundation/blob/master/Request.php
+	*	- https://github.com/symfony/http-foundation/blob/7.0/HeaderUtils.php
 	*
-	*	Update 2023-01-05: #2614 (Removed usage of Arr::flatten so arrays can be used in Request->get)	
+	*	Update 2023-01-05: #2614 (Removed usage of Arr::flatten so arrays can be used in Request->get)
+	*		   2023-12-23: Better Typing + proxy fixes (+HeaderUtils, +IpUtils)
 	*/
 	namespace LCMS\Core;
 
@@ -14,10 +16,21 @@
 	use LCMS\Util\Singleton;
 	use LCMS\Util\Arr;
 	use \Exception;
+	use \SplFileInfo;
 
 	class Request
 	{
 		use InteractsWithInput, Singleton;
+
+		const HEADER_FORWARDED = 0b000001; // When using RFC 7239
+		const HEADER_X_FORWARDED_FOR = 0b000010;
+		const HEADER_X_FORWARDED_HOST = 0b000100;
+		const HEADER_X_FORWARDED_PROTO = 0b001000;
+		const HEADER_X_FORWARDED_PORT = 0b010000;
+		const HEADER_X_FORWARDED_PREFIX = 0b100000;
+	
+		const HEADER_X_FORWARDED_AWS_ELB = 0b0011010; // AWS ELB doesn't send X-Forwarded-Host
+		const HEADER_X_FORWARDED_TRAEFIK = 0b0111110; // All "X-Forwarded-*" headers sent by Traefik reverse proxy
 
 		const METHOD_HEAD 		= "HEAD";
 		const METHOD_GET 		= "GET";
@@ -31,26 +44,56 @@
 		const METHOD_CONNECT 	= "CONNECT";
 		const METHOD_AJAX 		= "AJAX";
 
-		public $request;
-		public $query;
-		public $attributes;
-		public $cookies;
-		public $session;
-		public $files;
-		public $server;
-		public $headers;
-		public $content;
+		public InputBag 	$request;
+		public InputBag 	$query;
+		public ParameterBag $attributes;
+		public CookieBag 	$cookies;
+		public SessionBag 	$session;
+		public FileBag 		$files;
+		public ServerBag 	$server;
+		public HeaderBag 	$headers;
+		public mixed 		$content;
 
-		//private static $instance;
-        private $languages 	= null;
-        private $pathInfo 	= null;
-        private $requestUri = null;
-        private $baseUrl 	= null;
-        private $basePath 	= null;
-        private $method 	= null;
-        private static $trustedProxies;
-        private static $httpMethodParameterOverride = false;
-        protected $convertedFiles;
+        private ?string 	$languages 	= null;
+        private ?string 	$pathInfo 	= null;
+        private ?string 	$requestUri = null;
+        private ?string 	$baseUrl 	= null;
+        private ?string 	$basePath	= null;
+        private ?string 	$method 	= null;
+        private array 		$trustedProxies = [];
+		private array		$trustedHostPatterns = [];
+        private bool 		$httpMethodParameterOverride = false;
+		private int 		$trustedHeaderSet = -1;
+		private array 		$trustedHosts = [];
+		private bool 		$isForwardedValid = true;
+		private bool 		$isHostValid = true;
+		private array 		$trustedValuesCache = [];
+		protected array 	$convertedFiles = [];
+
+		private const FORWARDED_PARAMS = [
+			self::HEADER_X_FORWARDED_FOR => 'for',
+			self::HEADER_X_FORWARDED_HOST => 'host',
+			self::HEADER_X_FORWARDED_PROTO => 'proto',
+			self::HEADER_X_FORWARDED_PORT => 'host',
+		];
+	
+		/**
+		 * Names for headers that can be trusted when
+		 * using trusted proxies.
+		 *
+		 * The FORWARDED header is the standard as of rfc7239.
+		 *
+		 * The other headers are non-standard, but widely used
+		 * by popular reverse proxies (like Apache mod_proxy or Amazon EC2).
+		 */
+		private const TRUSTED_HEADERS = [
+			self::HEADER_FORWARDED => 'FORWARDED',
+			self::HEADER_X_FORWARDED_FOR => 'X_FORWARDED_FOR',
+			self::HEADER_X_FORWARDED_HOST => 'X_FORWARDED_HOST',
+			self::HEADER_X_FORWARDED_PROTO => 'X_FORWARDED_PROTO',
+			self::HEADER_X_FORWARDED_PORT => 'X_FORWARDED_PORT',
+			self::HEADER_X_FORWARDED_PREFIX => 'X_FORWARDED_PREFIX',
+		];		
 
 		/**
 		 * Sets the parameters for this request.
@@ -65,7 +108,7 @@
 		 * @param array                $server     The SERVER parameters
 		 * @param string|resource|null $content    The raw body data
 		 */
-		function __construct(array $query = null, array $request = null, array $attributes = null, array $cookies = null, array $files = null, array $server = null)
+		function __construct(array $query = null, array $request = null, array $attributes = null, array $cookies = null, array $files = null, array $server = null, $content = null)
 		{
 			$query 		= $query ?? $_GET;
 			$request 	= $request ?? $_REQUEST;
@@ -74,63 +117,37 @@
 			$files 		= $files ?? $_FILES;
 			$server 	= $server ?? $_SERVER;
 
-			$this->initialize($this, $query, $request, $attributes, $cookies, $files, $server);
+			$this->initialize($this, $query, $request, $attributes, $cookies, $files, $server, $content);
 		}
 
-		protected static function initialize(object $instance, array $query = null, array $request = null, array $attributes = null, array $cookies = null, array $files = null, array $server = null): void
+		protected static function initialize(object $instance, array $query = [], array $request = [], array $attributes = [], array $cookies = [], array $files = [], array $server = [], $content = null): void
 		{
-			if($instance->query === null)
-			{
-				$instance->query = new InputBag($query);
-			}
+			$instance->query = new InputBag($query);
+			$instance->attributes = new ParameterBag($attributes);
+			$instance->cookies = new CookieBag($cookies);
+			$instance->files = new FileBag($files);
+			$instance->server = new ServerBag($server);
+			$instance->headers = new HeaderBag($instance->server->getHeaders());
 
-			if($instance->attributes === null)
-			{
-				$instance->attributes = new ParameterBag($attributes);
-			}
-
-			if($instance->cookies === null)
-			{
-				$instance->cookies = new CookieBag($cookies);
-			}
-
-			if($instance->files === null)
-			{
-				$instance->files = new FileBag($files);
-			}
-
-			if($instance->server === null)
-			{
-				$instance->server = new ServerBag($server);
-			}
-
-			if($instance->headers === null)
-			{
-				$instance->headers = new HeaderBag($instance->server->getHeaders());
-			}
-			
-			if($instance->session === null && isset($_SESSION))
+			if(isset($_SESSION))
 			{
 				$instance->session = new SessionBag($_SESSION);
 			}
-
-			if($instance->request === null)
+	
+			if($instance->headers->get('CONTENT_TYPE') && str_contains($instance->headers->get('CONTENT_TYPE'), 'application/x-www-form-urlencoded') && in_array(strtoupper($instance->server->get('REQUEST_METHOD', 'GET')), ['PUT', 'DELETE', 'PATCH']))
 			{
-		        if($instance->headers->get('CONTENT_TYPE') && str_contains($instance->headers->get('CONTENT_TYPE'), 'application/x-www-form-urlencoded') && in_array(strtoupper($instance->server->get('REQUEST_METHOD', 'GET')), ['PUT', 'DELETE', 'PATCH']))
-		        {
-		        	parse_str($instance->getContent(), $data);
-		            $instance->request = new InputBag($data);
-		        }
-		        else
-		        {
-		        	$instance->request = new InputBag($request);
-		        }
-		    }
+				parse_str($instance->getContent(), $data);
+				$instance->request = new InputBag($data);
+			}
+			else
+			{
+				$instance->request = new InputBag($request);
+			}
+
+			$instance->cookies->setDomain($instance->getHost());
+			$instance->cookies->setSecure($instance->isSecure());
 
 			self::$instance = $instance;
-
-			$instance->cookies->setDomain(self::$instance->getHost());
-			$instance->cookies->setSecure(self::$instance->isSecure());
 		}
 
 		/**
@@ -144,6 +161,14 @@
 		protected function appendUrl(string $_string): void
 		{
 			$this->server->set('REQUEST_URI', str_replace("/" . $_string, "", $this->server->get("REQUEST_URI")));
+
+			$this->pathInfo = null; // So the pathInfo gets re-used
+			$this->requestUri = null;
+		}
+
+		protected function setUrl(string $_string): void
+		{
+			$this->server->set('REQUEST_URI', $_string);
 
 			$this->pathInfo = null; // So the pathInfo gets re-used
 			$this->requestUri = null;
@@ -452,13 +477,11 @@
 		 *
 		 * @return string|null A normalized query string for the Request
 		 */
-		protected function getQueryString(): string
+		protected function getQueryString(): ?string
 		{
-			return $this->server->get("REQUEST_URI", null);
-			/*
 			$qs = static::normalizeQueryString($this->server->get('QUERY_STRING'));
 
-			return '' === $qs ? null : $qs;*/
+			return '' === $qs ? null : $qs;
 		}
 
 		/**
@@ -734,9 +757,9 @@
 		 *
 		 * @return int|string can be a string if fetched from the server bag
 		 */
-		protected function getPort(): int | string
+		protected function getPort(): int | string | null
 		{
-			/*if ($this->isFromTrustedProxy() && $host = $this->getTrustedValues(self::HEADER_X_FORWARDED_PORT))
+			if ($this->isFromTrustedProxy() && $host = $this->getTrustedValues(self::HEADER_X_FORWARDED_PORT))
 			{
 				$host = $host[0];
 			}
@@ -744,8 +767,7 @@
 			{
 				$host = $host[0];
 			}
-			else*/
-			if (!$host = $this->headers->get('HOST'))
+			elseif (!$host = $this->headers->get('HOST'))
 			{
 				return $this->server->get('SERVER_PORT');
 			}
@@ -812,12 +834,12 @@
 		 */
 		protected function isSecure(): bool
 		{
-			/*if ($this->isFromTrustedProxy() && $proto = $this->getTrustedValues(self::HEADER_X_FORWARDED_PROTO))
+			if ($this->isFromTrustedProxy() && $proto = $this->getTrustedValues(self::HEADER_X_FORWARDED_PROTO))
 			{
 				return in_array(strtolower($proto[0]), ['https', 'on', 'ssl', '1'], true);
-			}*/
+			}
 
-			return (Bool) (($this->server->get("HTTP_X_FORWARDED_PROTO") && $this->server->get("HTTP_X_FORWARDED_PROTO") == "https")
+			return (bool) (($this->server->get("HTTP_X_FORWARDED_PROTO") && $this->server->get("HTTP_X_FORWARDED_PROTO") == "https")
 				|| ($this->server->get("HTTP_X_FORWARDED_SSL") && $this->server->get("HTTP_X_FORWARDED_SSL") == "on")
 				|| ($this->server->get("HTTPS") && $this->server->get("HTTPS") == "on"));
 		}
@@ -836,12 +858,11 @@
 	     */
 	    protected function getHost(): string
 	    {
-			/*if ($this->isFromTrustedProxy() && $host = $this->getTrustedValues(self::HEADER_X_FORWARDED_HOST))
+			if ($this->isFromTrustedProxy() && $host = $this->getTrustedValues(self::HEADER_X_FORWARDED_HOST))
 			{
 				$host = $host[0];
 			}
-			else*/
-			if (!$host = $this->headers->get('HOST'))
+			elseif (!$host = $this->headers->get('HOST'))
 			{
 				if (!$host = $this->server->get('SERVER_NAME'))
 				{
@@ -1099,42 +1120,112 @@
 		*/
 		protected function isFromTrustedProxy(): bool
 		{
-			return self::$trustedProxies && IpUtils::checkIp($this->server->get('REMOTE_ADDR'), self::$trustedProxies);
+			return $this->trustedProxies && IpUtils::checkIp($this->server->get('REMOTE_ADDR', ""), $this->trustedProxies);
 		}
 
+		/**
+		 * Sets a list of trusted proxies.
+		 *
+		 * You should only list the reverse proxies that you manage directly.
+		 *
+		 * @param array $proxies          A list of trusted proxies, the string 'REMOTE_ADDR' will be replaced with $_SERVER['REMOTE_ADDR']
+		 * @param int   $trustedHeaderSet A bit field of Request::HEADER_*, to set which headers to trust from your proxies
+		 */
+		protected function setTrustedProxies(array $proxies, int $trustedHeaderSet): void
+		{
+			$this->trustedProxies = array_reduce($proxies, function ($proxies, $proxy) 
+			{
+				if ('REMOTE_ADDR' !== $proxy) 
+				{
+					$proxies[] = $proxy;
+				} 
+				elseif ($this->server->get("REMOTE_ADDR", false))
+				{
+					$proxies[] = $this->server->get("REMOTE_ADDR");
+				}
+
+				return $proxies;
+			}, []);
+
+			$this->trustedHeaderSet = $trustedHeaderSet;
+		}
+
+		/**
+		 * Gets the list of trusted proxies.
+		 *
+		 * @return string[]
+		 */
+		protected function getTrustedProxies(): array
+		{
+			return $this->trustedProxies;
+		}
+
+		/**
+		 * Sets a list of trusted host patterns.
+		 *
+		 * You should only list the hosts you manage using regexs.
+		 *
+		 * @param array $hostPatterns A list of trusted host patterns
+		 */
+		protected function setTrustedHosts(array $hostPatterns): void
+		{
+			$this->trustedHostPatterns = array_map(fn ($hostPattern) => sprintf('{%s}i', $hostPattern), $hostPatterns);
+			
+			// we need to reset trusted hosts on trusted host patterns change
+			$this->trustedHosts = [];
+		}
+
+		/**
+		 * Gets the list of trusted host patterns.
+		 *
+		 * @return string[]
+		 */
+		protected function getTrustedHosts(): array
+		{
+			return $this->trustedHostPatterns;
+		}		
+
+		/**
+		 * This method is rather heavy because it splits and merges headers, and it's called by many other methods such as
+		 * getPort(), isSecure(), getHost(), getClientIps(), getBaseUrl() etc. Thus, we try to cache the results for
+		 * best performance.
+		 */		
 		private function getTrustedValues(int $type, string $ip = null): array
 		{
+			$cacheKey = $type."\0".((self::$trustedHeaderSet & $type) ? $this->headers->get(self::TRUSTED_HEADERS[$type]) : '');
+			$cacheKey .= "\0".$ip."\0".$this->headers->get(self::TRUSTED_HEADERS[self::HEADER_FORWARDED]);
+	
+			if (isset($this->trustedValuesCache[$cacheKey])) 
+			{
+				return $this->trustedValuesCache[$cacheKey];
+			}
+	
 			$clientValues = [];
 			$forwardedValues = [];
-
-			if ((self::$trustedHeaderSet & $type) && $this->headers->has(self::$trustedHeaders[$type]))
+	
+			if ((self::$trustedHeaderSet & $type) && $this->headers->has(self::TRUSTED_HEADERS[$type])) 
 			{
-				foreach (explode(',', $this->headers->get(self::$trustedHeaders[$type])) AS $v)
+				foreach (explode(',', $this->headers->get(self::TRUSTED_HEADERS[$type])) AS $v) 
 				{
 					$clientValues[] = (self::HEADER_X_FORWARDED_PORT === $type ? '0.0.0.0:' : '').trim($v);
 				}
 			}
-
-			if ((self::$trustedHeaderSet & self::HEADER_FORWARDED) && $this->headers->has(self::$trustedHeaders[self::HEADER_FORWARDED]))
+	
+			if ((self::$trustedHeaderSet & self::HEADER_FORWARDED) && (isset(self::FORWARDED_PARAMS[$type])) && $this->headers->has(self::TRUSTED_HEADERS[self::HEADER_FORWARDED])) 
 			{
-				$forwarded = $this->headers->get(self::$trustedHeaders[self::HEADER_FORWARDED]);
-
+				$forwarded = $this->headers->get(self::TRUSTED_HEADERS[self::HEADER_FORWARDED]);
 				$parts = HeaderUtils::split($forwarded, ',;=');
+				$param = self::FORWARDED_PARAMS[$type];
 
-				$forwardedValues = [];
-
-				$param = self::$forwardedParams[$type];
-
-				foreach ($parts AS $subParts)
+				foreach ($parts AS $subParts) 
 				{
-					if (null === $v = HeaderUtils::combine($subParts)[$param] ?? null)
+					if (null === $v = HeaderUtils::combine($subParts)[$param] ?? null) 
 					{
 						continue;
 					}
-
-					if (self::HEADER_X_FORWARDED_PORT === $type)
+					elseif (self::HEADER_X_FORWARDED_PORT === $type) 
 					{
-						if (']' === substr($v, -1) || false === $v = strrchr($v, ':'))
+						if (str_ends_with($v, ']') || false === $v = strrchr($v, ':')) 
 						{
 							$v = $this->isSecure() ? ':443' : ':80';
 						}
@@ -1145,31 +1236,30 @@
 					$forwardedValues[] = $v;
 				}
 			}
-
-			if (null !== $ip)
+	
+			if (null !== $ip) 
 			{
 				$clientValues = $this->normalizeAndFilterClientIps($clientValues, $ip);
 				$forwardedValues = $this->normalizeAndFilterClientIps($forwardedValues, $ip);
 			}
-
-			if ($forwardedValues === $clientValues || !$clientValues)
+			elseif ($forwardedValues === $clientValues || !$clientValues) 
 			{
-				return $forwardedValues;
+				return $this->trustedValuesCache[$cacheKey] = $forwardedValues;
+			}
+			elseif (!$forwardedValues) 
+			{
+				return $this->trustedValuesCache[$cacheKey] = $clientValues;
+			}
+			elseif (!$this->isForwardedValid) 
+			{
+				return $this->trustedValuesCache[$cacheKey] = null !== $ip ? ['0.0.0.0', $ip] : [];
 			}
 
-			if (!$forwardedValues)
-			{
-				return $clientValues;
-			}
+			$this->isForwardedValid = false;
 
-			if (!$this->isForwardedValid)
-			{
-				return null !== $ip ? ['0.0.0.0', $ip] : [];
-			}
-
-			//$this->isForwardedValid = false;
-
-			//throw new ConflictingHeadersException(sprintf('The request has both a trusted "%s" header and a trusted "%s" header, conflicting with each other. You should either configure your proxy to remove one of them, or configure your project to distrust the offending one.', self::$trustedHeaders[self::HEADER_FORWARDED], self::$trustedHeaders[$type]));
+			throw new Exception(sprintf('The request has both a trusted "%s" header and a trusted "%s" header, conflicting with each other. You should either configure your proxy to remove one of them, or configure your project to distrust the offending one.', self::TRUSTED_HEADERS[self::HEADER_FORWARDED], self::TRUSTED_HEADERS[$type]));
+	
+			//throw new ConflictingHeadersException(sprintf('The request has both a trusted "%s" header and a trusted "%s" header, conflicting with each other. You should either configure your proxy to remove one of them, or configure your project to distrust the offending one.', self::TRUSTED_HEADERS[self::HEADER_FORWARDED], self::TRUSTED_HEADERS[$type]));
 		}
 
 		private function normalizeAndFilterClientIps(array $clientIps, string $ip): array
@@ -1208,8 +1298,7 @@
 
 					continue;
 				}
-
-				if (IpUtils::checkIp($clientIp, self::$trustedProxies))
+				elseif (IpUtils::checkIp($clientIp, $this->trustedProxies))
 				{
 					unset($clientIps[$key]);
 
@@ -2370,6 +2459,349 @@
 
 	        return $options;
 	    }
+	}
+
+	class HeaderUtils
+	{
+		public const DISPOSITION_ATTACHMENT = 'attachment';
+		public const DISPOSITION_INLINE = 'inline';
+	
+		/**
+		 * This class should not be instantiated.
+		 */
+		private function __construct(){}
+	
+		/**
+		 * Splits an HTTP header by one or more separators.
+		 *
+		 * Example:
+		 *
+		 *     HeaderUtils::split('da, en-gb;q=0.8', ',;')
+		 *     // => ['da'], ['en-gb', 'q=0.8']]
+		 *
+		 * @param string $separators List of characters to split on, ordered by
+		 *                           precedence, e.g. ',', ';=', or ',;='
+		 *
+		 * @return array Nested array with as many levels as there are characters in
+		 *               $separators
+		 */
+		public static function split(string $header, string $separators): array
+		{
+			if ('' === $separators) {
+				throw new \InvalidArgumentException('At least one separator must be specified.');
+			}
+	
+			$quotedSeparators = preg_quote($separators, '/');
+	
+			preg_match_all('
+				/
+					(?!\s)
+						(?:
+							# quoted-string
+							"(?:[^"\\\\]|\\\\.)*(?:"|\\\\|$)
+						|
+							# token
+							[^"'.$quotedSeparators.']+
+						)+
+					(?<!\s)
+				|
+					# separator
+					\s*
+					(?<separator>['.$quotedSeparators.'])
+					\s*
+				/x', trim($header), $matches, \PREG_SET_ORDER);
+	
+			return self::groupParts($matches, $separators);
+		}
+	
+		/**
+		 * Combines an array of arrays into one associative array.
+		 *
+		 * Each of the nested arrays should have one or two elements. The first
+		 * value will be used as the keys in the associative array, and the second
+		 * will be used as the values, or true if the nested array only contains one
+		 * element. Array keys are lowercased.
+		 *
+		 * Example:
+		 *
+		 *     HeaderUtils::combine([['foo', 'abc'], ['bar']])
+		 *     // => ['foo' => 'abc', 'bar' => true]
+		 */
+		public static function combine(array $parts): array
+		{
+			$assoc = [];
+			foreach ($parts as $part) {
+				$name = strtolower($part[0]);
+				$value = $part[1] ?? true;
+				$assoc[$name] = $value;
+			}
+	
+			return $assoc;
+		}
+	
+		/**
+		 * Decodes a quoted string.
+		 *
+		 * If passed an unquoted string that matches the "token" construct (as
+		 * defined in the HTTP specification), it is passed through verbatim.
+		 */
+		public static function unquote(string $s): string
+		{
+			return preg_replace('/\\\\(.)|"/', '$1', $s);
+		}
+
+		private static function groupParts(array $matches, string $separators, bool $first = true): array
+		{
+			$separator = $separators[0];
+			$separators = substr($separators, 1) ?: '';
+			$i = 0;
+	
+			if ('' === $separators && !$first) {
+				$parts = [''];
+	
+				foreach ($matches as $match) {
+					if (!$i && isset($match['separator'])) {
+						$i = 1;
+						$parts[1] = '';
+					} else {
+						$parts[$i] .= self::unquote($match[0]);
+					}
+				}
+	
+				return $parts;
+			}
+	
+			$parts = [];
+			$partMatches = [];
+	
+			foreach ($matches as $match) {
+				if (($match['separator'] ?? null) === $separator) {
+					++$i;
+				} else {
+					$partMatches[$i][] = $match;
+				}
+			}
+	
+			foreach ($partMatches as $matches) {
+				$parts[] = '' === $separators ? self::unquote($matches[0][0]) : self::groupParts($matches, $separators, false);
+			}
+	
+			return $parts;
+		}
+	}
+
+	class IpUtils
+	{
+		public const PRIVATE_SUBNETS = [
+			'127.0.0.0/8',    // RFC1700 (Loopback)
+			'10.0.0.0/8',     // RFC1918
+			'192.168.0.0/16', // RFC1918
+			'172.16.0.0/12',  // RFC1918
+			'169.254.0.0/16', // RFC3927
+			'0.0.0.0/8',      // RFC5735
+			'240.0.0.0/4',    // RFC1112
+			'::1/128',        // Loopback
+			'fc00::/7',       // Unique Local Address
+			'fe80::/10',      // Link Local Address
+			'::ffff:0:0/96',  // IPv4 translations
+			'::/128',         // Unspecified address
+		];
+	
+		private static array $checkedIps = [];
+	
+		/**
+		 * This class should not be instantiated.
+		 */
+		private function __construct(){}
+	
+		/**
+		 * Checks if an IPv4 or IPv6 address is contained in the list of given IPs or subnets.
+		 *
+		 * @param string|array $ips List of IPs or subnets (can be a string if only a single one)
+		 */
+		public static function checkIp(string $requestIp, string|array $ips): bool
+		{
+			if (!\is_array($ips)) {
+				$ips = [$ips];
+			}
+	
+			$method = substr_count($requestIp, ':') > 1 ? 'checkIp6' : 'checkIp4';
+	
+			foreach ($ips as $ip) {
+				if (self::$method($requestIp, $ip)) {
+					return true;
+				}
+			}
+	
+			return false;
+		}
+	
+		/**
+		 * Compares two IPv4 addresses.
+		 * In case a subnet is given, it checks if it contains the request IP.
+		 *
+		 * @param string $ip IPv4 address or subnet in CIDR notation
+		 *
+		 * @return bool Whether the request IP matches the IP, or whether the request IP is within the CIDR subnet
+		 */
+		public static function checkIp4(string $requestIp, string $ip): bool
+		{
+			$cacheKey = $requestIp.'-'.$ip.'-v4';
+			if (null !== $cacheValue = self::getCacheResult($cacheKey)) {
+				return $cacheValue;
+			}
+	
+			if (!filter_var($requestIp, \FILTER_VALIDATE_IP, \FILTER_FLAG_IPV4)) {
+				return self::setCacheResult($cacheKey, false);
+			}
+	
+			if (str_contains($ip, '/')) {
+				[$address, $netmask] = explode('/', $ip, 2);
+	
+				if ('0' === $netmask) {
+					return self::setCacheResult($cacheKey, false !== filter_var($address, \FILTER_VALIDATE_IP, \FILTER_FLAG_IPV4));
+				}
+	
+				if ($netmask < 0 || $netmask > 32) {
+					return self::setCacheResult($cacheKey, false);
+				}
+			} else {
+				$address = $ip;
+				$netmask = 32;
+			}
+	
+			if (false === ip2long($address)) {
+				return self::setCacheResult($cacheKey, false);
+			}
+	
+			return self::setCacheResult($cacheKey, 0 === substr_compare(sprintf('%032b', ip2long($requestIp)), sprintf('%032b', ip2long($address)), 0, $netmask));
+		}
+	
+		/**
+		 * Compares two IPv6 addresses.
+		 * In case a subnet is given, it checks if it contains the request IP.
+		 *
+		 * @author David Soria Parra <dsp at php dot net>
+		 *
+		 * @see https://github.com/dsp/v6tools
+		 *
+		 * @param string $ip IPv6 address or subnet in CIDR notation
+		 *
+		 * @throws \RuntimeException When IPV6 support is not enabled
+		 */
+		public static function checkIp6(string $requestIp, string $ip): bool
+		{
+			$cacheKey = $requestIp.'-'.$ip.'-v6';
+			if (null !== $cacheValue = self::getCacheResult($cacheKey)) {
+				return $cacheValue;
+			}
+	
+			if (!((\extension_loaded('sockets') && \defined('AF_INET6')) || @inet_pton('::1'))) {
+				throw new \RuntimeException('Unable to check Ipv6. Check that PHP was not compiled with option "disable-ipv6".');
+			}
+	
+			// Check to see if we were given a IP4 $requestIp or $ip by mistake
+			if (!filter_var($requestIp, \FILTER_VALIDATE_IP, \FILTER_FLAG_IPV6)) {
+				return self::setCacheResult($cacheKey, false);
+			}
+	
+			if (str_contains($ip, '/')) {
+				[$address, $netmask] = explode('/', $ip, 2);
+	
+				if (!filter_var($address, \FILTER_VALIDATE_IP, \FILTER_FLAG_IPV6)) {
+					return self::setCacheResult($cacheKey, false);
+				}
+	
+				if ('0' === $netmask) {
+					return (bool) unpack('n*', @inet_pton($address));
+				}
+	
+				if ($netmask < 1 || $netmask > 128) {
+					return self::setCacheResult($cacheKey, false);
+				}
+			} else {
+				if (!filter_var($ip, \FILTER_VALIDATE_IP, \FILTER_FLAG_IPV6)) {
+					return self::setCacheResult($cacheKey, false);
+				}
+	
+				$address = $ip;
+				$netmask = 128;
+			}
+	
+			$bytesAddr = unpack('n*', @inet_pton($address));
+			$bytesTest = unpack('n*', @inet_pton($requestIp));
+	
+			if (!$bytesAddr || !$bytesTest) {
+				return self::setCacheResult($cacheKey, false);
+			}
+	
+			for ($i = 1, $ceil = ceil($netmask / 16); $i <= $ceil; ++$i) {
+				$left = $netmask - 16 * ($i - 1);
+				$left = ($left <= 16) ? $left : 16;
+				$mask = ~(0xFFFF >> $left) & 0xFFFF;
+				if (($bytesAddr[$i] & $mask) != ($bytesTest[$i] & $mask)) {
+					return self::setCacheResult($cacheKey, false);
+				}
+			}
+	
+			return self::setCacheResult($cacheKey, true);
+		}
+	
+		/**
+		 * Anonymizes an IP/IPv6.
+		 *
+		 * Removes the last byte for v4 and the last 8 bytes for v6 IPs
+		 */
+		public static function anonymize(string $ip): string
+		{
+			$wrappedIPv6 = false;
+			if (str_starts_with($ip, '[') && str_ends_with($ip, ']')) {
+				$wrappedIPv6 = true;
+				$ip = substr($ip, 1, -1);
+			}
+	
+			$packedAddress = inet_pton($ip);
+			if (4 === \strlen($packedAddress)) {
+				$mask = '255.255.255.0';
+			} elseif ($ip === inet_ntop($packedAddress & inet_pton('::ffff:ffff:ffff'))) {
+				$mask = '::ffff:ffff:ff00';
+			} elseif ($ip === inet_ntop($packedAddress & inet_pton('::ffff:ffff'))) {
+				$mask = '::ffff:ff00';
+			} else {
+				$mask = 'ffff:ffff:ffff:ffff:0000:0000:0000:0000';
+			}
+			$ip = inet_ntop($packedAddress & inet_pton($mask));
+	
+			if ($wrappedIPv6) {
+				$ip = '['.$ip.']';
+			}
+	
+			return $ip;
+		}
+	
+		private static function getCacheResult(string $cacheKey): ?bool
+		{
+			if (isset(self::$checkedIps[$cacheKey])) {
+				// Move the item last in cache (LRU)
+				$value = self::$checkedIps[$cacheKey];
+				unset(self::$checkedIps[$cacheKey]);
+				self::$checkedIps[$cacheKey] = $value;
+	
+				return self::$checkedIps[$cacheKey];
+			}
+	
+			return null;
+		}
+	
+		private static function setCacheResult(string $cacheKey, bool $result): bool
+		{
+			if (1000 < \count(self::$checkedIps)) {
+				// stop memory leak if there are many keys
+				self::$checkedIps = \array_slice(self::$checkedIps, 500, null, true);
+			}
+	
+			return self::$checkedIps[$cacheKey] = $result;
+		}
 	}
 
 	trait InteractsWithInput
