@@ -1192,7 +1192,7 @@
 		 */		
 		private function getTrustedValues(int $type, string $ip = null): array
 		{
-			$cacheKey = $type."\0".((self::$trustedHeaderSet & $type) ? $this->headers->get(self::TRUSTED_HEADERS[$type]) : '');
+			$cacheKey = $type."\0".(($this->trustedHeaderSet & $type) ? $this->headers->get(self::TRUSTED_HEADERS[$type]) : '');
 			$cacheKey .= "\0".$ip."\0".$this->headers->get(self::TRUSTED_HEADERS[self::HEADER_FORWARDED]);
 	
 			if (isset($this->trustedValuesCache[$cacheKey])) 
@@ -1203,7 +1203,7 @@
 			$clientValues = [];
 			$forwardedValues = [];
 	
-			if ((self::$trustedHeaderSet & $type) && $this->headers->has(self::TRUSTED_HEADERS[$type])) 
+			if (($this->trustedHeaderSet & $type) && $this->headers->has(self::TRUSTED_HEADERS[$type])) 
 			{
 				foreach (explode(',', $this->headers->get(self::TRUSTED_HEADERS[$type])) AS $v) 
 				{
@@ -1211,7 +1211,7 @@
 				}
 			}
 	
-			if ((self::$trustedHeaderSet & self::HEADER_FORWARDED) && (isset(self::FORWARDED_PARAMS[$type])) && $this->headers->has(self::TRUSTED_HEADERS[self::HEADER_FORWARDED])) 
+			if (($this->trustedHeaderSet & self::HEADER_FORWARDED) && (isset(self::FORWARDED_PARAMS[$type])) && $this->headers->has(self::TRUSTED_HEADERS[self::HEADER_FORWARDED])) 
 			{
 				$forwarded = $this->headers->get(self::TRUSTED_HEADERS[self::HEADER_FORWARDED]);
 				$parts = HeaderUtils::split($forwarded, ',;=');
