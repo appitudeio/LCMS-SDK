@@ -286,7 +286,7 @@
 
 			$method = $this->headers->get('X-HTTP-METHOD-OVERRIDE');
 
-			if (!$method && self::$httpMethodParameterOverride)
+			if (!$method && $this->httpMethodParameterOverride)
 			{
 				$method = $this->request->get('_method', $this->query->get('_method', 'POST'));
 			}
@@ -1131,7 +1131,7 @@
 		 * @param array $proxies          A list of trusted proxies, the string 'REMOTE_ADDR' will be replaced with $_SERVER['REMOTE_ADDR']
 		 * @param int   $trustedHeaderSet A bit field of Request::HEADER_*, to set which headers to trust from your proxies
 		 */
-		protected function setTrustedProxies(array $proxies, int $trustedHeaderSet): void
+		protected function setTrustedProxies(array $proxies, int $trustedHeaderSet = null): void
 		{
 			$this->trustedProxies = array_reduce($proxies, function ($proxies, $proxy) 
 			{
@@ -1147,7 +1147,7 @@
 				return $proxies;
 			}, []);
 
-			$this->trustedHeaderSet = $trustedHeaderSet;
+			$this->trustedHeaderSet = $trustedHeaderSet ?? self::HEADER_X_FORWARDED_HOST;
 		}
 
 		/**
