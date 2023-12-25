@@ -15,8 +15,15 @@
 	use LCMS\Core\File;
 	use LCMS\Util\Singleton;
 	use LCMS\Util\Arr;
+
 	use \Exception;
 	use \SplFileInfo;
+	use \IteratorAggregate;
+	use \Countable;
+	use \Stringable;
+	use \ArrayIterator;
+	use \Closure;
+	use \DateTimeInterface;
 
 	class Request
 	{
@@ -74,7 +81,7 @@
 			self::HEADER_X_FORWARDED_FOR => 'for',
 			self::HEADER_X_FORWARDED_HOST => 'host',
 			self::HEADER_X_FORWARDED_PROTO => 'proto',
-			self::HEADER_X_FORWARDED_PORT => 'host',
+			self::HEADER_X_FORWARDED_PORT => 'host'
 		];
 	
 		/**
@@ -122,13 +129,14 @@
 
 		protected static function initialize(object $instance, array $query = [], array $request = [], array $attributes = [], array $cookies = [], array $files = [], array $server = [], $content = null): void
 		{
-			$instance->query = new InputBag($query);
-			$instance->attributes = new ParameterBag($attributes);
-			$instance->cookies = new CookieBag($cookies);
-			$instance->files = new FileBag($files);
-			$instance->server = new ServerBag($server);
-			$instance->headers = new HeaderBag($instance->server->getHeaders());
+			$instance->query 		= new InputBag($query);
+			$instance->attributes 	= new ParameterBag($attributes);
+			$instance->files 		= new FileBag($files);
+			$instance->server 		= new ServerBag($server);
+			$instance->headers 		= new HeaderBag($instance->server->getHeaders());
+			$instance->cookies 		= new CookieBag($cookies, $instance);
 
+			// Won't exist if no session_start() in index
 			if(isset($_SESSION))
 			{
 				$instance->session = new SessionBag($_SESSION);
@@ -144,8 +152,8 @@
 				$instance->request = new InputBag($request);
 			}
 
-			$instance->cookies->setDomain($instance->getHost());
-			$instance->cookies->setSecure($instance->isSecure());
+			//$instance->cookies->setDomain($instance->getHost());
+			//$instance->cookies->setSecure($instance->isSecure());
 
 			self::$instance = $instance;
 		}
@@ -695,10 +703,10 @@
 			// from PATH_INFO or QUERY_STRING
 			if (strlen($requestUri) >= strlen($baseUrl) && (false !== $pos = strpos($requestUri, $baseUrl)) && 0 !== $pos)
 			{
-				$baseUrl = substr($requestUri, 0, $pos + \strlen($baseUrl));
+				$baseUrl = substr($requestUri, 0, $pos + strlen($baseUrl));
 			}
 
-			return rtrim($baseUrl, '/'.\DIRECTORY_SEPARATOR);
+			return rtrim($baseUrl, '/'.DIRECTORY_SEPARATOR);
 		}
 
 		/**
@@ -1210,7 +1218,7 @@
 					$clientValues[] = (self::HEADER_X_FORWARDED_PORT === $type ? '0.0.0.0:' : '').trim($v);
 				}
 			}
-	
+
 			if (($this->trustedHeaderSet & self::HEADER_FORWARDED) && (isset(self::FORWARDED_PARAMS[$type])) && $this->headers->has(self::TRUSTED_HEADERS[self::HEADER_FORWARDED])) 
 			{
 				$forwarded = $this->headers->get(self::TRUSTED_HEADERS[self::HEADER_FORWARDED]);
@@ -1242,7 +1250,8 @@
 				$clientValues = $this->normalizeAndFilterClientIps($clientValues, $ip);
 				$forwardedValues = $this->normalizeAndFilterClientIps($forwardedValues, $ip);
 			}
-			elseif ($forwardedValues === $clientValues || !$clientValues) 
+
+			if ($forwardedValues === $clientValues || !$clientValues) 
 			{
 				return $this->trustedValuesCache[$cacheKey] = $forwardedValues;
 			}
@@ -1441,15 +1450,15 @@
 			}
 
 			$dup->languages = null;
-			$dup->charsets = null;
-			$dup->encodings = null;
-			$dup->acceptableContentTypes = null;
+			//$dup->charsets = null;
+			//$dup->encodings = null;
+			//$dup->acceptableContentTypes = null;
 			$dup->pathInfo = null;
 			$dup->requestUri = null;
 			$dup->baseUrl = null;
 			$dup->basePath = null;
 			$dup->method = null;
-			$dup->format = null;
+			//$dup->format = null;
 
 			return $dup;
 		}
@@ -1475,7 +1484,7 @@
 	/**
 	 *	Bags
 	 */
-	class ParameterBag
+	class ParameterBag implements IteratorAggregate, Countable
 	{
 		protected $parameters = array();
 
@@ -1484,9 +1493,18 @@
 			$this->parameters = $parameters;
 		}
 
-		public function all(): array
+		public function all(string $key = null): array
 		{
-			return $this->parameters;
+			if (null === $key) 
+			{
+				return $this->parameters;
+			}
+			elseif (!is_array($value = $this->parameters[$key] ?? [])) 
+			{
+				throw new Exception(sprintf('Unexpected value for parameter "%s": expecting "array", got "%s".', $key, get_debug_type($value)));
+			}
+	
+			return $value;
 		}
 
 		public function keys(): array
@@ -1494,14 +1512,14 @@
 			return array_keys($this->parameters);
 		}
 
-		public function add(array $parameters = array()): void
-		{
-			$this->parameters = array_replace($this->parameters, $parameters);
-		}
-
 		public function replace(array $parameters = array()): void
 		{
 			$this->parameters = $parameters;
+		}
+
+		public function add(array $parameters = array()): void
+		{
+			$this->parameters = array_replace($this->parameters, $parameters);
 		}
 
 		/**
@@ -1515,9 +1533,11 @@
 		 *
 		 * @throws \InvalidArgumentException
 		 */
-		public function get(string $path, mixed $default = null, bool $deep = false): mixed
+		public function get(string $key, mixed $default = null): mixed
 		{
-			if (!$deep || false === $pos = strpos($path, '['))
+			return array_key_exists($key, $this->parameters) ? $this->parameters[$key] : $default;
+
+			/*if (!$deep || false === $pos = strpos($path, '['))
 			{
 				if(array_key_exists($path, $this->parameters))
 				{
@@ -1587,7 +1607,7 @@
 				throw new Exception(sprintf('Malformed path. Path must end with "]".'));
 			}
 
-			return $value;
+			return $value;*/
 		}
 
 		public function set(string $key, mixed $value): void
@@ -1649,13 +1669,22 @@
 		}
 
 		/**
+		 * Returns the parameter as string.
+		 */
+		public function getString(string $key, string $default = ''): string
+		{
+			$value = $this->get($key, $default);
+
+			if (!is_scalar($value) && !$value instanceof Stringable) 
+			{
+				throw new Exception(sprintf('Parameter value "%s" cannot be converted to "string".', $key));
+			}
+
+			return (string) $value;
+		}		
+
+		/**
 		 * Returns the parameter value converted to integer.
-		 *
-		 * @param string $key     The parameter key
-		 * @param int    $default The default value if the parameter key does not exist
-		 * @param bool   $deep    If true, a path like foo[bar] will find deeper items
-		 *
-		 * @return int The filtered value
 		 */
 		public function getInt(string $key, int $default = 0, bool $deep = false): int
 		{
@@ -1663,45 +1692,69 @@
 		}
 
 		/**
+		 * Returns the parameter value converted to boolean.
+		 */
+		public function getBoolean(string $key, bool $default = false): bool
+		{
+			return $this->filter($key, $default, FILTER_VALIDATE_BOOL, ['flags' => FILTER_REQUIRE_SCALAR]);
+		}		
+
+		/**
 		 * Filter key.
 		 *
-		 * @param string $key     Key.
-		 * @param mixed  $default Default = null.
-		 * @param bool   $deep    Default = false.
-		 * @param int    $filter  FILTER_* constant.
-		 * @param mixed  $options Filter options.
+		 * @param int                                     $filter  FILTER_* constant
+		 * @param int|array{flags?: int, options?: array} $options Flags from FILTER_* constants
 		 *
-		 * @see http://php.net/manual/en/function.filter-var.php
-		 *
-		 * @return mixed
+		 * @see https://php.net/filter-var
 		 */
-		public function filter(string $key, mixed $default = null, bool $deep = false, int $filter = FILTER_DEFAULT, array $options = array()): mixed
+		public function filter(string $key, mixed $default = null, int $filter = FILTER_DEFAULT, mixed $options = []): mixed
 		{
-			$value = $this->get($key, $default, $deep);
-
+			$value = $this->get($key, $default);
+	
 			// Always turn $options into an array - this allows filter_var option shortcuts.
-			if (!is_array($options) && $options)
+			if (!is_array($options) && $options) 
 			{
-				$options = array('flags' => $options);
+				$options = ['flags' => $options];
 			}
-
+	
 			// Add a convenience check for arrays.
-			if (is_array($value) && !isset($options['flags']))
+			if (is_array($value) && !isset($options['flags'])) 
 			{
 				$options['flags'] = FILTER_REQUIRE_ARRAY;
 			}
-
-			return filter_var($value, $filter, $options);
+	
+			if (is_object($value) && !$value instanceof Stringable) 
+			{
+				throw new Exception(sprintf('Parameter value "%s" cannot be filtered.', $key));
+			}
+	
+			if ((FILTER_CALLBACK & $filter) && !(($options['options'] ?? null) instanceof Closure)) 
+			{
+				throw new Exception(sprintf('A Closure must be passed to "%s()" when FILTER_CALLBACK is used, "%s" given.', __METHOD__, get_debug_type($options['options'] ?? null)));
+			}
+	
+			$options['flags'] ??= 0;
+			$nullOnFailure = $options['flags'] & FILTER_NULL_ON_FAILURE;
+			$options['flags'] |= FILTER_NULL_ON_FAILURE;
+	
+			$value = filter_var($value, $filter, $options);
+	
+			if (null !== $value || $nullOnFailure) 
+			{
+				return $value;
+			}
+	
+			throw new Exception(sprintf('Parameter value "%s" is invalid and flag "FILTER_NULL_ON_FAILURE" was not set.', $key));
 		}
 
 		/**
 		 * Returns an iterator for parameters.
 		 *
-		 * @return \ArrayIterator An \ArrayIterator instance
+		 * @return ArrayIterator An ArrayIterator instance
 		 */
-		public function getIterator(): \ArrayIterator
+		public function getIterator(): ArrayIterator
 		{
-			return new \ArrayIterator($this->parameters);
+			return new ArrayIterator($this->parameters);
 		}
 
 		public function count(): int
@@ -1712,18 +1765,18 @@
 
 	class FileBag extends ParameterBag
 	{
-		private static $fileKeys = array('error', 'name', 'size', 'tmp_name', 'type', 'full_path');
+		private const FILE_KEYS = ['error', 'name', 'size', 'tmp_name', 'type'];
 
 		function __construct(array $parameters = array())
 		{
-			if(!empty($parameters))
-			{
-				foreach($parameters AS $k => $v)
-				{
-					$this->set($k, $v);
-				}
-			}
+			$this->replace($parameters);
 		}
+
+		public function replace(array $files = []): void
+		{
+			$this->parameters = [];
+			$this->add($files);
+		}		
 
 		public function set(string $key, mixed $value): void
 		{
@@ -1752,35 +1805,36 @@
 		 */
 		protected function convertFileInformation(mixed $file): array
 		{
-			if ($file instanceof UploadedFile)
+			if ($file instanceof UploadedFile) 
 			{
 				return $file;
 			}
-
+	
 			$file = $this->fixPhpFilesArray($file);
-
-			if(is_array($file))
+			$keys = array_keys($file);
+			sort($keys);
+	
+			if (self::FILE_KEYS == $keys) 
 			{
-				$keys = array_keys($file);
-				sort($keys);
-
-				if(!array_diff($keys, self::$fileKeys))
+				if (UPLOAD_ERR_NO_FILE == $file['error']) 
 				{
-					if (UPLOAD_ERR_NO_FILE == $file['error'])
-					{
-						$file = null;
-					}
-					else
-					{
-						$file = new UploadedFile($file['tmp_name'], $file['name'], $file['error']);
-					}
+					$file = null;
+				} 
+				else 
+				{
+					$file = new UploadedFile($file['tmp_name'], $file['name'], $file['type'], $file['error'], false);
 				}
-				else
+			} 
+			else 
+			{
+				$file = array_map(fn ($v) => $v instanceof UploadedFile || is_array($v) ? $this->convertFileInformation($v) : $v, $file);
+
+				if (array_keys($keys) === $keys) 
 				{
-					$file = array_map(array($this, 'convertFileInformation'), $file);
+					$file = array_filter($file);
 				}
 			}
-			
+	
 			return $file;
 		}
 
@@ -1795,42 +1849,31 @@
 		 *
 		 * It's safe to pass an already converted array, in which case this method
 		 * just returns the original array unmodified.
-		 *
-		 * @param array $data
-		 *
-		 * @return array
 		 */
-		protected function fixPhpFilesArray(mixed $data): array
+		protected function fixPhpFilesArray(array $data): array
 		{
-			if (!is_array($data))
-			{
-				return $data;
-			}
-
+			// Remove extra key added by PHP 8.1.
+			unset($data['full_path']);
 			$keys = array_keys($data);
 			sort($keys);
 
-			if (count(array_diff_key(self::$fileKeys, $keys)) > 0 || !isset($data['name']) || !is_array($data['name']))
-			{
+			if (self::FILE_KEYS != $keys || !isset($data['name']) || !is_array($data['name'])) {
 				return $data;
 			}
 
 			$files = $data;
-
-			foreach (self::$fileKeys AS $k)
-			{
+			foreach (self::FILE_KEYS as $k) {
 				unset($files[$k]);
 			}
 
-			foreach ($data['name'] AS $key => $name)
-			{
-				$files[$key] = $this->fixPhpFilesArray(array(
-					'error' 	=> $data['error'][$key],
-					'name' 		=> $name,
-					'type' 		=> $data['type'][$key],
-					'tmp_name' 	=> $data['tmp_name'][$key],
-					'size' 		=> $data['size'][$key],
-				));
+			foreach ($data['name'] as $key => $name) {
+				$files[$key] = $this->fixPhpFilesArray([
+					'error' => $data['error'][$key],
+					'name' => $name,
+					'type' => $data['type'][$key],
+					'tmp_name' => $data['tmp_name'][$key],
+					'size' => $data['size'][$key],
+				]);
 			}
 
 			return $files;
@@ -1898,55 +1941,419 @@
 		}
 	}
 
-	class CookieBag extends ParameterBag
+	class Cookie extends ParameterBag
 	{
-		private $defaults = array(
-			'expires' 	=> "",
-			'path'		=> "/",
-			'domain' 	=> "",
-			'secure'	=> true,
-			'samesite'	=> 'Lax'
-		);
+		public const SAMESITE_NONE = 'none';
+		public const SAMESITE_LAX = 'lax';
+		public const SAMESITE_STRICT = 'strict';
 
-		function __construct($parameters)
+		protected string $name;
+		protected ?string $value;
+		protected ?string $domain;
+		protected int $expire;
+		protected string $path;
+		protected ?bool $secure;
+		protected bool $httpOnly;
+	
+		private bool $raw;
+		private ?string $sameSite = null;
+		private bool $partitioned = false;
+		private bool $secureDefault = false;
+	
+		private const RESERVED_CHARS_LIST = "=,; \t\r\n\v\f";
+		private const RESERVED_CHARS_FROM = ['=', ',', ';', ' ', "\t", "\r", "\n", "\v", "\f"];
+		private const RESERVED_CHARS_TO = ['%3D', '%2C', '%3B', '%20', '%09', '%0D', '%0A', '%0B', '%0C'];
+
+		/**
+		 * Creates cookie from raw header string.
+		 */
+		public static function fromString(string $cookie, bool $decode = false): static
 		{
-			parent::__construct($parameters);
+			$data = [
+				'expires' => 0,
+				'path' => '/',
+				'domain' => null,
+				'secure' => false,
+				'httponly' => false,
+				'raw' => !$decode,
+				'samesite' => null,
+				'partitioned' => false,
+			];
 
-			$this->defaults = array_merge($this->defaults, array(
-				'expires' 	=> time() + 3600/*,
-				'domain'	=> ".".Env::get("domain")*/
-			));
+			$parts = HeaderUtils::split($cookie, ';=');
+			$part = array_shift($parts);
+
+			$name = $decode ? urldecode($part[0]) : $part[0];
+			$value = isset($part[1]) ? ($decode ? urldecode($part[1]) : $part[1]) : null;
+
+			$data = HeaderUtils::combine($parts) + $data;
+			$data['expires'] = self::expiresTimestamp($data['expires']);
+
+			if (isset($data['max-age']) && ($data['max-age'] > 0 || $data['expires'] > time())) 
+			{
+				$data['expires'] = time() + (int) $data['max-age'];
+			}
+
+			return new static($name, $value, $data['expires'], $data['path'], $data['domain'], $data['secure'], $data['httponly'], $data['raw'], $data['samesite'], $data['partitioned']);
 		}
 
-		public function setDomain($_domain): void
+		/**
+		 * @see self::__construct
+		 *
+		 * @param self::SAMESITE_*|''|null $sameSite
+		 */
+		public static function create(string $name, string $value = null, int|string|DateTimeInterface $expire = 0, ?string $path = '/', string $domain = null, bool $secure = null, bool $httpOnly = true, bool $raw = false, ?string $sameSite = self::SAMESITE_LAX, bool $partitioned = false): self
 		{
-			// Remove subdomain
-			$_domain = implode('.', array_slice(explode('.', parse_url($_domain)['path']), -2));
-
-			$this->defaults['domain'] = "." . $_domain;
+			return new self($name, $value, $expire, $path, $domain, $secure, $httpOnly, $raw, $sameSite, $partitioned);
 		}
 
-		public function setSecure($_secure): void
+		/**
+		 * @param string                        $name     The name of the cookie
+		 * @param string|null                   $value    The value of the cookie
+		 * @param int|string|\DateTimeInterface $expire   The time the cookie expires
+		 * @param string|null                   $path     The path on the server in which the cookie will be available on
+		 * @param string|null                   $domain   The domain that the cookie is available to
+		 * @param bool|null                     $secure   Whether the client should send back the cookie only over HTTPS or null to auto-enable this when the request is already using HTTPS
+		 * @param bool                          $httpOnly Whether the cookie will be made accessible only through the HTTP protocol
+		 * @param bool                          $raw      Whether the cookie value should be sent with no url encoding
+		 * @param self::SAMESITE_*|''|null      $sameSite Whether the cookie will be available for cross-site requests
+		 *
+		 * @throws \InvalidArgumentException
+		 */
+		public function __construct(string $name, string $value = null, int|string|DateTimeInterface $expire = 0, ?string $path = '/', string $domain = null, bool $secure = null, bool $httpOnly = true, bool $raw = false, ?string $sameSite = self::SAMESITE_LAX, bool $partitioned = false)
 		{
-			$this->defaults['secure'] = $_secure;
+			// from PHP source code
+			if ($raw && false !== strpbrk($name, self::RESERVED_CHARS_LIST)) 
+			{
+				throw new Exception(sprintf('The cookie name "%s" contains invalid characters.', $name));
+			}
+			elseif (empty($name)) 
+			{
+				throw new Exception('The cookie name cannot be empty.');
+			}
+
+			$this->name = $name;
+			$this->value = $value;
+			$this->domain = $domain;
+			$this->expire = self::expiresTimestamp($expire);
+			$this->path = empty($path) ? '/' : $path;
+			$this->secure = $secure;
+			$this->httpOnly = $httpOnly;
+			$this->raw = $raw;
+			$this->sameSite = $this->withSameSite($sameSite)->sameSite;
+			$this->partitioned = $partitioned;
+		}	
+
+		/**
+		 * Creates a cookie copy with a new value.
+		 */
+		public function withValue(?string $value): static
+		{
+			$cookie = clone $this;
+			$cookie->value = $value;
+
+			return $cookie;
 		}
 
-		public function set(string $key, mixed $value, array $options = array()): void
+		/**
+		 * Creates a cookie copy with a new domain that the cookie is available to.
+		 */
+		public function withDomain(?string $domain): static
 		{
-			$value = (is_array($value)) ? json_encode($value) : $value;
+			$cookie = clone $this;
+			$cookie->domain = $domain;
 
-			setCookie($key, $value, array_merge($this->defaults, $options));
-
-			parent::set($key, $value);
+			return $cookie;
 		}
 
-		public function forget(string $key, array $options = array()): void
+		/**
+		 * Creates a cookie copy with a new time the cookie expires.
+		 */
+		public function withExpires(int|string|DateTimeInterface $expire = 0): static
 		{
-			setCookie($key, "", array_merge($this->defaults, $options, array(
-				'expires' => time() - 3600
-			)));
+			$cookie = clone $this;
+			$cookie->expire = self::expiresTimestamp($expire);
 
-			$this->remove($key);
+			return $cookie;
+		}
+
+		/**
+		 * Converts expires formats to a unix timestamp.
+		 */
+		private static function expiresTimestamp(int|string|DateTimeInterface $expire = 0): int
+		{
+			// convert expiration time to a Unix timestamp
+			if ($expire instanceof DateTimeInterface) 
+			{
+				$expire = $expire->format('U');
+			} 
+			elseif (!is_numeric($expire)) 
+			{
+				$expire = strtotime($expire);
+
+				if (false === $expire) 
+				{
+					throw new Exception('The cookie expiration time is not valid.');
+				}
+			}
+
+			return 0 < $expire ? (int) $expire : 0;
+		}
+
+		/**
+		 * Creates a cookie copy with a new path on the server in which the cookie will be available on.
+		 */
+		public function withPath(string $path): static
+		{
+			$cookie = clone $this;
+			$cookie->path = '' === $path ? '/' : $path;
+
+			return $cookie;
+		}
+
+		/**
+		 * Creates a cookie copy that only be transmitted over a secure HTTPS connection from the client.
+		 */
+		public function withSecure(bool $secure = true): static
+		{
+			$cookie = clone $this;
+			$cookie->secure = $secure;
+
+			return $cookie;
+		}
+
+		/**
+		 * Creates a cookie copy that be accessible only through the HTTP protocol.
+		 */
+		public function withHttpOnly(bool $httpOnly = true): static
+		{
+			$cookie = clone $this;
+			$cookie->httpOnly = $httpOnly;
+
+			return $cookie;
+		}
+
+		/**
+		 * Creates a cookie copy that uses no url encoding.
+		 */
+		public function withRaw(bool $raw = true): static
+		{
+			if ($raw && false !== strpbrk($this->name, self::RESERVED_CHARS_LIST)) 
+			{
+				throw new Exception(sprintf('The cookie name "%s" contains invalid characters.', $this->name));
+			}
+
+			$cookie = clone $this;
+			$cookie->raw = $raw;
+
+			return $cookie;
+		}
+
+		/**
+		 * Creates a cookie copy with SameSite attribute.
+		 *
+		 * @param self::SAMESITE_*|''|null $sameSite
+		 */
+		public function withSameSite(?string $sameSite): static
+		{
+			if ('' === $sameSite) 
+			{
+				$sameSite = null;
+			} 
+			elseif (null !== $sameSite) 
+			{
+				$sameSite = strtolower($sameSite);
+			}
+
+			if (!in_array($sameSite, [self::SAMESITE_LAX, self::SAMESITE_STRICT, self::SAMESITE_NONE, null], true)) 
+			{
+				throw new Exception('The "sameSite" parameter value is not valid.');
+			}
+
+			$cookie = clone $this;
+			$cookie->sameSite = $sameSite;
+
+			return $cookie;
+		}
+
+		/**
+		 * Creates a cookie copy that is tied to the top-level site in cross-site context.
+		 */
+		public function withPartitioned(bool $partitioned = true): static
+		{
+			$cookie = clone $this;
+			$cookie->partitioned = $partitioned;
+
+			return $cookie;
+		}
+
+		/**
+		 * Returns the cookie as a string.
+		 */
+		public function __toString(): string
+		{
+			if ($this->isRaw()) 
+			{
+				$str = $this->getName();
+			} 
+			else 
+			{
+				$str = str_replace(self::RESERVED_CHARS_FROM, self::RESERVED_CHARS_TO, $this->getName());
+			}
+
+			$str .= '=';
+
+			if ('' === (string) $this->getValue()) 
+			{
+				$str .= 'deleted; expires='.gmdate('D, d M Y H:i:s T', time() - 31536001).'; Max-Age=0';
+			} 
+			else 
+			{
+				$str .= $this->isRaw() ? $this->getValue() : rawurlencode($this->getValue());
+
+				if (0 !== $this->getExpiresTime()) 
+				{
+					$str .= '; expires='.gmdate('D, d M Y H:i:s T', $this->getExpiresTime()).'; Max-Age='.$this->getMaxAge();
+				}
+			}
+
+			if ($this->getPath()) 
+			{
+				$str .= '; path='.$this->getPath();
+			}
+
+			if ($this->getDomain()) 
+			{
+				$str .= '; domain='.$this->getDomain();
+			}
+
+			if ($this->isSecure()) 
+			{
+				$str .= '; secure';
+			}
+
+			if ($this->isHttpOnly()) 
+			{
+				$str .= '; httponly';
+			}
+
+			if (null !== $this->getSameSite()) 
+			{
+				$str .= '; samesite='.$this->getSameSite();
+			}
+
+			if ($this->isPartitioned()) 
+			{
+				$str .= '; partitioned';
+			}
+
+			return $str;
+		}
+
+		/**
+		 * Gets the name of the cookie.
+		 */
+		public function getName(): string
+		{
+			return $this->name;
+		}
+
+		/**
+		 * Gets the value of the cookie.
+		 */
+		public function getValue(): ?string
+		{
+			return $this->value;
+		}
+
+		/**
+		 * Gets the domain that the cookie is available to.
+		 */
+		public function getDomain(): ?string
+		{
+			return $this->domain;
+		}
+
+		/**
+		 * Gets the time the cookie expires.
+		 */
+		public function getExpiresTime(): int
+		{
+			return $this->expire;
+		}
+
+		/**
+		 * Gets the max-age attribute.
+		 */
+		public function getMaxAge(): int
+		{
+			$maxAge = $this->expire - time();
+
+			return 0 >= $maxAge ? 0 : $maxAge;
+		}
+
+		/**
+		 * Gets the path on the server in which the cookie will be available on.
+		 */
+		public function getPath(): string
+		{
+			return $this->path;
+		}
+
+		/**
+		 * Checks whether the cookie should only be transmitted over a secure HTTPS connection from the client.
+		 */
+		public function isSecure(): bool
+		{
+			return $this->secure ?? $this->secureDefault;
+		}
+
+		/**
+		 * Checks whether the cookie will be made accessible only through the HTTP protocol.
+		 */
+		public function isHttpOnly(): bool
+		{
+			return $this->httpOnly;
+		}
+
+		/**
+		 * Whether this cookie is about to be cleared.
+		 */
+		public function isCleared(): bool
+		{
+			return 0 !== $this->expire && $this->expire < time();
+		}
+
+		/**
+		 * Checks if the cookie value should be sent with no url encoding.
+		 */
+		public function isRaw(): bool
+		{
+			return $this->raw;
+		}
+
+		/**
+		 * Checks whether the cookie should be tied to the top-level site in cross-site context.
+		 */
+		public function isPartitioned(): bool
+		{
+			return $this->partitioned;
+		}
+
+		/**
+		 * @return self::SAMESITE_*|null
+		 */
+		public function getSameSite(): ?string
+		{
+			return $this->sameSite;
+		}
+
+		/**
+		 * @param bool $default The default value of the "secure" flag when it is set to null
+		 */
+		public function setSecureDefault(bool $default): void
+		{
+			$this->secureDefault = $default;
 		}
 	}
 
@@ -1954,101 +2361,108 @@
 	{
 		/**
 		 * Gets the HTTP headers.
-		 *
-		 * @return array
 		 */
 		public function getHeaders(): array
 		{
-			$headers = array();
-			$contentHeaders = array('CONTENT_LENGTH' => true, 'CONTENT_MD5' => true, 'CONTENT_TYPE' => true);
+			$headers = [];
 
-			foreach ($this->parameters AS $key => $value)
+			foreach ($this->parameters as $key => $value) 
 			{
-				if (0 === strpos($key, 'HTTP_'))
+				if (str_starts_with($key, 'HTTP_')) 
 				{
 					$headers[substr($key, 5)] = $value;
-				}
-				elseif (isset($contentHeaders[$key])) // CONTENT_* are not prefixed with HTTP_
+				} 
+				elseif (in_array($key, ['CONTENT_TYPE', 'CONTENT_LENGTH', 'CONTENT_MD5'], true)) 
 				{
 					$headers[$key] = $value;
 				}
 			}
-
-			if (isset($this->parameters['PHP_AUTH_USER']))
+	
+			if (isset($this->parameters['PHP_AUTH_USER'])) 
 			{
 				$headers['PHP_AUTH_USER'] = $this->parameters['PHP_AUTH_USER'];
-				$headers['PHP_AUTH_PW'] = isset($this->parameters['PHP_AUTH_PW']) ? $this->parameters['PHP_AUTH_PW'] : '';
-			}
-			else
+				$headers['PHP_AUTH_PW'] = $this->parameters['PHP_AUTH_PW'] ?? '';
+			} 
+			else 
 			{
-				/**
-				 *	Use Http-authenticator with Nginx
-				 *	https://www.digitalocean.com/community/tutorials/how-to-set-up-basic-http-authentication-with-nginx-on-ubuntu-14-04
+				/*
+				 * php-cgi under Apache does not pass HTTP Basic user/pass to PHP by default
+				 * For this workaround to work, add these lines to your .htaccess file:
+				 * RewriteCond %{HTTP:Authorization} .+
+				 * RewriteRule ^ - [E=HTTP_AUTHORIZATION:%0]
+				 *
+				 * A sample .htaccess file:
+				 * RewriteEngine On
+				 * RewriteCond %{HTTP:Authorization} .+
+				 * RewriteRule ^ - [E=HTTP_AUTHORIZATION:%0]
+				 * RewriteCond %{REQUEST_FILENAME} !-f
+				 * RewriteRule ^(.*)$ index.php [QSA,L]
 				 */
 				$authorizationHeader = null;
 
-				if (isset($this->parameters['HTTP_AUTHORIZATION']))
+				if (isset($this->parameters['HTTP_AUTHORIZATION'])) 
 				{
 					$authorizationHeader = $this->parameters['HTTP_AUTHORIZATION'];
-				}
-				elseif (isset($this->parameters['REDIRECT_HTTP_AUTHORIZATION']))
+				} 
+				elseif (isset($this->parameters['REDIRECT_HTTP_AUTHORIZATION'])) 
 				{
 					$authorizationHeader = $this->parameters['REDIRECT_HTTP_AUTHORIZATION'];
 				}
-
-				if ($authorizationHeader !== null)
+	
+				if (null !== $authorizationHeader) 
 				{
-					if (stripos($authorizationHeader, 'basic ') === 0)
+					if (0 === stripos($authorizationHeader, 'basic ')) 
 					{
 						// Decode AUTHORIZATION header into PHP_AUTH_USER and PHP_AUTH_PW when authorization header is basic
 						$exploded = explode(':', base64_decode(substr($authorizationHeader, 6)), 2);
 
-						if (count($exploded) == 2)
+						if (2 == count($exploded)) 
 						{
-							list($headers['PHP_AUTH_USER'], $headers['PHP_AUTH_PW']) = $exploded;
+							[$headers['PHP_AUTH_USER'], $headers['PHP_AUTH_PW']] = $exploded;
 						}
-					}
-					elseif (empty($this->parameters['PHP_AUTH_DIGEST']) && (0 === stripos($authorizationHeader, 'digest ')))
+					} 
+					elseif (empty($this->parameters['PHP_AUTH_DIGEST']) && (0 === stripos($authorizationHeader, 'digest '))) 
 					{
 						// In some circumstances PHP_AUTH_DIGEST needs to be set
 						$headers['PHP_AUTH_DIGEST'] = $authorizationHeader;
-
 						$this->parameters['PHP_AUTH_DIGEST'] = $authorizationHeader;
-
-					}
-					elseif (0 === stripos($authorizationHeader, 'bearer '))
+					} 
+					elseif (0 === stripos($authorizationHeader, 'bearer ')) 
 					{
 						/*
-						* XXX: Since there is no PHP_AUTH_BEARER in PHP predefined variables,
-						*      I'll just set $headers['AUTHORIZATION'] here.
-						*      http://php.net/manual/en/reserved.variables.server.php
-						*/
+						 * XXX: Since there is no PHP_AUTH_BEARER in PHP predefined variables,
+						 *      I'll just set $headers['AUTHORIZATION'] here.
+						 *      https://php.net/reserved.variables.server
+						 */
 						$headers['AUTHORIZATION'] = $authorizationHeader;
 					}
 				}
 			}
-
-			if (isset($headers['AUTHORIZATION']))
+	
+			if (isset($headers['AUTHORIZATION'])) 
 			{
 				return $headers;
 			}
-
+	
 			// PHP_AUTH_USER/PHP_AUTH_PW
-			if (isset($headers['PHP_AUTH_USER']))
+			if (isset($headers['PHP_AUTH_USER'])) 
 			{
-				$headers['AUTHORIZATION'] = 'Basic '.base64_encode($headers['PHP_AUTH_USER'].':'.$headers['PHP_AUTH_PW']);
-			}
-			elseif (isset($headers['PHP_AUTH_DIGEST']))
+				$headers['AUTHORIZATION'] = 'Basic '.base64_encode($headers['PHP_AUTH_USER'].':'.($headers['PHP_AUTH_PW'] ?? ''));
+			} 
+			elseif (isset($headers['PHP_AUTH_DIGEST'])) 
 			{
 				$headers['AUTHORIZATION'] = $headers['PHP_AUTH_DIGEST'];
 			}
-
+	
 			return $headers;
 		}
 	}
 
-	class HeaderBag
+	class HeaderBag implements IteratorAggregate, Countable, Stringable
 	{
+		protected const UPPER = '_ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+		protected const LOWER = '-abcdefghijklmnopqrstuvwxyz';
+
 		protected $headers = array();
 		protected $cacheControl = array();
 
@@ -2067,38 +2481,47 @@
 		 */
 		public function __toString(): string
 		{
-			if (empty($this->headers))
+			if (!$headers = $this->all()) 
 			{
 				return '';
 			}
-
-			$max = max(array_map('strlen', array_keys($this->headers))) + 1;
-
+	
+			ksort($headers);
+			$max = max(array_map('strlen', array_keys($headers))) + 1;
 			$content = '';
 
-			ksort($this->headers);
-
-			foreach ($this->headers AS $name => $values)
+			foreach ($headers AS $name => $values) 
 			{
-				$name = implode('-', array_map('ucfirst', explode('-', $name)));
+				$name = ucwords($name, '-');
 
-				foreach ($values AS $value)
+				foreach ($values AS $value) 
 				{
 					$content .= sprintf("%-{$max}s %s\r\n", $name.':', $value);
 				}
 			}
-
+	
 			return $content;
 		}
 
-		public function all(): array
+		/**
+		 * Returns the headers.
+		 *
+		 * @param string|null $key The name of the headers to return or null to get them all
+		 *
+		 * @return ($key is null ? array<string, list<string|null>> : list<string|null>)
+		 */
+		public function all(string $key = null): array
 		{
+			if (null !== $key) {
+				return $this->headers[strtr($key, self::UPPER, self::LOWER)] ?? [];
+			}
+
 			return $this->headers;
 		}
 
 		public function keys(): array
 		{
-			return array_keys($this->headers);
+			return array_keys($this->all());
 		}
 
 		public function add(array $headers): void
@@ -2110,77 +2533,86 @@
 		}
 
 		/**
-		 * Returns a header value by name.
-		 *
-		 * @param string $key     The header name
-		 * @param mixed  $default The default value
-		 * @param bool   $first   Whether to return the first value or all header values
-		 *
-		 * @return string|array The first header value if $first is true, an array of values otherwise
+		 * Replaces the current HTTP headers by a new set.
 		 */
-		public function get(string $key, mixed $default = null, bool $first = true): mixed
+		public function replace(array $headers = []): void
 		{
-			$key = str_replace('_', '-', strtolower($key));
+			$this->headers = [];
+			$this->add($headers);
+		}		
 
-			if (!array_key_exists($key, $this->headers))
-			{
-				if (null === $default)
-				{
-					return $first ? null : array();
-				}
+		/**
+		 * Returns the first header by name or the default one.
+		 */
+		public function get(string $key, string $default = null): ?string
+		{
+			$headers = $this->all($key);
 
-				return $first ? $default : array($default);
+			if (!$headers) {
+				return $default;
 			}
 
-			if ($first)
-			{
-				return count($this->headers[$key]) ? $this->headers[$key][0] : $default;
+			if (null === $headers[0]) {
+				return null;
 			}
 
-			return $this->headers[$key];
+			return (string) $headers[0];
 		}
 
 		/**
 		 * Sets a header by name.
 		 *
-		 * @param string       $key     The key
-		 * @param string|array $values  The value or an array of values
-		 * @param bool         $replace Whether to replace the actual value or not (true by default)
+		 * @param string|string[]|null $values  The value or an array of values
+		 * @param bool                 $replace Whether to replace the actual value or not (true by default)
 		 */
-		public function set(string $key, mixed $values, bool $replace = true): void
+		public function set(string $key, string|array|null $values, bool $replace = true): void
 		{
-			$key = str_replace('_', '-', strtolower($key));
+			$key = strtr($key, self::UPPER, self::LOWER);
 
-			$values = array_values((array) $values);
-
-			if (true === $replace || !isset($this->headers[$key]))
+			if (is_array($values)) 
 			{
-				$this->headers[$key] = $values;
+				$values = array_values($values);
+	
+				if (true === $replace || !isset($this->headers[$key])) 
+				{
+					$this->headers[$key] = $values;
+				} 
+				else 
+				{
+					$this->headers[$key] = array_merge($this->headers[$key], $values);
+				}
+			} 
+			else 
+			{
+				if (true === $replace || !isset($this->headers[$key])) 
+				{
+					$this->headers[$key] = [$values];
+				} 
+				else 
+				{
+					$this->headers[$key][] = $values;
+				}
 			}
-			else
+	
+			if ('cache-control' === $key) 
 			{
-				$this->headers[$key] = array_merge($this->headers[$key], $values);
-			}
-
-			if ('cache-control' === $key)
-			{
-				$this->cacheControl = $this->parseCacheControl($values[0]);
+				$this->cacheControl = $this->parseCacheControl(implode(', ', $this->headers[$key]));
 			}
 		}
 
 		public function has(string $key): bool
 		{
-			return array_key_exists(str_replace('_', '-', strtolower($key)), $this->headers);
+			return array_key_exists(strtr($key, self::UPPER, self::LOWER), $this->all());
 		}
 
 		public function contains(string $key, mixed $value): bool
 		{
-			return in_array($value, $this->get($key, null, false));
+			return in_array($value, $this->all($key));
 		}
 
 		public function remove(string $key): void
 		{
-			$key = str_replace('_', '-', strtolower($key));
+			$key = strtr($key, self::UPPER, self::LOWER);
 
 			unset($this->headers[$key]);
 
@@ -2189,6 +2621,16 @@
 				$this->cacheControl = array();
 			}
 		}
+
+		/**
+		 * Returns an iterator for headers.
+		 *
+		 * @return ArrayIterator<string, list<string|null>>
+		 */
+		public function getIterator(): ArrayIterator
+		{
+			return new ArrayIterator($this->headers);
+		}		
 
 		/**
 		 * Returns the number of headers.
@@ -2222,42 +2664,28 @@
 		}
 	}
 
-	final class InputBag extends ParameterBag
+	class InputBag extends ParameterBag
 	{
 		/**
-		 * Returns a string input value by name.
+		 * Returns a scalar input value by name.
 		 *
-		 * @param string|null $default The default value if the input key does not exist
-		 *
-		 * @return string|null
+		 * @param string|int|float|bool|null $default The default value if the input key does not exist
 		 */
-		public function get(string $key, mixed $default = null, bool $deep = false): ?string
+		public function get(string $key, mixed $default = null): string|int|float|bool|null
 		{
+			if (null !== $default && !is_scalar($default) && !$default instanceof Stringable) 
+			{
+				throw new Exception(sprintf('Expected a scalar value as a 2nd argument to "%s()", "%s" given.', __METHOD__, get_debug_type($default)));
+			}
+
 			$value = parent::get($key, $this);
 
+			if (null !== $value && $this !== $value && !is_scalar($value) && !$value instanceof Stringable) 
+			{
+				throw new Exception(sprintf('Input value "%s" contains a non-scalar value.', $key));
+			}
+
 			return $this === $value ? $default : $value;
-		}
-
-		/**
-		* Returns the inputs.
-		*
-		* @param string|null $key The name of the input to return or null to get them all
-		*/
-		public function all(string $key = null): array
-		{
-			if (null === $key)
-			{
-				return $this->parameters;
-			}
-
-			$value = $this->parameters[$key] ?? [];
-
-			if (!is_array($value))
-			{
-				throw new Exception(sprintf('Unexpected value for "%s" input, expecting "array", got "%s".', $key, get_debug_type($value)));
-			}
-
-			return $value;
 		}
 
 		/**
@@ -2281,184 +2709,368 @@
 		}
 
 		/**
-		* {@inheritdoc}
-		*/
-		/*public function filter(string $key, $default = null, int $filter = FILTER_DEFAULT, $options = [])
+		 * Sets an input by name.
+		 *
+		 * @param string|int|float|bool|array|null $value
+		 */
+		public function set(string $key, mixed $value): void
+		{
+			if (null !== $value && !is_scalar($value) && !is_array($value) && !$value instanceof Stringable) 
+			{
+				throw new Exception(sprintf('Expected a scalar, or an array as a 2nd argument to "%s()", "%s" given.', __METHOD__, get_debug_type($value)));
+			}
+
+			$this->parameters[$key] = $value;
+		}
+
+		public function filter(string $key, mixed $default = null, int $filter = FILTER_DEFAULT, mixed $options = []): mixed
 		{
 			$value = $this->has($key) ? $this->all()[$key] : $default;
-
+	
 			// Always turn $options into an array - this allows filter_var option shortcuts.
-			if (!is_array($options) && $options)
+			if (!is_array($options) && $options) 
 			{
 				$options = ['flags' => $options];
 			}
-
-			/*if (is_array($value) && !(($options['flags'] ?? 0) & (FILTER_REQUIRE_ARRAY | FILTER_FORCE_ARRAY)))
+	
+			if (is_array($value) && !(($options['flags'] ?? 0) & (FILTER_REQUIRE_ARRAY | FILTER_FORCE_ARRAY))) 
 			{
-			trigger_deprecation('symfony/http-foundation', '5.1', 'Filtering an array value with "%s()" without passing the FILTER_REQUIRE_ARRAY or FILTER_FORCE_ARRAY flag is deprecated', __METHOD__);
-
-			if (!isset($options['flags'])) {
-			$options['flags'] = FILTER_REQUIRE_ARRAY;
+				throw new Exception(sprintf('Input value "%s" contains an array, but "FILTER_REQUIRE_ARRAY" or "FILTER_FORCE_ARRAY" flags were not set.', $key));
 			}
-			}*
-
-			return filter_var($value, $filter, $options);
-		}
-
-		public function filter($key, $default = null, $deep = false, $filter = FILTER_DEFAULT, $options = array())
-		{
-			$value = $this->get($key, $default, $deep);
-
-			// Always turn $options into an array - this allows filter_var option shortcuts.
-			if (!is_array($options) && $options)
+	
+			if ((FILTER_CALLBACK & $filter) && !(($options['options'] ?? null) instanceof Closure)) 
 			{
-				$options = array('flags' => $options);
+				throw new Exception(sprintf('A Closure must be passed to "%s()" when FILTER_CALLBACK is used, "%s" given.', __METHOD__, get_debug_type($options['options'] ?? null)));
 			}
-
-			// Add a convenience check for arrays.
-			if (is_array($value) && !isset($options['flags']))
+	
+			$options['flags'] ??= 0;
+			$nullOnFailure = $options['flags'] & FILTER_NULL_ON_FAILURE;
+			$options['flags'] |= FILTER_NULL_ON_FAILURE;
+	
+			$value = filter_var($value, $filter, $options);
+	
+			if (null !== $value || $nullOnFailure) 
 			{
-				$options['flags'] = FILTER_REQUIRE_ARRAY;
+				return $value;
 			}
-
-			return filter_var($value, $filter, $options);
-		}		*/
+	
+			throw new Exception(sprintf('Input value "%s" is invalid and flag "FILTER_NULL_ON_FAILURE" was not set.', $key));
+		}		
 	}
 
+	class CookieBag extends InputBag
+	{
+		private $defaults = array(
+			'expires' 	=> "",
+			'path'		=> "/",
+			'domain' 	=> "",
+			'secure'	=> false,
+			'samesite'	=> 'Lax'
+		);
+
+		function __construct(array $parameters, Request $request)
+		{
+			parent::__construct($parameters);
+
+			// Remove subdomain
+			$domain_parts = explode(".", $request->getHost());
+			$domain_wo_subdomain = (array_key_exists(count($domain_parts) - 2, $domain_parts) ? $domain_parts[count($domain_parts) - 2] : "").".".$domain_parts[count($domain_parts) - 1];
+
+			$this->defaults = array_merge($this->defaults, array(
+				'expires' 	=> time() + 3600, // Min 1hr
+				'domain' 	=> "." . $domain_wo_subdomain,
+				'secure' 	=> $request->isSecure()
+			));
+		}
+
+		public function set(string $key, mixed $value, array $options = array()): void
+		{
+			$value = (is_array($value)) ? json_encode($value) : $value;
+
+			setCookie($key, $value, array_merge($this->defaults, $options));
+
+			parent::set($key, $value);
+		}
+
+		public function get(string $key, mixed $default = null): string|int|float|bool|null
+		{
+			$value = parent::get($key, $default);
+
+			if(is_string($value) && json_validate($value))
+			{
+				return json_decode($value, true);
+			}
+
+			return $value;
+		}
+
+		public function forget(string $key, array $options = array()): void
+		{
+			setCookie($key, "", array_merge($this->defaults, $options, array(
+				'expires' => time() - 3600
+			)));
+
+			$this->remove($key);
+		}
+	}	
+
+	/**
+	 * A file uploaded through a form.
+	 */	
 	class UploadedFile extends File
 	{
-	    /**
-	     * Begin creating a new file fake.
-	     *
-	     * @return \Illuminate\Http\Testing\FileFactory
-	     */
-	    public static function fake(): FileFactory
-	    {
-	        return new FileFactory;
-	    }
+		private bool $test;
+		private string $originalName;
+		private string $mimeType;
+		private int $error;
 
-	    /**
-	     * Store the uploaded file on a filesystem disk.
-	     *
-	     * @param  string  $path
-	     * @param  array|string  $options
-	     * @return string|false
-	     */
-	    public function store(string $path, array | string $options = []): string | false
-	    {
-	        return $this->storeAs($path, $this->hashName(), $this->parseOptions($options));
-	    }
+		/**
+		 * Accepts the information of the uploaded file as provided by the PHP global $_FILES.
+		 *
+		 * The file object is only created when the uploaded file is valid (i.e. when the
+		 * isValid() method returns true). Otherwise the only methods that could be called
+		 * on an UploadedFile instance are:
+		 *
+		 *   * getClientOriginalName,
+		 *   * getClientMimeType,
+		 *   * isValid,
+		 *   * getError.
+		 *
+		 * Calling any other method on an non-valid instance will cause an unpredictable result.
+		 *
+		 * @param string      $path         The full temporary path to the file
+		 * @param string      $originalName The original file name of the uploaded file
+		 * @param string|null $mimeType     The type of the file as provided by PHP; null defaults to application/octet-stream
+		 * @param int|null    $error        The error constant of the upload (one of PHP's UPLOAD_ERR_XXX constants); null defaults to UPLOAD_ERR_OK
+		 * @param bool        $test         Whether the test mode is active
+		 *                                  Local files are used in test mode hence the code should not enforce HTTP uploads
+		 *
+		 * @throws FileException         If file_uploads is disabled
+		 * @throws FileNotFoundException If the file does not exist
+		 */
+		public function __construct(string $path, string $originalName, string $mimeType = null, int $error = null, bool $test = false)
+		{
+			$this->originalName = $this->getName($originalName);
+			$this->mimeType = $mimeType ?: 'application/octet-stream';
+			$this->error = $error ?: UPLOAD_ERR_OK;
+			$this->test = $test;
 
-	    /**
-	     * Store the uploaded file on a filesystem disk with public visibility.
-	     *
-	     * @param  string  $path
-	     * @param  array|string  $options
-	     * @return string|false
-	     */
-	    public function storePublicly(string $path, array | string $options = []): string | false
-	    {
-	        $options = $this->parseOptions($options);
+			parent::__construct($path, UPLOAD_ERR_OK === $this->error);
+		}		
 
-	        $options['visibility'] = 'public';
+		/**
+		 * Returns the original file name.
+		 *
+		 * It is extracted from the request from which the file has been uploaded.
+		 * This should not be considered as a safe value to use for a file name on your servers.
+		 */
+		public function getClientOriginalName(): string
+		{
+			return $this->originalName;
+		}
 
-	        return $this->storeAs($path, $this->hashName(), $options);
-	    }
+		/**
+		 * Returns the original file extension.
+		 *
+		 * It is extracted from the original file name that was uploaded.
+		 * This should not be considered as a safe value to use for a file name on your servers.
+		 */
+		public function getClientOriginalExtension(): string
+		{
+			return pathinfo($this->originalName, PATHINFO_EXTENSION);
+		}
 
-	    /**
-	     * Store the uploaded file on a filesystem disk with public visibility.
-	     *
-	     * @param  string  $path
-	     * @param  string  $name
-	     * @param  array|string  $options
-	     * @return string|false
-	     */
-	    public function storePubliclyAs(string $path, string $name, array | string $options = []): string | false
-	    {
-	        $options = $this->parseOptions($options);
+		/**
+		 * Returns the file mime type.
+		 *
+		 * The client mime type is extracted from the request from which the file
+		 * was uploaded, so it should not be considered as a safe value.
+		 *
+		 * For a trusted mime type, use getMimeType() instead (which guesses the mime
+		 * type based on the file content).
+		 *
+		 * @see getMimeType()
+		 */
+		public function getClientMimeType(): string
+		{
+			return $this->mimeType;
+		}
 
-	        $options['visibility'] = 'public';
+		/**
+		 * Returns the extension based on the client mime type.
+		 *
+		 * If the mime type is unknown, returns null.
+		 *
+		 * This method uses the mime type as guessed by getClientMimeType()
+		 * to guess the file extension. As such, the extension returned
+		 * by this method cannot be trusted.
+		 *
+		 * For a trusted extension, use guessExtension() instead (which guesses
+		 * the extension based on the guessed mime type for the file).
+		 *
+		 * @see guessExtension()
+		 * @see getClientMimeType()
+		 */
+		public function guessClientExtension(): ?string
+		{
+			if (!class_exists(MimeTypes::class)) 
+			{
+				throw new Exception('You cannot guess the extension as the Mime component is not installed. Try running "composer require symfony/mime".');
+			}
 
-	        return $this->storeAs($path, $name, $options);
-	    }
+			return MimeTypes::getDefault()->getExtensions($this->getClientMimeType())[0] ?? null;
+		}
 
-	    /**
-	     * Store the uploaded file on a filesystem disk.
-	     *
-	     * @param  string  $path
-	     * @param  string  $name
-	     * @param  array|string  $options
-	     * @return string|false
-	     */
-	    public function storeAs(string $path, string $name, array | string $options = []): string | false
-	    {
-	        $options = $this->parseOptions($options);
+		/**
+		 * Returns the upload error.
+		 *
+		 * If the upload was successful, the constant UPLOAD_ERR_OK is returned.
+		 * Otherwise one of the other UPLOAD_ERR_XXX constants is returned.
+		 */
+		public function getError(): int
+		{
+			return $this->error;
+		}
 
-	        $disk = Arr::pull($options, 'disk');
+		/**
+		 * Returns whether the file has been uploaded with HTTP and no error occurred.
+		 */
+		public function isValid(): bool
+		{
+			$isOk = UPLOAD_ERR_OK === $this->error;
 
-	        return Container::getInstance()->make(FilesystemFactory::class)->disk($disk)->putFileAs(
-	            $path, $this, $name, $options
-	        );
-	    }
+			return $this->test ? $isOk : $isOk && is_uploaded_file($this->getPathname());
+		}
 
-	    /**
-	     * Get the contents of the uploaded file.
-	     *
-	     * @return bool|string
-	     *
-	     * @throws \Illuminate\Contracts\Filesystem\FileNotFoundException
-	     */
-	    public function get(): bool | string
-	    {
-	        if (! $this->isValid()) {
-	            throw new FileNotFoundException("File does not exist at path {$this->getPathname()}.");
-	        }
+		/**
+		 * Moves the file to a new location.
+		 *
+		 * @throws FileException if, for any reason, the file could not have been moved
+		 */
+		public function move(string $directory, string $name = null): File
+		{
+			if ($this->isValid()) 
+			{
+				if ($this->test) 
+				{
+					return parent::move($directory, $name);
+				}
 
-	        return file_get_contents($this->getPathname());
-	    }
+				$target = $this->getTargetFile($directory, $name);
 
-	    /**
-	     * Get the file's extension supplied by the client.
-	     *
-	     * @return string
-	     */
-	    public function clientExtension(): string
-	    {
-	        return $this->guessClientExtension();
-	    }
+				set_error_handler(function ($type, $msg) use (&$error) { $error = $msg; });
 
-	    /**
-	     * Create a new file instance from a base instance.
-	     *
-	     * @param  \Symfony\Component\HttpFoundation\File\UploadedFile  $file
-	     * @param  bool  $test
-	     * @return static
-	     */
-	    public static function createFromBase(File $file, bool $test = false): self
-	    {
-	        return $file instanceof static ? $file : new static(
-	            $file->getPathname(),
-	            $file->getClientOriginalName(),
-	            $file->getClientMimeType(),
-	            $file->getError(),
-	            $test
-	        );
-	    }
+				try 
+				{
+					$moved = move_uploaded_file($this->getPathname(), $target);
+				} 
+				finally 
+				{
+					restore_error_handler();
+				}
 
-	    /**
-	     * Parse and format the given options.
-	     *
-	     * @param  array|string  $options
-	     * @return array
-	     */
-	    protected function parseOptions(array | string $options): array
-	    {
-	        if (is_string($options)) {
-	            $options = ['disk' => $options];
-	        }
+				if (!$moved) 
+				{
+					throw new Exception(sprintf('Could not move the file "%s" to "%s" (%s).', $this->getPathname(), $target, strip_tags($error)));
+				}
 
-	        return $options;
-	    }
+				@chmod($target, 0666 & ~umask());
+
+				return $target;
+			}
+
+			switch ($this->error) {
+				case UPLOAD_ERR_INI_SIZE:
+					throw new Exception($this->getErrorMessage());
+				case UPLOAD_ERR_FORM_SIZE:
+					throw new Exception($this->getErrorMessage());
+				case UPLOAD_ERR_PARTIAL:
+					throw new Exception($this->getErrorMessage());
+				case UPLOAD_ERR_NO_FILE:
+					throw new Exception($this->getErrorMessage());
+				case UPLOAD_ERR_CANT_WRITE:
+					throw new Exception($this->getErrorMessage());
+				case UPLOAD_ERR_NO_TMP_DIR:
+					throw new Exception($this->getErrorMessage());
+				case UPLOAD_ERR_EXTENSION:
+					throw new Exception($this->getErrorMessage());
+			}
+
+			throw new Exception($this->getErrorMessage());
+		}
+
+		/**
+		 * Returns the maximum size of an uploaded file as configured in php.ini.
+		 *
+		 * @return int|float The maximum size of an uploaded file in bytes (returns float if size > PHP_INT_MAX)
+		 */
+		public static function getMaxFilesize(): int|float
+		{
+			$sizePostMax = self::parseFilesize(ini_get('post_max_size'));
+			$sizeUploadMax = self::parseFilesize(ini_get('upload_max_filesize'));
+
+			return min($sizePostMax ?: PHP_INT_MAX, $sizeUploadMax ?: PHP_INT_MAX);
+		}
+
+		private static function parseFilesize(string $size): int|float
+		{
+			if ('' === $size) 
+			{
+				return 0;
+			}
+
+			$size = strtolower($size);
+
+			$max = ltrim($size, '+');
+
+			if (str_starts_with($max, '0x')) 
+			{
+				$max = intval($max, 16);
+			} 
+			elseif (str_starts_with($max, '0')) 
+			{
+				$max = intval($max, 8);
+			} 
+			else 
+			{
+				$max = (int) $max;
+			}
+
+			switch (substr($size, -1)) 
+			{
+				case 't': $max *= 1024;
+					// no break
+				case 'g': $max *= 1024;
+					// no break
+				case 'm': $max *= 1024;
+					// no break
+				case 'k': $max *= 1024;
+			}
+
+			return $max;
+		}
+
+		/**
+		 * Returns an informative upload error message.
+		 */
+		public function getErrorMessage(): string
+		{
+			static $errors = [
+				UPLOAD_ERR_INI_SIZE => 'The file "%s" exceeds your upload_max_filesize ini directive (limit is %d KiB).',
+				UPLOAD_ERR_FORM_SIZE => 'The file "%s" exceeds the upload limit defined in your form.',
+				UPLOAD_ERR_PARTIAL => 'The file "%s" was only partially uploaded.',
+				UPLOAD_ERR_NO_FILE => 'No file was uploaded.',
+				UPLOAD_ERR_CANT_WRITE => 'The file "%s" could not be written on disk.',
+				UPLOAD_ERR_NO_TMP_DIR => 'File could not be uploaded: missing temporary directory.',
+				UPLOAD_ERR_EXTENSION => 'File upload was stopped by a PHP extension.',
+			];
+
+			$errorCode = $this->error;
+			$maxFilesize = UPLOAD_ERR_INI_SIZE === $errorCode ? self::getMaxFilesize() / 1024 : 0;
+			$message = $errors[$errorCode] ?? 'The file "%s" was not uploaded due to an unknown error.';
+
+			return sprintf($message, $this->getClientOriginalName(), $maxFilesize);
+		}
 	}
 
 	class HeaderUtils
@@ -2487,8 +3099,9 @@
 		 */
 		public static function split(string $header, string $separators): array
 		{
-			if ('' === $separators) {
-				throw new \InvalidArgumentException('At least one separator must be specified.');
+			if ('' === $separators) 
+			{
+				throw new Exception('At least one separator must be specified.');
 			}
 	
 			$quotedSeparators = preg_quote($separators, '/');
@@ -2509,7 +3122,7 @@
 					\s*
 					(?<separator>['.$quotedSeparators.'])
 					\s*
-				/x', trim($header), $matches, \PREG_SET_ORDER);
+				/x', trim($header), $matches, PREG_SET_ORDER);
 	
 			return self::groupParts($matches, $separators);
 		}
@@ -2621,7 +3234,7 @@
 		 */
 		public static function checkIp(string $requestIp, string|array $ips): bool
 		{
-			if (!\is_array($ips)) {
+			if (!is_array($ips)) {
 				$ips = [$ips];
 			}
 	
@@ -2651,7 +3264,7 @@
 				return $cacheValue;
 			}
 	
-			if (!filter_var($requestIp, \FILTER_VALIDATE_IP, \FILTER_FLAG_IPV4)) {
+			if (!filter_var($requestIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
 				return self::setCacheResult($cacheKey, false);
 			}
 	
@@ -2659,7 +3272,7 @@
 				[$address, $netmask] = explode('/', $ip, 2);
 	
 				if ('0' === $netmask) {
-					return self::setCacheResult($cacheKey, false !== filter_var($address, \FILTER_VALIDATE_IP, \FILTER_FLAG_IPV4));
+					return self::setCacheResult($cacheKey, false !== filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4));
 				}
 	
 				if ($netmask < 0 || $netmask > 32) {
@@ -2696,19 +3309,19 @@
 				return $cacheValue;
 			}
 	
-			if (!((\extension_loaded('sockets') && \defined('AF_INET6')) || @inet_pton('::1'))) {
+			if (!((extension_loaded('sockets') && defined('AF_INET6')) || @inet_pton('::1'))) {
 				throw new \RuntimeException('Unable to check Ipv6. Check that PHP was not compiled with option "disable-ipv6".');
 			}
 	
 			// Check to see if we were given a IP4 $requestIp or $ip by mistake
-			if (!filter_var($requestIp, \FILTER_VALIDATE_IP, \FILTER_FLAG_IPV6)) {
+			if (!filter_var($requestIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
 				return self::setCacheResult($cacheKey, false);
 			}
 	
 			if (str_contains($ip, '/')) {
 				[$address, $netmask] = explode('/', $ip, 2);
 	
-				if (!filter_var($address, \FILTER_VALIDATE_IP, \FILTER_FLAG_IPV6)) {
+				if (!filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
 					return self::setCacheResult($cacheKey, false);
 				}
 	
@@ -2720,7 +3333,7 @@
 					return self::setCacheResult($cacheKey, false);
 				}
 			} else {
-				if (!filter_var($ip, \FILTER_VALIDATE_IP, \FILTER_FLAG_IPV6)) {
+				if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
 					return self::setCacheResult($cacheKey, false);
 				}
 	
@@ -2761,7 +3374,7 @@
 			}
 	
 			$packedAddress = inet_pton($ip);
-			if (4 === \strlen($packedAddress)) {
+			if (4 === strlen($packedAddress)) {
 				$mask = '255.255.255.0';
 			} elseif ($ip === inet_ntop($packedAddress & inet_pton('::ffff:ffff:ffff'))) {
 				$mask = '::ffff:ffff:ff00';
@@ -2795,9 +3408,9 @@
 	
 		private static function setCacheResult(string $cacheKey, bool $result): bool
 		{
-			if (1000 < \count(self::$checkedIps)) {
+			if (1000 < count(self::$checkedIps)) {
 				// stop memory leak if there are many keys
-				self::$checkedIps = \array_slice(self::$checkedIps, 500, null, true);
+				self::$checkedIps = array_slice(self::$checkedIps, 500, null, true);
 			}
 	
 			return self::$checkedIps[$cacheKey] = $result;
