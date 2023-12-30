@@ -2772,13 +2772,9 @@
 		{
 			parent::__construct($parameters);
 
-			// Remove subdomain
-			$domain_parts = explode(".", $request->getHost());
-			$domain_wo_subdomain = (array_key_exists(count($domain_parts) - 2, $domain_parts) ? $domain_parts[count($domain_parts) - 2] : "").".".$domain_parts[count($domain_parts) - 1];
-
 			$this->defaults = array_merge($this->defaults, array(
 				'expires' 	=> time() + 3600, // Min 1hr
-				'domain' 	=> "." . $domain_wo_subdomain,
+				'domain' 	=> "." . $this->extractDomain($request->getHost()),
 				'secure' 	=> $request->isSecure()
 			));
 		}
@@ -2811,6 +2807,17 @@
 			)));
 
 			$this->remove($key);
+		}
+
+		public function __set(string $name, mixed $value): void
+		{
+			$this->defaults[$name] = $value;
+		}
+
+		private function extractDomain(string $domain): string
+		{
+			$domain_parts = explode(".", $domain);
+			return (array_key_exists(count($domain_parts) - 2, $domain_parts) ? $domain_parts[count($domain_parts) - 2] : "").".".$domain_parts[count($domain_parts) - 1];
 		}
 	}	
 
