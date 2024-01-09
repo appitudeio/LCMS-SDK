@@ -2818,6 +2818,11 @@
 
 		public function __set(string $name, mixed $value): void
 		{
+			if($name == "domain")
+			{
+				$value = $this->extractDomain($value);
+			}
+
 			$this->defaults[$name] = $value;
 		}
 
