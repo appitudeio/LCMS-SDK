@@ -2765,16 +2765,19 @@
 			'path'		=> "/",
 			'domain' 	=> "",
 			'secure'	=> false,
-			'samesite'	=> 'Lax'
+			'samesite'	=> 'Lax',
+			'httponly' 	=> false
 		);
 
 		function __construct(array $parameters, Request $request)
 		{
 			parent::__construct($parameters);
 
+			$host = $request->getHost();
+
 			$this->defaults = array_merge($this->defaults, array(
 				'expires' 	=> time() + 3600, // Min 1hr
-				'domain' 	=> "." . $this->extractDomain($request->getHost()),
+				'domain' 	=> (!$this->isDomain($host)) ? "" : "." . $this->extractDomain($host),
 				'secure' 	=> $request->isSecure()
 			));
 		}
@@ -2830,6 +2833,11 @@
 		{
 			$domain_parts = explode(".", $domain);
 			return (array_key_exists(count($domain_parts) - 2, $domain_parts) ? $domain_parts[count($domain_parts) - 2] : "").".".$domain_parts[count($domain_parts) - 1];
+		}
+
+		private function isDomain(string $domain): bool
+		{
+			return (filter_var($domain, FILTER_VALIDATE_DOMAIN));
 		}
 	}	
 
