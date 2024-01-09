@@ -2789,13 +2789,6 @@
 			setCookie($key, $value, array_merge($this->defaults, $options));
 
 			parent::set($key, $value);
-
-
-			pre($key);
-			pre($value);
-			pre(array_merge($this->defaults, $options));
-			
-			echo "<hr />";
 		}
 
 		public function get(string $key, mixed $default = null): string|int|float|bool|null
@@ -2837,7 +2830,7 @@
 
 		private function isDomain(string $domain): bool
 		{
-			return (filter_var($domain, FILTER_VALIDATE_DOMAIN));
+			return (bool) (filter_var($domain, FILTER_VALIDATE_DOMAIN));
 		}
 	}	
 
