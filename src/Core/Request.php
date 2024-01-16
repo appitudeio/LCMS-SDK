@@ -2671,7 +2671,7 @@
 		 *
 		 * @param string|int|float|bool|null $default The default value if the input key does not exist
 		 */
-		public function get(string $key, mixed $default = null): string|int|float|bool|null
+		public function get(string $key, mixed $default = null): mixed
 		{
 			if (null !== $default && !is_scalar($default) && !$default instanceof Stringable) 
 			{
@@ -2791,7 +2791,7 @@
 			parent::set($key, $value);
 		}
 
-		public function get(string $key, mixed $default = null): string|int|float|bool|null
+		public function get(string $key, mixed $default = null): mixed
 		{
 			$value = parent::get($key, $default);
 

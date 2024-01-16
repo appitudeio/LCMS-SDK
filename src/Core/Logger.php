@@ -26,7 +26,6 @@
 	 */	
 	namespace LCMS\Core;
 
-	use LCMS\Core\Database as DB;
 	use LCMS\Core\Env;
 	use LCMS\Core\Request;
 	use LCMS\Util\Singleton;
@@ -379,7 +378,7 @@
 		/**
 		 * 	Interpolates context values into the message placeholders.
 		 */
-		private function interpolate($_message, array $_context = array())
+		private function interpolate(string $_message, array $_context = array())
 		{
 		    // build a replacement array with braces around the context keys
 		    $replace = array();
