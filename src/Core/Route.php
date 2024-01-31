@@ -335,9 +335,34 @@
 		 *
 		 * @return void
 		 */
-		public function dispatch(Request $_request): mixed
+		public function dispatch(Request $request, Locale $locale): mixed
 		{
-			if(!$route_array = $this->match($_request->path(), $_request->getMethod(), $_request->ajax()))
+			/**
+			 * 	Remove Localization from URL
+			 */
+			$url = strtolower($request->path());
+
+			if($locale->getLanguage())
+			{
+				$locale_test = strtolower(str_replace("_", "-", $locale->getLocale()));
+
+				if(in_array($url, [$locale_test, $locale->getLanguage()]))
+				{
+					$url = "";
+				}
+				elseif(str_starts_with($url, $locale_test . "/"))
+				{
+					$url = substr($url, 6);
+				}
+				elseif(str_starts_with($url, $locale->getLanguage()))
+				{
+					$url = substr($url, 3);
+				}
+			}
+
+			$url = ($url == "") ? "/" : $url; // If no url, set as / to identify root
+
+			if(!$route_array = $this->match($url, $request->getMethod(), $request->ajax()))
 			{
 				throw new Exception('No route matched', 404);
 			}
@@ -355,7 +380,7 @@
 		 *
 		 * @return boolean  true if a match found, false otherwise
 		 */
-		public function match(string $_url, string $_method = "GET", bool $_is_ajax_request = false): bool | array
+		public function match(string $_url, string $_method = "GET", bool $_is_ajax_request = false): array | false
 		{
 			/**
 			 *	Map all children routes, now when the rest is done
@@ -447,7 +472,7 @@
 		/**
 		 *
 		 */
-		public static function url(string $_to_alias, array $_arguments = null, bool $_absolute = true): string
+		public static function url(string $_to_alias, array $_arguments = null, bool $_absolute = true): string | false
 		{
 			// Search Database-routes
 			if(is_numeric($_to_alias) && !isset(self::getInstance()->db_relations[$_to_alias]) && !isset(self::getInstance()->relations[$_to_alias]))
@@ -492,20 +517,25 @@
 				}
 			}
 
-			// Construct URL (Prepend Language if needed)
-			$url_parts = array();
+			/**
+			 * 	Should we prepend language? (If available in current URL)
+			 */
+			$url_parts = explode("/", DI::get(Request::class)->path());
+			$new_url = array();
 
-			if(!Locale::isDefault() && Locale::getLanguage() != "")
+			if(!empty($url_parts[0]) 
+				&& ((strlen($url_parts[0]) == 2 && $url_parts[0] == Locale::getLanguage()) 
+					|| strlen($url_parts[0]) == 5 && $url_parts[0] == strtolower(str_replace("_", "-", Locale::getLocale()))))
 			{
-				$url_parts[] = Locale::getLanguage();
+				$new_url[] = $url_parts[0];
 			}
 			
 			if(!empty($url) && $url != "/")
 			{
-				$url_parts[] = trim(strtolower($url));
+				$new_url[] = trim(strtolower($url));
 			}
 			
-			$url = rtrim("/" . implode("/", $url_parts), "/");
+			$url = rtrim("/" . implode("/", $new_url), "/");
 
 			if(!empty($_arguments) && $_arguments = array_filter($_arguments))
 			{
