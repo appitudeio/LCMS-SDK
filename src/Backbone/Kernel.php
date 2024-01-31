@@ -107,8 +107,9 @@
 
                     /**
                      *  If Env is Local, let's figure out language (Maybe from URL or default).
+                     *  xxx decaprecated since Middleware implementation (2024-01-31)
                      */
-                    if($RootObj instanceof Locale && $new_language = $RootObj->extract(DI::get(Request::class)))
+                   /* if($RootObj instanceof Locale && $new_language = $RootObj->extract(DI::get(Request::class)))
                     {
                         if($RootObj->isDefault()) // if url = /{defualt_language}/ -> remove
                         {
@@ -117,7 +118,7 @@
 
                         DI::get(Request::class)->appendUrl($new_language);
                         DI::get(Env::class)->set("web_path", DI::get(Env::class)->get("web_path") . $new_language . "/");            
-                    }
+                    }*/
                 }
                 else
                 {
@@ -144,19 +145,25 @@
 
         public function trigger(string $_event, ...$_args): mixed
         {
-            $_event = match($_event)
-            {
-                "middlewareredirect" => "redirect",
-                "middlewareresponse" => "response",
-                default => $_event
-            };
+            $_event = strtolower($_event);
 
-            if(!isset($this->events[strtolower($_event)]))
+            if($_event == "middlewareredirect")
+            {
+                array_unshift($_args, $this->events[$_event]);
+                $_event = "redirect";
+            }
+            elseif($_event == "middlewareresponse")
+            {
+                array_unshift($args, $this->events[$_event]);
+                $_event = "response";
+            }
+
+            if(!isset($this->events[$_event]))
             {
                 return false;
             }
 
-            return DI::call($this->events[strtolower($_event)], $_args);
+            return DI::call($this->events[$_event], [...$_args]);
         }
 
         public function dispatch(): mixed
