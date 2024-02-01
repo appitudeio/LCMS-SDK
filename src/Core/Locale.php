@@ -69,7 +69,7 @@
 			return $this->asArray()[CURRENCY] ?? false;
 		}
 
-		protected function asArray()
+		protected function asArray(): array
 		{
 			return array_filter($this->config);
 		}		
@@ -94,13 +94,16 @@
 			return $this;
 		}
 		
-		protected function setLanguage(string $_language, bool $_is_default = false): void
+		protected function setLanguage(string $_language, bool $_is_default = false): self
 		{
 			$this->config[LANGUAGE_CODE] = $_language;
+			$this->config[LOCALE] = $_language . "_" . explode("_", $this->config[LOCALE])[1];
 			$this->is_default = $_is_default;
+
+			return $this;
 		}
 
-		protected function setCountry(string $_country_code): void
+		protected function setCountry(string $_country_code): self
 		{
 			if(!$ct = CountryType::find($_country_code))
 			{
@@ -116,14 +119,18 @@
 				LOCALE => $ct->getLocale(),
 				TIMEZONE => $ct->getTimezone()
 			];
+
+			return $this;
 		}
 
-		protected function setCurrency(string $_currency): void
+		protected function setCurrency(string $_currency): self
 		{
 			$this->config[CURRENCY] = $_currency;
+
+			return $this;
 		}
 
-		protected function setTimezone(string $_timezone): void
+		protected function setTimezone(string $_timezone): self
 		{
 			if(!in_array($_timezone, array_column(Locale::getTimezones(), 1)))
 			{
@@ -131,13 +138,15 @@
 			}
 
 			$this->config[TIMEZONE] = $_timezone;
+
+			return $this;
 		}
 		
 		/**
 		 *	Parse Locale from URLx
 		 *	Added 2024-01-31: either /se, /sv-se (locale)
 		 */
-		protected function extract(Request $request): string | bool
+		protected function extract(Request $request): string | false
 		{
 			// Test length (2 | 5 + (-_))
 			if(!$test_locale = (count($request->segments()) > 0 && (strlen($request->segments()[0]) == 2 || (strlen($request->segments()[0]) == 5 && ($request->segments()[0][2] == "-" || $request->segments()[0][2] == "_")))) ? strtolower($request->segments()[0]) : false)
@@ -866,11 +875,11 @@
 			return (empty($_type)) ? $country : $country[$_type];
 		}
 
-		public static function find(string $_code): self | false
+		public static function find(string $_country_code): self | false
 		{
-			$_code = strtoupper($_code);
+			$_country_code = strtoupper($_country_code);
 
-			return match($_code)
+			return match($_country_code)
 			{
 				'BD' => self::BANGLADESH,
 				'BE' => self::BELGIUM,
