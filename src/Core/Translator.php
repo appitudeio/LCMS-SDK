@@ -9,6 +9,7 @@
 	namespace LCMS\Core;
 
 	use LCMS\Util\Singleton;
+	use LCMS\Util\Arr;
 
 	use \Exception;
 
@@ -16,46 +17,33 @@
 	{
 		use Singleton;
 
-		private static $translations = false;
+		private array $translations = [];
 
-		public static function init($translation_file_path = null)
+		protected function init(string $translation_file_path)
 		{
-			if(empty($translation_file_path) && empty($_parsed_data))
+			if(!file_exists($translation_file_path)) 
 			{
-				throw new Exception("Translation_file_path AND parsed_data cant be null");
-			}
-
-			if(!empty($translation_file_path))
+				throw new Exception("Unable to find the translation file for language $translation_file_path!");
+			} 
+			elseif(!$this->translations = parse_ini_file($translation_file_path, true))
 			{
-				if(!file_exists($translation_file_path)) 
-				{
-					throw new Exception("Unable to find the translation file for language $translation_file_path!");
-				} 
-
-				self::getInstance()->translations = parse_ini_file($translation_file_path, true);
-
-				if(!self::getInstance()->translations)
-				{
-					throw new Exception("Could not parse ini-file: " . $translation_file_path);
-				}
+				throw new Exception("Could not parse ini-file: " . $translation_file_path);
 			}
 		}
 		
-		public static function getTranslations()
+		protected function getTranslations()
 		{
-			return self::getInstance()->translations;
+			return $this->translations;
 		}
 		
-		public static function get($_label, $_data = null, $_fallback_label = null)
+		protected function get(string $_label, mixed $_data = null, string $_fallback_label = null)
 		{
-			if(!self::getInstance()->translations && empty($_fallback_label))
+			if(empty($this->translations) && empty($_fallback_label))
 			{
 				throw new Exception("Translator language file not initialized");
 			}
 
-		 	$message = self::getInstance()->getMessage($_label);
-
-		 	if(!$message) // Backup
+		 	if(!$message = $this->getMessage($_label)) // Backup
 		 	{
 		 		if(empty($_fallback_label))
 		 		{
@@ -67,55 +55,38 @@
 
 			if(!empty($_data))
 			{
-				$placeholders = self::array_flatten($_data);
+				$placeholders = Arr::flatten($_data);
 
-	 			return self::replacePlaceholders($message, $placeholders);
+	 			return $this->replacePlaceholders($message, $placeholders);
 	 		}
 
 		 	return $message;
 		}
 		
-		private static function getMessage($label)
+		private function getMessage(string $_label)
 		{
-			list($section, $section_message) = explode(".", $label);
+			list($section, $section_message) = explode(".", $_label);
 
-			if(!isset(self::getInstance()->translations[$section]) || !isset(self::getInstance()->translations[$section][$section_message]))
+			if(!isset($this->translations[$section]) || !isset($this->translations[$section][$section_message]))
 			{
 				return false;
 			}			
 			
-			return self::getInstance()->translations[$section][$section_message];
+			return $this->translations[$section][$section_message];
 		}
 		
 		/**
 		 *	Replace {value}'s in the text string. 
 		 *		First; Flatten the array so the multidimensional values are accessable
 		 */
-		public static function replacePlaceholders($message, $placeholders)
+		protected function replacePlaceholders(string $_message, array $_placeholders)
 		{
-			foreach(array_filter($placeholders) AS $key => $placeholder)
+			foreach(array_filter($_placeholders) AS $key => $placeholder)
 			{
-				$message = str_replace('{{' . $key . '}}', $placeholder, $message);
+				$_message = str_replace('{{' . $key . '}}', $placeholder, $_message);
 			}
 			
-			return $message;
+			return $_message;
 		}
-
-		public static function array_flatten($arr, $narr = array(), $nkey = '')
-		{
-    		foreach ($arr AS $key => $value) 
-    		{
-        		if (is_array($value)) 
-        		{
-            		$narr = array_merge($narr, self::getInstance()->array_flatten($value, $narr, $nkey . $key . '.'));
-        		} 
-        		else 
-        		{
-            		$narr[$nkey . $key] = $value;
-            	}
-        	}
-        	
-        	return $narr;
-        }
 	}
 ?>

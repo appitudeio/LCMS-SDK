@@ -3,6 +3,7 @@
 	 *	Changelog:
 	 * 	- 2023-11-10: Added currencies
 	 * 	- 2023-11-10: Refactor the whole structure to be based on the Enum(s)
+	 * 	- 2024-01-31: Added Extraction from Request with Locale {5}
 	 */
 	namespace LCMS\Core;
 
@@ -35,6 +36,52 @@
 		];
 		private bool $is_default = false;
 
+		/**
+		 * 	Getters
+		 */
+		protected function getLanguage(): string | false
+		{
+			return $this->asArray()[LANGUAGE_CODE] ?? false;
+		}
+
+		protected function getLocale(): string | false
+		{
+			return $this->asArray()[LOCALE] ?? false;
+		}
+
+		protected function getTimezone(): string | false
+		{
+			return $this->asArray()[TIMEZONE] ?? false;
+		}
+
+		protected function getCountry(): string | false
+		{
+			return $this->asArray()[COUNTRY_NAME] ?? false;
+		}
+
+		protected function getCountryCode(): string | false
+		{
+			return $this->asArray()[COUNTRY_CODE] ?? false;
+		}
+		
+		protected function getCurrency(): string | false
+		{
+			return $this->asArray()[CURRENCY] ?? false;
+		}
+
+		protected function asArray(): array
+		{
+			return array_filter($this->config);
+		}		
+
+		protected function isDefault(): bool
+		{
+			return $this->is_default;
+		}
+
+		/**
+		 * 	Setters
+		 */
 		protected function setLanguages(array $_languages): self
 		{
 			$this->languages = $_languages;
@@ -47,13 +94,16 @@
 			return $this;
 		}
 		
-		protected function setLanguage(string $_language, bool $_is_default = false): void
+		protected function setLanguage(string $_language, bool $_is_default = false): self
 		{
 			$this->config[LANGUAGE_CODE] = $_language;
+			$this->config[LOCALE] = $_language . "_" . explode("_", $this->config[LOCALE])[1];
 			$this->is_default = $_is_default;
+
+			return $this;
 		}
 
-		protected function setCountry(string $_country_code): void
+		protected function setCountry(string $_country_code): self
 		{
 			if(!$ct = CountryType::find($_country_code))
 			{
@@ -69,14 +119,18 @@
 				LOCALE => $ct->getLocale(),
 				TIMEZONE => $ct->getTimezone()
 			];
+
+			return $this;
 		}
 
-		protected function setCurrency(string $_currency): void
+		protected function setCurrency(string $_currency): self
 		{
 			$this->config[CURRENCY] = $_currency;
+
+			return $this;
 		}
 
-		protected function setTimezone(string $_timezone): void
+		protected function setTimezone(string $_timezone): self
 		{
 			if(!in_array($_timezone, array_column(Locale::getTimezones(), 1)))
 			{
@@ -84,67 +138,41 @@
 			}
 
 			$this->config[TIMEZONE] = $_timezone;
-		}
 
-		protected function getLanguage(): string
-		{
-			return $this->asArray()[LANGUAGE_CODE] ?? false;
+			return $this;
 		}
-
-		protected function getLocale(): string | false
-		{
-			return $this->asArray()[LOCALE] ?? false;
-		}
-
-		protected function getTimezone(): string | false
-		{
-			return $this->asArray()[TIMEZONE] ?? false;
-		}
-
+		
 		/**
-		 * 	Not sure why this looks like this
+		 *	Parse Locale from URLx
+		 *	Added 2024-01-31: either /se, /sv-se (locale)
 		 */
-		protected function getCountry(): string | bool
+		protected function extract(Request $request): string | false
 		{
-			return $this->asArray()[COUNTRY_NAME] ?? false;
-		}
-
-		protected function getCurrency(): string | false
-		{
-			return $this->asArray()[CURRENCY] ?? false;
-		}
-
-		protected function asArray()
-		{
-			return array_filter($this->config);
-		}
-
-		protected function isDefault(): bool
-		{
-			return $this->is_default;
-		}
-
-		/**
-		 *	Parse Locale from URL
-		 */
-		protected function extract(Request $request): string | bool
-		{
-			if(!$test_language = (count($request->segments()) > 0 && strlen($request->segments()[0]) == 2) ? strtolower($request->segments()[0]) : false)
+			// Test length (2 | 5 + (-_))
+			if(!$test_locale = (count($request->segments()) > 0 && (strlen($request->segments()[0]) == 2 || (strlen($request->segments()[0]) == 5 && ($request->segments()[0][2] == "-" || $request->segments()[0][2] == "_")))) ? strtolower($request->segments()[0]) : false)
 			{
 				return false;
 			}
-			elseif(!in_array($test_language, $this->languages))
+
+			$locale_parts = explode("-", explode("_", $test_locale)[0])[0];
+
+			if(!in_array($locale_parts[0], $this->languages))
 			{
 				return false;
 			}
-			elseif($test_language != $this->config[LANGUAGE_CODE] && $this->isDefault() === true)
+			elseif($locale_parts[0] != $this->config[LANGUAGE_CODE] && $this->isDefault() === true)
 			{
 				$this->is_default = false;
 			}
 
-			$this->config[LANGUAGE_CODE] = $test_language;
+			$this->setLanguage($locale_parts[0]);
 
-			return $this->config[LANGUAGE_CODE];
+			if(isset($locale_parts[1]))
+			{
+				$this->setCountry($locale_parts[1]);
+			}
+
+			return $this->getLanguage();
 		}
 
 		/**
@@ -847,11 +875,11 @@
 			return (empty($_type)) ? $country : $country[$_type];
 		}
 
-		public static function find(string $_code): self
+		public static function find(string $_country_code): self | false
 		{
-			$_code = strtoupper($_code);
+			$_country_code = strtoupper($_country_code);
 
-			return match($_code)
+			return match($_country_code)
 			{
 				'BD' => self::BANGLADESH,
 				'BE' => self::BELGIUM,

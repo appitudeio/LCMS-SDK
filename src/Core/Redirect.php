@@ -6,7 +6,6 @@
 
 	use LCMS\Core\Request;
 	use LCMS\Util\Singleton;
-	use \Exception;
 
 	class Redirect
 	{
@@ -15,31 +14,28 @@
 		private $to;
 		private $code;
 
-		public static function to(string $_url = null): self
+		protected function to(string $_url = null): self
 		{
-			self::getInstance()->to = (isset(parse_url($_url)['scheme'])) ? $_url : "/" . ltrim($_url, "/");
+			$this->to = (isset(parse_url($_url)['scheme'])) ? $_url : "/" . ltrim($_url, "/");
 
-			return self::getInstance();
+			return $this;
 		}
 
-		public static function route($_route_alias, $_arguments = null): self
+		protected function route($_route_alias, $_arguments = null): self
 		{
-			self::getInstance()->to = Route::url($_route_alias, $_arguments);
+			$this->to = Route::url($_route_alias, $_arguments);
 
-			return self::getInstance();
+			return $this;
 		}
 
-		public static function back(): self
+		protected function back(): self
 		{
-			self::getInstance()->to = Request::headers()->get('referer') ?? Env::get("app_path");
+			$this->to = Request::headers()->get('referer') ?? Env::get("app_path");
 
-			return self::getInstance();
+			return $this;
 		}
 
-		/**
-		 *	This method requires to be static
-		 */
-		public static function with(string | array $key, mixed $value = null): self
+		protected function with(string | array $key, mixed $value = null): self
 		{
 			if(is_array($key))
 			{
@@ -53,24 +49,24 @@
 				Request::session()->flash($key, $value);
 			}
 
-			return self::getInstance();
+			return $this;
 		}
 
-		public function code(int $_code): self
+		protected function code(int $_code): self
 		{
 			$this->code = $_code;
 
 			return $this;
 		}
 
-		public static function dispatch(): never
+		protected function dispatch(): never
 		{
-			if(self::getInstance()->code)
+			if($this->code)
 			{
-				http_response_code(self::getInstance()->code);
+				http_response_code($this->code);
 			}
 
-			Header("Location: " . self::getInstance()->to);
+			header("Location: " . $this->to);
 			exit();
 		}
 	}

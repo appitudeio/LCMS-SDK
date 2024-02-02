@@ -133,31 +133,17 @@
 				$_storage instanceof DB => "prepareFromDatabase",
 				$_storage instanceof Closure => "prepareFromClosure",
 				is_array($_storage) => "prepareFromArray",
-				is_file($_storage) => "prepareFromFile",
-				is_dir($_storage) => "prepareFromDir",
+				is_string($_storage) && is_file($_storage) => "prepareFromFile",
+				is_string($_storage) && is_dir($_storage) => "prepareFromDir",
 				default => false
 			})
 			{
-				throw new Exception("Invalid preparation storage: " . $_storage);
+				$str = (is_object($_storage)) ? get_class($_storage) : $_storage;
+				throw new Exception("Invalid preparation storage: " . $str);
 			}
 
 			return DI::call([$this, $fn], [$_storage]); // Let Storage-methods inherit DI
 		}
-
-		/*public function prepareFromDatabase(DB $db): self
-		{
-			return $this;
-		}
-
-		public function prepareFromArray(array $_array): self
-		{
-			return $this;
-		}
-
-		public function prepareFromFile(string $_file): self
-		{
-			throw new Exception(get_class($this) . " cant prepare from File");
-		}*/
 
 		public function prepareFromClosure(Closure $_routes_closure): self
 		{
