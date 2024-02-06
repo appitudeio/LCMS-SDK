@@ -191,7 +191,7 @@
              *  
              */
             $response = DI::call([$route, "dispatch"]);
-            
+
             /**
              *	Any response|redirect from Routes?
              */
@@ -207,10 +207,6 @@
             {
                 return $this->trigger("callback", $response['callback'], $response['parameters'] ?? null);
             }
-            /* elseif(is_string($response))
-            {
-                return $this->trigger("string", $response);
-            }*/
 
             /**
              *	The Controller has told the View which Nodes to use-
