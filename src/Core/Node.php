@@ -191,7 +191,7 @@
 		public static function get(string $_identifier): bool | array | NodeObject
 		{
 			$is_local = true; // Check local namespace first with Global as fallback
-			$id = (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier;
+			$id = (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern'] ?? "global") . "." . $_identifier;
 			
 			if(null === ($node = Arr::get(self::getInstance()->nodes, $id, null))
 				&& null === ($props = Arr::get(self::getInstance()->properties, $id, null)))
@@ -237,14 +237,9 @@
 		{
 			$identifier = $_identifier;
 		
-			/*if(is_bool($_params['global'] ?? null) && $_params['global'])
+			if(self::getInstance()->namespace !== null)
 			{
-				$identifier = "global." . $_identifier;
-			}
-			else*/
-			if(self::getInstance()->namespace != null)
-			{
-				$identifier =  (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier;
+				$identifier = (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier;
 			}
 			elseif(!str_starts_with($_identifier, "meta."))
 			{
