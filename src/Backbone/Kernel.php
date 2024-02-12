@@ -268,6 +268,13 @@
 
             // Compile page into the end product
             $compilation = DI::call([Page::class, "compile"]);
+ 
+            // Before we do anything, let's check and set headers
+            if(($content_type = $request->headers->get("Content-Type", $request->headers->get("content-type", false))) && $content_type != "application/x-www-form-urlencoded")
+            {
+                $request->headers->set("Content-Type", $content_type);
+                header("Content-Type: " . $content_type);
+            }
 
             if($compilation instanceof Redirect)
             {
@@ -288,21 +295,6 @@
                 $nodeMerger->store($nodes);
             }
 
-            /** 
-             *  Page is an actual html page!
-             *  - Prepare meta data
-             */
-            if(isset($route_array['meta'], $route_array['meta'][$locale->getLanguage()]) && !empty($route_array['meta'][$locale->getLanguage()]))
-            {
-                DI::get(Page::class)->meta($route_array['meta'][$locale->getLanguage()]);
-            }
-            
-            // Set content type (Coming from Controller)
-            if(($content_type = $request->headers->get("Content-type")) && $content_type != "application/x-www-form-urlencoded")
-            {
-                $request->headers->set("Content-type", $content_type);
-            }
-            
             /** 
              *  Find out if we should block this page with 'noindex' or 'nofollow'
              */
@@ -336,6 +328,20 @@
                     DI::get(Page::class)->meta(['robots' => $robots]);
                     $request->headers->set("X-Robots-Tag", implode(", ", $robots));
                 }
+            }
+
+            if($robots_header = $request->headers->get("X-Robots-Tag", false))
+            {
+                header("X-Robots-Tag: " . $robots_header);
+            }
+
+            /** 
+             *  Page is an actual html page!
+             *  - Prepare meta data
+             */
+            if(isset($route_array['meta'], $route_array['meta'][$locale->getLanguage()]) && !empty($route_array['meta'][$locale->getLanguage()]))
+            {
+                DI::get(Page::class)->meta($route_array['meta'][$locale->getLanguage()]);
             }
 
             // Merge all Nodes with View-data  
