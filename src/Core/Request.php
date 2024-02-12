@@ -24,6 +24,7 @@
 	use \ArrayIterator;
 	use \Closure;
 	use \DateTimeInterface;
+	use \stdClass;
 
 	class Request
 	{
@@ -2512,7 +2513,8 @@
 		 */
 		public function all(string $key = null): array
 		{
-			if (null !== $key) {
+			if (null !== $key) 
+			{
 				return $this->headers[strtr($key, self::UPPER, self::LOWER)] ?? [];
 			}
 
@@ -2548,11 +2550,12 @@
 		{
 			$headers = $this->all($key);
 
-			if (!$headers) {
+			if (!$headers) 
+			{
 				return $default;
 			}
-
-			if (null === $headers[0]) {
+			elseif (null === $headers[0]) 
+			{
 				return null;
 			}
 
@@ -3483,7 +3486,8 @@
 	    {
 	        $header = $this->header('Authorization', '');
 
-	        if (Str::startsWith($header, 'Bearer ')) {
+	        if (Str::startsWith($header, 'Bearer ')) 
+			{
 	            return Str::substr($header, 7);
 	        }
 	    }
@@ -3511,8 +3515,10 @@
 
 	        $input = $this->all();
 
-	        foreach ($keys as $value) {
-	            if (! array_has($input, $value)) {
+	        foreach ($keys as $value) 
+			{
+	            if (! array_has($input, $value)) 
+				{
 	                return false;
 	            }
 	        }
@@ -3545,8 +3551,10 @@
 	    {
 	        $keys = is_array($key) ? $key : func_get_args();
 
-	        foreach ($keys as $value) {
-	            if ($this->isEmptyString($value)) {
+	        foreach ($keys as $value) 
+			{
+	            if ($this->isEmptyString($value)) 
+				{
 	                return false;
 	            }
 	        }
@@ -3564,8 +3572,10 @@
 	    {
 	        $keys = is_array($keys) ? $keys : func_get_args();
 
-	        foreach ($keys as $key) {
-	            if ($this->filled($key)) {
+	        foreach ($keys as $key) 
+			{
+	            if ($this->filled($key)) 
+				{
 	                return true;
 	            }
 	        }
@@ -3619,13 +3629,15 @@
 	    {
 	        $input = array_replace_recursive($this->input(), $this->allFiles());
 
-	        if (! $keys) {
+	        if (! $keys) 
+			{
 	            return $input;
 	        }
 
 	        $results = [];
 
-	        foreach (is_array($keys) ? $keys : func_get_args() as $key) {
+	        foreach (is_array($keys) ? $keys : func_get_args() AS $key) 
+			{
 	            Arr::set($results, $key, Arr::get($input, $key));
 	        }
 
@@ -3676,10 +3688,12 @@
 
 	        $placeholder = new stdClass();
 
-	        foreach (is_array($keys) ? $keys : func_get_args() as $key) {
+	        foreach (is_array($keys) ? $keys : func_get_args() AS $key) 
+			{
 	            $value = data_get($input, $key, $placeholder);
 
-	            if ($value !== $placeholder) {
+	            if ($value !== $placeholder) 
+				{
 	                Arr::set($results, $key, $value);
 	            }
 	        }
@@ -3799,12 +3813,15 @@
 	     */
 	    public function hasFile(string $key): bool
 	    {
-	        if (! is_array($files = $this->file($key))) {
+	        if (! is_array($files = $this->file($key))) 
+			{
 	            $files = [$files];
 	        }
 
-	        foreach ($files as $file) {
-	            if ($this->isValidFile($file)) {
+	        foreach ($files AS $file) 
+			{
+	            if ($this->isValidFile($file)) 
+				{
 	                return true;
 	            }
 	        }
