@@ -97,8 +97,18 @@
 		protected function setLanguage(string $_language, bool $_is_default = false): self
 		{
 			$this->config[LANGUAGE_CODE] = $_language;
-			$this->config[LOCALE] = $_language . "_" . explode("_", $this->config[LOCALE])[1];
-			$this->is_default = $_is_default;
+
+			// If local exists, update it with the language
+			if(null !== $this->config[LOCALE])
+			{
+				$this->config[LOCALE] = $_language . "_" . explode("_", $this->config[LOCALE])[1];
+			}
+
+			// If first added language, always set as default
+			if($_is_default || null === $this->config[LANGUAGE_CODE])
+			{
+				$this->is_default = $_is_default;
+			}			
 
 			return $this;
 		}
