@@ -214,7 +214,7 @@
 				$this->map[$_method] = array();
 			}
 
-			$this->map[$_method][] = $key;
+			$this->map[$_method][] = (int) $key;
 
 			$this->current = $this->routes[$key];
 
