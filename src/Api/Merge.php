@@ -732,15 +732,13 @@
 			$this->instance->bindControllerRoutes();
 
 			$this->system_routes = $this->instance->routes;
-
-			$query = $db->query("SELECT * FROM ".$env->get("db")['database'].".`lcms_routes`");
-
-			if($db->num_rows($query) == 0)
+			
+			if(!$routes = $db->query("SELECT * FROM ".$env->get("db")['database'].".`lcms_routes`")->asArray())
 			{
 				return $this;
 			}
 
-			while($row = $db->fetch_assoc($query))
+			foreach($routes AS $row)
 			{
 				$this->database_routes[$row['id']] = $this->buildRoute($row);
 			}

@@ -180,7 +180,7 @@
          *  
          *  @return HtmlNode with modified content
          */
-        private function parseElement(object $_element, string | null $_parent = null, int | null $_key = null): void
+        private function parseElement(object $_element, string | null $_parent = null, mixed $_key = null): void
         {
             $is_meta = (in_array($_element->tag, ["meta", "title"]) || (isset($_element->attr['name']) && str_starts_with($_element->attr['name'], "meta."))) ? true : false;
 
