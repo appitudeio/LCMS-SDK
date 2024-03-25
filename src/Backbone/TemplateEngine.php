@@ -224,7 +224,7 @@
 
                 $tag = ($_element->hasChildNodes()) ? "content" : "innertext";
 
-                $_element->$tag = ($type == "route") ? (string) $href : (string) $href->prop("title");
+                $_element->$tag = ($type == "route") ? (string) $href : ((!empty((string) $href->prop("title")) ? (string) $href->prop("title") : (string) $href->prop("content")));
                 $_element->attr['as'] = "a";
             }
             elseif(($type = $_element->attr['type'] ?? $_element->attr['as'] ?? false) && in_array($type, ['img', 'image', 'picture']))

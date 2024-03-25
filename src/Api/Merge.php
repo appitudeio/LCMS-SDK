@@ -561,7 +561,7 @@
 					}
 					else
 					{
-						$existing_file_array[$alias][$node['identifier']] = $node['content'];
+						$existing_file_array[$alias][$node['identifier']] = $node['content'] ?? $node['properties']['src'] ?? "";
 					}
 
 					$new_entrys++;

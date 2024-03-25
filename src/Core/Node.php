@@ -128,7 +128,7 @@
 			if($_type == NodeType::LOOP)
 			{
 				$loop_items = $loop_items_flat = array();
-				
+
 				foreach($_params AS $key => $value)
 				{
 					if(!($value instanceof NodeType) && (!is_array($value) || !($value[0] instanceof NodeType)))
@@ -644,7 +644,7 @@
 
 			$this->return_as[] = $this->node['properties']['href'] = $href;
 
-			return $this; //$this->prop("title");
+			return $this;
 		}
 
 		/**
@@ -652,20 +652,16 @@
 		 */
 		public function route(array $_properties = array()): self
 		{
-			$this->return_as = [__FUNCTION__];
+			$this->node['properties']['href'] = "#";
 
 			if(($route = $this->node['properties']['route'] ?? $this->node['content'] ?? false) && $route != "#")
 			{
 				$this->node['properties']['href'] = Route::url($route);
 			}
-			else
-			{
-				$this->node['properties']['href'] = "#";
-			}
 
-			$this->return_as[] = $this->node['properties']['href'];
+			$this->return_as = [__FUNCTION__, $this->node['properties']['href']];
 
-			return $this; //$this->prop("title");
+			return $this;
 		}
 
 		public function prop(string $_property): self
@@ -678,12 +674,8 @@
 			}
 
 			$this->properties[$_property] = $prop;
-
-			/*if(empty($this->return_as))
-			{*/
-				$this->return_as = [__FUNCTION__, $prop];
-			//}
-
+			$this->return_as = [__FUNCTION__, $prop];
+			
 			return $this;
 		}
 
@@ -707,7 +699,10 @@
 									array_map(fn($v, $k) => new NodeObject($k, $v, $props[$k] ?? null), $n, array_keys($n))), $this->node));
 
 			// If only one item, maybe it's not meant to be used
-			if(count($items) == 1 && !array_filter(array_map(fn($n) => (string) $n, $items[array_key_first($items)])))
+			if(count($items) == 1 && !array_filter(array_map(function($node) {
+				return (empty((string) $node)) ? (string) $node->prop("src") : "";
+				
+			}, $items[array_key_first($items)])))
 			{
 				return array();
 			}
@@ -717,8 +712,6 @@
 
 		public function asArray(): array
 		{
-			//$this->items = $this->loop();
-
 			$node = ($this->type == NodeType::LOOP->value) ? array() : $this->node;
 			
 			return array_filter($node + ['properties' => $this->properties, 'identifier' => $this->identifier, 'type' => $this->type, 'items' => $this->items, 'parameters' => $this->parameters]);
