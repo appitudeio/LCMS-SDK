@@ -690,23 +690,22 @@
 			}
 			
 			// Pair properties to it's node
-			$props = $this->properties; //array_combine(array_column($this->properties, "identifier"), $this->properties);
+			$props = $this->properties;
 
-			$items = array_values(
-						array_map(fn($n) => 
-							array_combine(
-								array_keys($n),
-									array_map(fn($v, $k) => new NodeObject($k, $v, $props[$k] ?? null), $n, array_keys($n))), $this->node));
-
-			// If only one item, maybe it's not meant to be used
-			if(count($items) == 1 && !array_filter(array_map(function($node) {
-				return (empty((string) $node)) ? (string) $node->prop("src") : "";
-				
-			}, $items[array_key_first($items)])))
+			if(!$items = array_values(
+							array_map(fn($n) => 
+								array_combine(
+									array_keys($n),
+										array_map(fn($v, $k) => new NodeObject($k, $v, $props[$k] ?? null), $n, array_keys($n))), $this->node)))
 			{
 				return array();
 			}
 
+			// If only one item, maybe it's not meant to be used
+			if(count($items) === 1 && !array_filter(array_map(fn($node) => (!empty((string) $node)) ? (string) $node : (string) $node->prop("src") ?? null, $items[array_key_first($items)])))
+			{
+				return array();
+			}
 			return $items;
 		}
 
