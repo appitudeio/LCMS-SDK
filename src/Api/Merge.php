@@ -212,7 +212,8 @@
 				$values[] = $this->instance->namespace['id'];
 			}
 
-			$values = [...$values, "$.".$locale->getLanguage(), NodeType::LOOP->value, "$.".$locale->getLanguage()];
+			$lang_prop = "$.".$locale->getLanguage();
+			$values = [...$values, $lang_prop, NodeType::LOOP->value, $lang_prop, $lang_prop];
 
 			if(!$nodes = $db->query("SELECT * FROM ".Env::get("db")['database'].".`lcms_nodes` 
 										WHERE (`route_id` IS NULL " . $condition . ") 
@@ -222,6 +223,7 @@
 												`type`=?
 												OR JSON_EXTRACT(`content`, ?) > 0 
 												OR JSON_EXTRACT(`content`, '$.*') > 0
+												OR JSON_EXTRACT(`properties`, ?) > 0
 											)
 												ORDER BY `order` ASC, `identifier` ASC", $values)->asArray())
 			{

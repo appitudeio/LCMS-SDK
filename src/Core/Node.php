@@ -465,7 +465,7 @@
 			}
 
 			$this->node = $_node;
-			$this->properties = (!empty($_properties)) ? $_properties : $this->node['properties'] ?? array();
+			$this->properties = $_properties ?? $this->node['properties'] ?? [];
 
 			if(array_is_list($_node))
 			{
@@ -706,6 +706,7 @@
 			{
 				return array();
 			}
+			
 			return $items;
 		}
 
