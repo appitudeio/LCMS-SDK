@@ -105,11 +105,11 @@
                         $nodes[$key] = array();
                     }
 
-                    foreach($element AS $e)
+                    foreach($element AS $name => $e)
                     {
                         if($e instanceof HtmlNode)
                         {
-                            $nodes[$key][] = $buildElement($e, $e->attr['name']);
+                            $nodes[$key][] = $buildElement($e, $e->attr['name'] ?? $name);
                         }
                         else
                         {
