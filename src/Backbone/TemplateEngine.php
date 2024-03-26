@@ -149,12 +149,12 @@
             {
                 $new_nodes = array();
 
-                // Break out the Loop from the tree
-                $loop_element_node = SimpleHtmlDom::string($_loop_element->innertext());
-
                 // If no nodes found
                 if(!isset($node->asArray()['items']) || count($node->asArray()['items']) === 0)
                 {
+                    // Break out the Loop from the tree
+                    $loop_element_node = SimpleHtmlDom::string($_loop_element->innertext());
+
                     // Find out if any unidentified loop items
                     foreach($loop_element_node->find("node") AS $element)
                     {
@@ -168,6 +168,9 @@
                 
                     foreach($node AS $key => $item) // $n == $node
                     {
+                        // Break out the Loop from the tree (Each iteration replaces {{key}} + {{int}} uniquely)
+                        $loop_element_node = SimpleHtmlDom::string($_loop_element->innertext());
+
                         foreach($loop_element_node->find("node") AS $element)
                         {
                             $this->parseElement($element, $_loop_element->attr['name'], $key);
