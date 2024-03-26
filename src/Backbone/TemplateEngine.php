@@ -149,28 +149,40 @@
             {
                 $new_nodes = array();
 
-                $i = 1;
-            
-                foreach($node AS $key => $item) // $n == $node
-                {
-                    // Break out the Loop from the tree
-                    $loop_element_node = SimpleHtmlDom::string($_loop_element->innertext());
+                // Break out the Loop from the tree
+                $loop_element_node = SimpleHtmlDom::string($_loop_element->innertext());
 
+                // If no nodes found
+                if(!isset($node->asArray()['items']) || count($node->asArray()['items']) === 0)
+                {
+                    // Find out if any unidentified loop items
                     foreach($loop_element_node->find("node") AS $element)
                     {
-                        $this->parseElement($element, $_loop_element->attr['name'], $key);
+                        $this->parseElement($element, $_loop_element->attr['name']);
                     }
+                }
+                else
+                {
+                    // Nodes found, parse them and extract parameters within
+                    $i = 1;
+                
+                    foreach($node AS $key => $item) // $n == $node
+                    {
+                        foreach($loop_element_node->find("node") AS $element)
+                        {
+                            $this->parseElement($element, $_loop_element->attr['name'], $key);
+                        }
 
-                    $new_nodes[] = str_replace(["{{key}}", "{{int}}"], [$key, $i], (string) $loop_element_node);
+                        $new_nodes[] = str_replace(["{{key}}", "{{int}}"], [$key, $i], (string) $loop_element_node);
 
-                    $i++;
+                        $i++;
+                    }
                 }
 
                 /**
                  *  Replace the old <loop> with new html
                  */
                 $_loop_element->outertext = implode("", $new_nodes);
-
                 unset($new_nodes);
             }
         }
@@ -272,15 +284,11 @@
             {
                 $_element->attr['type'] = null;
             }
-            elseif($name) //if(empty($_key)) // $key == indicates this is from a loop item
+            elseif($name)
             {
                 if(!empty($_parent))
                 {
-                    if(!isset($this->elements[self::ELEMENT_UNIDENTIFIED][$_parent]))
-                    {
-                        $this->elements[self::ELEMENT_UNIDENTIFIED][$_parent] = array();
-                    }
-
+                    $this->elements[self::ELEMENT_UNIDENTIFIED][$_parent] ??= array();
                     $this->elements[self::ELEMENT_UNIDENTIFIED][$_parent][$name] = $_element;
                 }
                 else
