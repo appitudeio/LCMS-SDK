@@ -1802,9 +1802,9 @@
 		 *
 		 * @param array|UploadedFile $file A (multi-dimensional) array of uploaded file information
 		 *
-		 * @return array A (multi-dimensional) array of UploadedFile instances
+		 * @return array A (multi-dimensional) array of UploadedFile instances or just a UploadedFile
 		 */
-		protected function convertFileInformation(mixed $file): array
+		protected function convertFileInformation(UploadedFile | array $file): UploadedFile | null
 		{
 			if ($file instanceof UploadedFile) 
 			{
@@ -1819,21 +1819,17 @@
 			{
 				if (UPLOAD_ERR_NO_FILE == $file['error']) 
 				{
-					$file = null;
+					return null;
 				} 
-				else 
-				{
-					$file = new UploadedFile($file['tmp_name'], $file['name'], $file['type'], $file['error'], false);
-				}
-			} 
-			else 
-			{
-				$file = array_map(fn ($v) => $v instanceof UploadedFile || is_array($v) ? $this->convertFileInformation($v) : $v, $file);
+				
+				return new UploadedFile($file['tmp_name'], $file['name'], $file['type'], $file['error'], false);
+			}
 
-				if (array_keys($keys) === $keys) 
-				{
-					$file = array_filter($file);
-				}
+			$file = array_map(fn ($v) => $v instanceof UploadedFile || is_array($v) ? $this->convertFileInformation($v) : $v, $file);
+
+			if (array_keys($keys) === $keys) 
+			{
+				return array_filter($file);
 			}
 	
 			return $file;
