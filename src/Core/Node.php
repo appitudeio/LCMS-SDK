@@ -353,7 +353,7 @@
 				
 				if(!empty($this->properties) && !empty($parameters))
 				{
-					array_walk_recursive($this->properties, fn(&$item) => (!empty($item) && str_contains($item, "{{")) ? $item = strtr($item, $parameters) : $item);	
+					array_walk_recursive($this->properties, fn(&$item) => (is_string($item) && !empty($item) && str_contains($item, "{{")) ? $item = strtr($item, $parameters) : $item);	
 				}
 			}
 			
