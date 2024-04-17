@@ -102,7 +102,7 @@
 			self::getInstance()->private_properties['image_endpoint'] .= $_image_endpoint;
 		}
 
-		public function setNamespace(array $_namespace): void
+		protected function setNamespace(array $_namespace): void
 		{
 			$this->namespace = array_filter($_namespace);
 		}
@@ -110,12 +110,12 @@
 		/**
 		 *	@return Array of all nodes
 		 */
-		public static function getAll(): array
+		protected function getAll(): array
 		{
 			return self::getInstance()->nodes;
 		}
 
-		public static function getParameters(): array
+		protected function getParameters(): array
 		{
 			return self::getInstance()->parameters ?? array();
 		}
@@ -123,7 +123,7 @@
 		/**
 		 *	Prepares all Nodes we want to load before we use them in the document
 		 */
-		public static function prepare(string $_identifier, NodeType $_type, array $_params = array()): NodeObject | bool | array
+		protected function prepare(string $_identifier, NodeType $_type, array $_params = array()): NodeObject | bool | array
 		{
 			if($_type == NodeType::LOOP)
 			{
@@ -188,7 +188,7 @@
 		 * 		- Array if a loop
 		 * 		- NodeObject if a Node
 		 */
-		public static function get(string $_identifier): bool | array | NodeObject
+		protected function get(string $_identifier): bool | array | NodeObject
 		{
 			$is_local = true; // Check local namespace first with Global as fallback
 			$id = (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern'] ?? "global") . "." . $_identifier;
@@ -233,7 +233,7 @@
 		/**
 		 *	Check local namespace, with global as fallback
 		 */
-		public static function set(string $_identifier, mixed $_value, array $_params = array()): self
+		protected function set(string $_identifier, mixed $_value, array $_params = array()): self
 		{
 			$identifier = $_identifier;
 		
@@ -289,13 +289,13 @@
 		}
 
 		// Alias to 'exists'
-		public static function has(string $_identifier): bool
+		protected function has(string $_identifier): bool
 		{
 			return self::getInstance()->exists($_identifier);
 		}
 
 		// Check Local namespace first, then as fallback Global"
-		public static function exists(string $_identifier): bool
+		protected function exists(string $_identifier): bool
 		{
 			$ns = self::getInstance()->namespace ?? array('alias' => "global");
 			$id = ($ns['alias'] ?? $ns['pattern'] ?? "global") . "." . $_identifier;
@@ -321,7 +321,7 @@
 		/**
 		 *	Probably from Database, via Api\Merge
 		 */
-		public function merge(array $_nodes = array(), array $_properties = null, array $_unmergers = null): self
+		protected function merge(array $_nodes = array(), array $_properties = null, array $_unmergers = null): self
 		{
 			if(!empty($_unmergers) && !empty($this->nodes))
 			{
@@ -360,12 +360,12 @@
 			return $this;
 		}
 
-		public function getParameter(string $_key): array | null
+		protected function getParameter(string $_key): array | null
 		{
 			return $this->parameters[$_key] ?? null;
 		}
 
-		public static function with(string | array $_key, mixed $_value = null): self
+		protected function with(string | array $_key, mixed $_value = null): self
 		{
 			if(is_array($_key))
 			{
@@ -383,7 +383,7 @@
 		}
 
 		// The dynamically added Nodes could have been added after preparation
-		public static function getAdded(): array
+		protected function getAdded(): array
 		{
 			if(empty(self::getInstance()->added_dynamically) && empty(self::getInstance()->nodes))
 			{
@@ -411,7 +411,7 @@
 			return self::getInstance()->added_dynamically;
 		}
 
-		public static function createNodeObject(mixed $_identifier = null, array $_node = array()): NodeObject
+		protected function createNodeObject(mixed $_identifier = null, array $_node = array()): NodeObject
 		{
 			if(!empty(self::getInstance()->parameters))
 			{
