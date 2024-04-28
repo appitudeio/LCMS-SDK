@@ -210,9 +210,10 @@
 		 */
 		protected static function fullUrl(): string
 		{
+			$path = self::getInstance()->path();
 			$query = self::getInstance()->getQueryString();
 
-			return self::getInstance()->root() . $query;
+			return self::getInstance()->root() . ((!empty($path)) ? "/" . $path : "") . ((!empty($query)) ? "?" . $query : "");
 		}
 
 		/**

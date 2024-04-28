@@ -333,28 +333,28 @@
 		 *
 		 * @param string $url The route URL
 		 *
-		 * @return void
+		 * @return array
 		 */
-		public function dispatch(Request $request, Locale $locale): mixed
+		public function dispatch(Request $request, Locale $locale): array
 		{
 			/**
 			 * 	Remove Localization from URL
 			 */
-			$url = strtolower($request->path());
-
-			if($locale->getLanguage())
+			$url = $request->path();
+			
+			if($locale->getLanguage() && $lowercase_url = strtolower($url))
 			{
 				$locale_test = strtolower(str_replace("_", "-", $locale->getLocale()));
 
-				if(in_array($url, [$locale_test, $locale->getLanguage()]))
+				if(in_array($lowercase_url, [$locale_test, $locale->getLanguage()]))
 				{
 					$url = "";
 				}
-				elseif(str_starts_with($url, $locale_test . "/"))
+				elseif(str_starts_with($lowercase_url, $locale_test . "/"))
 				{
 					$url = substr($url, 6);
 				}
-				elseif(str_starts_with($url, $locale->getLanguage()))
+				elseif(str_starts_with($lowercase_url, $locale->getLanguage()))
 				{
 					$url = substr($url, 3);
 				}
