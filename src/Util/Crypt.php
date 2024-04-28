@@ -71,7 +71,7 @@
 		        $nonce,
 		        $key
 		    );
-
+			
 		    if (!is_string($plain)) 
 		    {
 		        throw new Exception('Invalid MAC');
