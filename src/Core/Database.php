@@ -202,7 +202,7 @@
 			}
 
 			// array => json
-			$all_fields = array_merge(array_filter(array_values($_fields)), array_values($_where));
+			$all_fields = array_merge(array_filter(array_values($_fields), fn($f) => !is_null($f)), array_values($_where));
 			array_walk($all_fields, fn(&$v) => (is_array($v)) ? $v = json_encode($v) : $v = $v); // Convert all arrays to json
 
 			self::getInstance()->sql = "UPDATE ".$_table." SET " . implode(", ", $columns_values) . " WHERE " . implode(" AND ", $where_statement);
