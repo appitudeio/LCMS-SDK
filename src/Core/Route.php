@@ -89,7 +89,7 @@
 				}
 				else
 				{
-					$route['pattern'] = self::getInstance()->parent['pattern'] . "/" . $route['pattern'];
+					$route['pattern'] = ltrim(self::getInstance()->parent['pattern'] . "/" . $route['pattern'], "/");
 				}
 			}
 
