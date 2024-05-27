@@ -154,7 +154,7 @@
             }
             elseif($_event == "middlewareresponse")
             {
-                array_unshift($args, $this->events[$_event]);
+                array_unshift($_args, $this->events[$_event]);
                 $_event = "response";
             }
 
