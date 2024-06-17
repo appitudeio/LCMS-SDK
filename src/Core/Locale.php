@@ -44,9 +44,20 @@
 			return $this->asArray()[LANGUAGE_CODE] ?? false;
 		}
 
-		protected function getLocale(): string | false
+		protected function getLocale(string $separator = "_"): string | false
 		{
-			return $this->asArray()[LOCALE] ?? false;
+			if(!$locale = $this->asArray()[LOCALE] ?? false)
+			{
+				return false;
+			}
+
+			if($separator == "_")
+			{
+				return $locale;
+			}
+
+			$parts = explode("_", $locale);
+			return implode($separator, $parts);
 		}
 
 		protected function getTimezone(): string | false
