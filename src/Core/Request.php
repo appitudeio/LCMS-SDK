@@ -1805,7 +1805,7 @@
 		 *
 		 * @return array A (multi-dimensional) array of UploadedFile instances or just a UploadedFile
 		 */
-		protected function convertFileInformation(UploadedFile | array $file): UploadedFile | null
+		protected function convertFileInformation(UploadedFile | array $file): UploadedFile | array | null
 		{
 			if ($file instanceof UploadedFile) 
 			{
