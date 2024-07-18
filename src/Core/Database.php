@@ -11,6 +11,7 @@
 	 *		2020-01-06: Added SSL certificate support
 	 *		2021-05-06: Added query->statement->fetchAs
 	 *			- DB::query("SELECT...")->as(Model::class); returns array with Models
+	 *		2024-05-10: Added support for Enums
 	 */
 	namespace LCMS\Core;
 
@@ -117,9 +118,11 @@
 				$i++;
 			}
 
-			// array => json
+			/** 
+			 * 	Convert array => json, enum => int | string
+			 */
 			$all_fields = array_values($_fields);
-			array_walk($all_fields, fn(&$v) => (is_array($v)) ? $v = json_encode($v) : $v = $v); // Convert all arrays to json
+			array_walk($all_fields, fn(&$v) => (is_array($v)) ? $v = json_encode($v) : (($v instanceof \UnitEnum) ? $v = $v->value : $v)); // Convert all arrays to json
 			
 			self::getInstance()->sql = "INSERT INTO " . $_table . " (" . "`" . implode("`, `", array_keys($_fields)) . "`" . ") VALUES(" . implode(", ", $columns_values) . ")";
 
@@ -201,9 +204,11 @@
 				$where_statement[] = "`" . $column . "` = ?";
 			}
 
-			// array => json
+			/** 
+			 * 	Convert array => json, enum => int | string
+			 */
 			$all_fields = array_merge(array_filter(array_values($_fields), fn($f) => !is_null($f)), array_values($_where));
-			array_walk($all_fields, fn(&$v) => (is_array($v)) ? $v = json_encode($v) : $v = $v); // Convert all arrays to json
+			array_walk($all_fields, fn(&$v) => (is_array($v)) ? $v = json_encode($v) : (($v instanceof \UnitEnum) ? $v = $v->value : $v)); // Convert all arrays to json
 
 			self::getInstance()->sql = "UPDATE ".$_table." SET " . implode(", ", $columns_values) . " WHERE " . implode(" AND ", $where_statement);
 
@@ -241,7 +246,7 @@
 			}
 
 			$args = (is_string($_args)) ? array($_args) : $_args;
-			array_walk($args, fn(&$v) => (is_array($v)) ? $v = json_encode($v) : $v = $v); // Convert all arrays to json
+			array_walk($args, fn(&$v) => (is_array($v)) ? $v = json_encode($v) : (($v instanceof \UnitEnum) ? $v = $v->value : $v)); // Convert all arrays to json
 
 			try
 			{
