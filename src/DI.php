@@ -13,7 +13,7 @@
     {
 		use Singleton {
 			Singleton::__construct as private SingletonConstructor;
-		}        
+		}
 
         protected $di;
         protected array $instances = array();
