@@ -126,7 +126,7 @@
 			
 			self::getInstance()->sql = "INSERT INTO " . $_table . " (" . "`" . implode("`, `", array_keys($_fields)) . "`" . ") VALUES(" . implode(", ", $columns_values) . ")";
 
-			$statement = $connection->prepare(self::getInstance()->sql, $all_fields);
+			$statement = $connection->prepare(self::getInstance()->sql);
 
 			try
 			{
