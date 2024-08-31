@@ -65,7 +65,7 @@
 		
 		private function getMessage(string $_label)
 		{
-			list($section, $section_message) = explode(".", $_label);
+			list($section, $section_message) = explode(".", $_label, 2);
 
 			if(!isset($this->translations[$section]) || !isset($this->translations[$section][$section_message]))
 			{

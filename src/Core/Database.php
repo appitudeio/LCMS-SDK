@@ -110,9 +110,9 @@
 					$data = (strtolower($data ?? "") == "uuid()") ? Uuid::generate() : $match[1];
 					$columns_values[$i] = "UUID_TO_BIN(?)";
 				}
-				elseif(is_string($data) && str_starts_with(strtolower($data ?? ""), "point("))
-				{
-					$data = $data;	// Not checked yet (2022-12-27)
+				elseif(is_string($data) && str_starts_with(strtolower($data ?? ""), "point(")) {
+					$columns_values[$i] = $data; // Include the POINT function directly in the SQL
+					$data = null;  // We don't need to bind this value since it's directly in the SQL
 				}
 
 				$i++;
@@ -126,7 +126,7 @@
 			
 			self::getInstance()->sql = "INSERT INTO " . $_table . " (" . "`" . implode("`, `", array_keys($_fields)) . "`" . ") VALUES(" . implode(", ", $columns_values) . ")";
 
-			$statement = $connection->prepare(self::getInstance()->sql, $all_fields);
+			$statement = $connection->prepare(self::getInstance()->sql);
 
 			try
 			{
@@ -182,9 +182,9 @@
 					$as = (strtolower($data ?? "") == "uuid") ? "UUID_TO_BIN('".Uuid::generate()."')" : "UUID_TO_BIN('".$match[1]."')";
 					$data = null;
 				}
-				elseif(is_string($data) && str_starts_with(strtolower($data ?? ""), "point("))
-				{
-					$data = $data;	
+				elseif(is_string($data) && str_starts_with(strtolower($data ?? ""), "point(")) {
+					$as = $data;
+					$data = null;  // Since we are directly including this in the SQL, we do not need to bind a value for it
 				}
 
                 $columns_values[] = "`" . $column . "` = " . $as;
