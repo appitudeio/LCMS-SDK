@@ -39,7 +39,7 @@
 			$this->request = $_request;
 		}
 
-		public static function add($_url_pattern, $_caller): string
+		public static function add(null | string $_url_pattern, mixed $_caller): string
 		{
 			/**
 			 *	Determine what to do when this Route is in use
@@ -92,6 +92,10 @@
 					$route['pattern'] = ltrim(self::getInstance()->parent['pattern'] . "/" . $route['pattern'], "/");
 				}
 			}
+			elseif(empty($route['pattern']))
+			{
+				$route['pattern'] = "/";
+			}
 
 			// Add to queue
 			self::getInstance()->routes[] = $route;
@@ -106,7 +110,7 @@
 		{
 			$route = $this->routes[$_parent_key];
 
-			if(!isset($route['controller']) || !class_exists($route['controller']) || !method_exists($route['controller'], "router") || /*(isset($route['parent']) &&*/ in_array($route['controller'], $this->mapped))
+			if(!isset($route['controller']) || !class_exists($route['controller']) || !method_exists($route['controller'], "router") || in_array($route['controller'], $this->mapped))
 			{
 				return;
 			}
@@ -120,7 +124,7 @@
 
 			$this->current = $this->routes[$_parent_key];
 
-			$this->group(fn($self) => $class::router($self));
+				$this->group(fn($self) => $class::router($self));
 
 			$this->current = $last_current;
 
@@ -367,7 +371,7 @@
 				throw new Exception('No route matched', 404);
 			}
 
-			$this->current = $route_array;
+			$this->current = (array) $route_array;
 
 			return $this->current;
 		}
@@ -399,10 +403,7 @@
 			foreach($maps AS $map_keys)
 			{
 				// Prioritizes routes from Controllers (Based on if having requirements)
-				$routes = array_combine($map_keys, array_map(fn($route_key) => $this->routes[$route_key], $map_keys));
-				$routes = array_filter($routes, fn($r) => !empty($r['pattern'])); // Remove all empty pattern-routes (Probably wrong because of merge)
-
-				if(empty($routes))
+				if(!$routes = array_combine($map_keys, array_map(fn($route_key) => $this->routes[$route_key], $map_keys)))
 				{
 					continue;
 				}
@@ -414,12 +415,12 @@
 				}
 
 				// Prioritize routes with pattern-fallback {} to be last
-				if($routes_w_fallbacks = array_filter($routes, fn($r) => $r['pattern'][0] == "{"))
+				/*if($routes_w_fallbacks = array_filter($routes, fn($r) => !empty($r['pattern']) && $r['pattern'][0] == "{"))
 				{
-					$routes = array_filter($routes, fn($r) => $r['pattern'][0] != "{") + $routes_w_fallbacks;
-				}
+					$routes = array_filter($routes, fn($r) => empty($r['pattern']) || $r['pattern'][0] != "{") + $routes_w_fallbacks;
+				}*/
 
-				foreach($routes AS $route_key => $route)
+				foreach(array_filter($routes, fn($r) => !empty($r['pattern'])) AS $route_key => $route)
 				{
 					$pattern = $this->parsePattern($route['pattern']);
 

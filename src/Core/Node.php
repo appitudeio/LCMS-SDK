@@ -508,7 +508,7 @@
 
 			// Any params we should replace 
 			//$forbidden_keys = array('name', 'type', 'content', 'as');
-			
+
 			// If route or hyperlink, the 'content' is inside a property
 			if(isset($this->node['content']) && !empty($this->node['content']) && str_contains($this->node['content'], "{{") && $_parameters = array_replace_recursive($this->node['parameters'] ?? array(), $_parameters)) //array_filter(array_replace_recursive($this->node['parameters'] ?? array(), $_parameters), fn($key) => in_array($key, $forbidden_keys), ARRAY_FILTER_USE_KEY))
 			{
@@ -641,8 +641,6 @@
 			{
 				$href = "#";
 			}
-
-			$this->return_as[] = $this->node['properties']['href'] = $href;
 
 			return $this;
 		}
