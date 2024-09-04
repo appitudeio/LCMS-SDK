@@ -237,10 +237,8 @@
                     }
                 }
 
-                // $tag = "innertext"; //($_element->hasChildNodes()) ? "content" : "innertext";
-                // $_element->$tag = ($type == "route") ? (string) $href : ((!empty((string) $href->prop("title")) ? (string) $href->prop("title") : (string) $href->prop("content")));
-
-                list($_element->innertext, $stored) = $this->handle($identifier ?? null, $_element->attr, $_element->innertext);
+                $tag = "innertext"; //($_element->hasChildNodes()) ? "content" : "innertext";
+                $_element->$tag = ($type == "route") ? (string) $href : ((!empty((string) $href->prop("title")) ? (string) $href->prop("title") : (string) $href->prop("content")));
 
                 if($_element->hasChildNodes())
                 {
