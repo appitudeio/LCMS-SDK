@@ -508,7 +508,7 @@
 
 			// Any params we should replace 
 			//$forbidden_keys = array('name', 'type', 'content', 'as');
-			
+
 			// If route or hyperlink, the 'content' is inside a property
 			if(isset($this->node['content']) && !empty($this->node['content']) && str_contains($this->node['content'], "{{") && $_parameters = array_replace_recursive($this->node['parameters'] ?? array(), $_parameters)) //array_filter(array_replace_recursive($this->node['parameters'] ?? array(), $_parameters), fn($key) => in_array($key, $forbidden_keys), ARRAY_FILTER_USE_KEY))
 			{
@@ -622,28 +622,24 @@
 		 */
 		public function href(): self
 		{
-			$this->return_as = [__FUNCTION__];
-
 			// Any params we should replace
-			if($href = $this->node['properties']['href'] ?? $this->node['content'] ?? false)
+			if($this->node['properties']['href'] = $this->node['properties']['href'] ?? $this->node['content'] ?? false)
 			{
-				//$forbidden_properties = array('name', 'type', 'as');
-
 				// If route or hyperlink, the 'content' is inside a property
 				$params = array_merge(Node::getParameters() ?? array(), $this->node['parameters'] ?? array());
 
-				if(str_contains($href, "{{") && $_parameters = (!empty($params)) ? array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($params)), $params) : array()) // && $_parameters = array_filter(array_replace_recursive($this->node['parameters'] ?? array(), $_parameters), fn($key) => in_array($key, $forbidden_properties), ARRAY_FILTER_USE_KEY))
+				if(str_contains($this->node['properties']['href'], "{{") && $_parameters = (!empty($params)) ? array_combine(array_map(fn($key) => "{{" . $key . "}}", array_keys($params)), $params) : array())
 				{
-					$href = $this->node['properties']['href'] = strtr($href, $_parameters);
+					$this->node['properties']['href'] = $this->node['properties']['href'] = strtr($this->node['properties']['href'], $_parameters);
 				}
 			}
 			else
 			{
-				$href = "#";
+				$this->node['properties']['href'] = "#";
 			}
 
-			$this->return_as[] = $this->node['properties']['href'] = $href;
-
+			$this->return_as = [__FUNCTION__, $this->node['properties']['href']];
+		
 			return $this;
 		}
 

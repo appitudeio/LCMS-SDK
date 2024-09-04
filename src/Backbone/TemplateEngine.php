@@ -237,9 +237,14 @@
                     }
                 }
 
-                $tag = ($_element->hasChildNodes()) ? "content" : "innertext";
-
+                $tag = "innertext"; //($_element->hasChildNodes()) ? "content" : "innertext";
                 $_element->$tag = ($type == "route") ? (string) $href : ((!empty((string) $href->prop("title")) ? (string) $href->prop("title") : (string) $href->prop("content")));
+
+                if($_element->hasChildNodes())
+                {
+                    array_walk($_element->nodes, fn($e) => $_element->removeChild($e));
+                }
+
                 $_element->attr['as'] = "a";
             }
             elseif(($type = $_element->attr['type'] ?? $_element->attr['as'] ?? false) && in_array($type, ['img', 'image', 'picture']))
