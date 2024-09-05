@@ -12,6 +12,7 @@
 	 *		2021-05-06: Added query->statement->fetchAs
 	 *			- DB::query("SELECT...")->as(Model::class); returns array with Models
 	 *		2024-05-10: Added support for Enums
+	 *		2024-08-31: Refactored with help from AI..
 	 */
 	namespace LCMS\Core;
 
@@ -32,112 +33,48 @@
 		/**
 		 *	Connects to a DB, and returns the current created DB-instance-key
 		 */
-		public static function connect(string $_host, string $_username, mixed $_password, string $_db_name = null, string $_ssl_certificate_path = null): PDO
+		protected function connect(
+			string $_host, 
+			string $_username, 
+			mixed $_password, 
+			string $_db_name = null, 
+			string $_ssl_certificate_path = null
+		): PDO 
 		{
-			$options = array(
-				PDO::ATTR_PERSISTENT 	=> false, 
-				PDO::ATTR_ERRMODE 		=> PDO::ERRMODE_EXCEPTION
-			);
+			$this->validateSSLPath($_ssl_certificate_path);
 
-			if(!empty($_ssl_certificate_path))
+			$options = $this->getPDOOptions($_ssl_certificate_path);
+
+			$pdo = $this->createPDOInstance($_host, $_username, $_password, $options);
+
+			$key = $this->storeConnection($pdo);
+
+			if ($_db_name !== null) 
 			{
-				if(!is_file($_ssl_certificate_path))
-				{
-					throw new Exception("Database ssl_certificate (".$_ssl_certificate_path.") does not exist");
-				}
-
-				$options[PDO::MYSQL_ATTR_SSL_CA] = $_ssl_certificate_path;
-			}			
-
-			/* first iteration of connections == 0 */
-			$key = count(self::getInstance()->connections);
-
-			$driver = "mysql:host=".$_host."; charset=utf8mb4";
-
-			try
-			{
-				$pdo = new PDO($driver, $_username, $_password, $options);
-				$pdo->setAttribute(PDO::ATTR_STATEMENT_CLASS, [PDOStatement::class]);
-
-			    self::getInstance()->connections[$key] = $pdo;
-			}
-			catch(PDOException $e) 
-			{
-			    self::getInstance()->debug($e);
-			}
-			catch(Exception $e)
-			{
-				throw new PDOException($e->getMessage());
+				$this->selectDBOrFail($_db_name, $key, $_host, $_username);
 			}
 
-			if(is_null($_db_name))
-			{
-				return self::getInstance()->connections[$key];
-			}
-
-			if(!self::getInstance()->select_db($_db_name, $key))
-			{
-				throw new Exception('Could not select database ' . $_db_name . " (".$_host.", ".$_username.")");
-			}
-			
-			return self::getInstance()->connections[$key];
+			return $this->connections[$key];
 		}
 
 		/**
 		 *	Smart insertQuery which allows an associative array with columns and values.
 		 *		Also, ofcourse, with Binds and prepared statements
 		 */
-		public static function insert(string $_table, array $_fields, int $_connection_key = null): PDOStatement
+		protected function insert(string $_table, array $_fields, int $_connection_key = null): PDOStatement
 		{
-			$connection = self::getInstance()->getConnection($_connection_key);
+			$_table = $this->sanitizeIdentifier($_table);
+			$columns_values = $this->prepareColumnsAndValues($_fields);
+			$column_names = implode(", ", array_map(fn($col) => "`" . $this->sanitizeIdentifier($col) . "`", array_keys($_fields)));
 
-			/**
-			 *	Prepare the bindings
-			 */
-			$columns_values = array_fill(0, count($_fields), "?");
+			$this->sql = sprintf(
+				"INSERT INTO %s (%s) VALUES(%s)",
+				$_table,
+				$column_names,
+				implode(", ", $columns_values['placeholders'])
+			);
 
-			$i = 0;
-
-			foreach($_fields AS $key => &$data)
-			{
-				if(is_string($data) && str_starts_with(strtolower($data ?? ""), "now("))
-				{
-					$data = "NOW()";
-				}
-				elseif(is_string($data) && str_starts_with(strtolower($data ?? ""), "uuid("))
-				{
-					preg_match('#\((.*?)\)#', $data, $match);
-					$data = (strtolower($data ?? "") == "uuid()") ? Uuid::generate() : $match[1];
-					$columns_values[$i] = "UUID_TO_BIN(?)";
-				}
-				elseif(is_string($data) && str_starts_with(strtolower($data ?? ""), "point(")) {
-					$columns_values[$i] = $data; // Include the POINT function directly in the SQL
-					$data = null;  // We don't need to bind this value since it's directly in the SQL
-				}
-
-				$i++;
-			}
-
-			/** 
-			 * 	Convert array => json, enum => int | string
-			 */
-			$all_fields = array_values($_fields);
-			array_walk($all_fields, fn(&$v) => (is_array($v)) ? $v = json_encode($v) : (($v instanceof \UnitEnum) ? $v = $v->value : $v)); // Convert all arrays to json
-			
-			self::getInstance()->sql = "INSERT INTO " . $_table . " (" . "`" . implode("`, `", array_keys($_fields)) . "`" . ") VALUES(" . implode(", ", $columns_values) . ")";
-
-			$statement = $connection->prepare(self::getInstance()->sql);
-
-			try
-			{
-				$statement->execute($all_fields);
-			}
-			catch(PDOException | Exception $e)
-			{
-				self::getInstance()->debug($e);
-			}
-
-			return $statement;
+			return $this->prepareStatement($this->sql, $columns_values['values'], $_connection_key);
 		}
 
 		/**
@@ -146,136 +83,54 @@
 		 *			Specify a Where-statement through an array, like:
 		 *				array('id' => $product_id);
 		 */
-		public static function update(string $_table, array $_fields, array $_where, int $_connection_key = null): PDOStatement
+		protected function update(string $_table, array $_fields, array $_where, int $_connection_key = null): PDOStatement
 		{
-			unset($_fields['id']); // Never alter 'id' (Auto-increment column)
+			$_table = $this->sanitizeIdentifier($_table);
 
-			if(empty($_fields) || empty($_where))
+			// Remove the 'id' field to avoid altering the auto-increment column
+			unset($_fields['id']);
+
+			if(empty($_fields) || empty($_where)) 
 			{
 				throw new Exception("No Fields nor Where-statement specified for Update-query");
 			}
 
-			$connection = self::getInstance()->getConnection($_connection_key);
+			$columns_values = $this->prepareColumnsAndValues($_fields, true);
+			$where_clause = $this->prepareWhereClause($_where);
 
-			/**
-			 *	Prepare the bindings
-			 */
-			$columns_values = $where_statement = array();
+			$this->sql = sprintf(
+				"UPDATE %s SET %s WHERE %s",
+				$_table,
+				implode(", ", $columns_values['placeholders']),
+				implode(" AND ", $where_clause)
+			);
 
-			foreach($_fields AS $column => &$data)
-			{
-				$as = "?";
-
-				if(is_null($data))
-				{
-					$as = "NULL";
-					$data = null;
-				}
-				elseif(is_string($data) && str_starts_with(strtolower($data ?? ""), "now"))
-				{
-					$as = "NOW()";
-					$data = null;
-				}
-				elseif(is_string($data) && str_starts_with(strtolower($data ?? ""), "uuid("))
-				{
-					preg_match('#\((.*?)\)#', $data, $match);
-					$as = (strtolower($data ?? "") == "uuid") ? "UUID_TO_BIN('".Uuid::generate()."')" : "UUID_TO_BIN('".$match[1]."')";
-					$data = null;
-				}
-				elseif(is_string($data) && str_starts_with(strtolower($data ?? ""), "point(")) {
-					$as = $data;
-					$data = null;  // Since we are directly including this in the SQL, we do not need to bind a value for it
-				}
-
-                $columns_values[] = "`" . $column . "` = " . $as;
-			}
-
-			foreach($_where AS $column => &$data)
-			{
-				if(is_null($data))
-				{
-					$data = " IS NULL";
-				}
-				elseif(is_array($data))
-				{
-					$data = $data[0] . $data[1];
-				}
-
-				$where_statement[] = "`" . $column . "` = ?";
-			}
-
-			/** 
-			 * 	Convert array => json, enum => int | string
-			 */
-			$all_fields = array_merge(array_filter(array_values($_fields), fn($f) => !is_null($f)), array_values($_where));
-			array_walk($all_fields, fn(&$v) => (is_array($v)) ? $v = json_encode($v) : (($v instanceof \UnitEnum) ? $v = $v->value : $v)); // Convert all arrays to json
-
-			self::getInstance()->sql = "UPDATE ".$_table." SET " . implode(", ", $columns_values) . " WHERE " . implode(" AND ", $where_statement);
-
-			$statement = $connection->prepare(self::getInstance()->sql);
-
-			try
-			{
-				$statement->execute($all_fields);
-			}
-			catch(PDOException | Exception $e)
-			{
-				self::getInstance()->debug($e);
-			}
-
-			return $statement;
+			return $this->prepareStatement($this->sql, array_merge($columns_values['values'], array_values($_where)), $_connection_key);
 		}
 
 		/* Actually run a query */
-		public static function query(string $_sql, array | null $_args = null, int $_connection_key = null): PDOStatement
+		protected function query(string $_sql, array | null $_args = null, int $_connection_key = null): PDOStatement
 		{
-			$connection = self::getInstance()->getConnection($_connection_key);
+			$this->sql = $_sql;
 
-			self::getInstance()->sql = $_sql;
-
-			if(empty($_args))
-			{
-				try
-				{
-					return $connection->query(self::getInstance()->sql);
-				}
-				catch(PDOException | Exception $e)
-				{
-					self::getInstance()->debug($e);
-				}
-			}
-
-			$args = (is_string($_args)) ? array($_args) : $_args;
-			array_walk($args, fn(&$v) => (is_array($v)) ? $v = json_encode($v) : (($v instanceof \UnitEnum) ? $v = $v->value : $v)); // Convert all arrays to json
-
-			try
-			{
-				$statement = $connection->prepare(self::getInstance()->sql);
-				$statement->execute($args);
-			}
-			catch(PDOException | Exception $e)
-			{
-				self::getInstance()->debug($e);
-			}
-
-			return $statement;
+			return $this->prepareStatement($this->sql, $_args ?? [], $_connection_key);
 		}
 
 		/**
 		 *	Gets columns from a table
 		 */
-		public static function getColumns(string $_database, string $_table): array
+		protected function getColumns(string $_database, string $_table): array
 		{
-			$query = self::getInstance()->query("SHOW COLUMNS FROM ".$_database.".`".$_table."`");
+			$query = $this->query("SHOW COLUMNS FROM `$_database`.`$_table`");
 
-			if(self::getInstance()->num_rows($query) == 0)
+			if($this->num_rows($query) === 0) 
 			{
-				return array();
+				return [];
 			}
 
-			$columns = array();
+			$columns = [];
 
-			while($row = self::getInstance()->fetch_assoc($query))
+			while ($row = $this->fetch_assoc($query)) 
 			{
 				$columns[$row['Field']] = $row['Type'];
 			}
@@ -283,30 +138,30 @@
 			return $columns;
 		}
 
-		public static function fetch_assoc($statement): mixed
+		protected function fetch_assoc($statement): mixed
 		{
 			return $statement->fetch(PDO::FETCH_ASSOC);
 		}
 		
-		public static function num_rows($statement): int
+		protected function num_rows($statement): int
 		{
 			return $statement->rowCount();
 		}
 		
-		public static function last_insert_id(int $_connection_key = null): int
+		protected function last_insert_id(int $_connection_key = null): int
 		{
-			$connection = self::getInstance()->getConnection($_connection_key);
+			$connection = $this->getConnection($_connection_key);
 			
 			return $connection->lastInsertId();
 		}
 
-		public static function select_db(string $_db_name, int $_connection_key = null)
+		protected function select_db(string $_db_name, int $_connection_key = null)
 		{
-			return self::getInstance()->query("USE " . $_db_name); //, $_connection_key);
+			return $this->query("USE " . $_db_name); //, $_connection_key);
 		}
 
 		/* New way to fetch just one column instad of mysql_result */
-		public static function fetch_column($statement)
+		protected function fetch_column($statement)
 		{
 			return $statement->fetchColumn();
 		}		
@@ -317,76 +172,233 @@
 		 */
 		public function __destruct()
 		{
-			foreach(self::getInstance()->connections AS $key => $conn)
+			foreach($this->connections AS $key => $conn)
 			{
-				unset(self::getInstance()->connections[$key]);
+				unset($this->connections[$key]);
 			}
 		}
 
-		public static function disconnect($connection_key = 0): void
+		protected function disconnect($connection_key = 0): void
 		{
-			unset(self::getInstance()->connections[$connection_key]);
+			unset($this->connections[$connection_key]);
 		}
 
-		private static function debug($e)
+		protected function debug($e): void
 		{
 			$trace = $e->getTrace()[1];
+			$errorDetails = sprintf(
+				"SQL-error: %s (SQL: %s) in %s at line %d, in function %s of class %s",
+				$e->getMessage(),
+				$this->sql,
+				$trace['file'],
+				$trace['line'],
+				$trace['function'],
+				$trace['class']
+			);
 
-			$string = "file: " . $trace['file'] . ", line: " . $trace['line'] . ", function: " . $trace['function'] . ", class: " . $trace['class'];
-
-			throw new PDOException("SQL-error: " . $e->getMessage() . " (" . self::getInstance()->sql .") - (" . $string . ")");
+			// Log error to a file or any other logging system you use
+			// Example: error_log($errorDetails, 3, '/var/log/my_errors.log');
+			throw new PDOException($errorDetails);
 		}
 
 		/**
 		 *	Find out which connection we should use. Could be from a Key
 		 */
-		public static function getConnection(int $_connection_key = null): PDO
+		protected function getConnection(int $_connection_key = null): PDO
 		{
-			if(empty(self::getInstance()->connections))
+			if(empty($this->connections))
 			{
 				throw new Exception("No connections found");
 			}
 			
 			if(is_numeric($_connection_key))
 			{
-				if(!isset(self::getInstance()->connections[$_connection_key]))
+				if(!isset($this->connections[$_connection_key]))
 				{
 					throw new Exception("The connection (".$_connection_key.") doesnt exist");
 				}
 				
-				return self::getInstance()->connections[$_connection_key];
-			}
-			elseif(is_null($_connection_key))
-			{
-				/* Return the first connected DB */
-				return self::getInstance()->connections[0];
+				return $this->connections[$_connection_key];
 			}
 			
-			throw new Exception("No counntions found (last");
+			return $this->connections[0];
 		}
 
-		public static function isConnected(): bool
+		protected function isConnected(): bool
 		{
-			return (empty(self::getInstance()->connections)) ? false : true;
+			return (empty($this->connections)) ? false : true;
 		}
 
-		public static function escape(string $_string, int $_connection_key = null)
+		// Prepare the columns and values for INSERT/UPDATE statements
+		private function prepareColumnsAndValues(array $fields, bool $forUpdate = false): array
 		{
-			$connection = self::getInstance()->getConnection($_connection_key);
+			$placeholders = [];
+			$values = [];
+
+			foreach ($fields as $column => $data) 
+			{
+				$column = $this->sanitizeIdentifier($column); // Sanitize column name
+
+				$data = $this->processSpecialValues($data); // Process special values
+
+				if ($forUpdate && $data === null) 
+				{
+					$placeholders[] = "`$column` = NULL";
+				} 
+				else 
+				{
+					$placeholders[] = $forUpdate ? "`$column` = ?" : "?";
+					$values[] = is_array($data) ? json_encode($data) : ($data instanceof \UnitEnum ? $data->value : $data);
+				}
+			}
+
+			return ['placeholders' => $placeholders, 'values' => $values];
+		}
+
+		// Helper method to prepare the WHERE clause
+		private function prepareWhereClause(array $_where): array
+		{
+			return array_map(function($column, $data) 
+			{
+				$column = $this->sanitizeIdentifier($column);
+				
+				if (is_null($data))
+				{
+					return "`$column` IS NULL";
+				} 
+				elseif (is_array($data)) 
+				{
+					return "`$column` " . $data[0] . " ?";
+				} 
+				
+				return "`$column` = ?";
+			}, array_keys($_where), $_where);
+		}
+
+		private function prepareStatement(string $sql, array $args = [], int $connection_key = null): PDOStatement
+		{
+			$connection = $this->getConnection($connection_key);
+
+			$statement = $connection->prepare($sql);
+
+			array_walk($args, fn(&$v) => $v = is_array($v) ? json_encode($v) : ($v instanceof \UnitEnum ? $v->value : $v));
+
+			try 
+			{
+				$statement->execute($args);
+			} 
+			catch (PDOException | Exception $e) 
+			{
+				$this->debug($e);
+			}
+
+			return $statement;
+		}
+
+		protected function escape(string $_string, int $_connection_key = null): string | array
+		{
+			$connection = $this->getConnection($_connection_key);
 
 			if(is_array($_string))
 			{
-				foreach($_string AS $key => $value)
-				{
-					$_string[$key] = substr($connection->quote($value), 1, -1);
-				}
+				return array_map(fn($value) => substr($connection->quote($value), 1, -1), $_string);
 			}
-			else
+				
+			return substr($connection->quote($_string), 1, -1);
+		}
+
+		private function validateSSLPath(?string $_ssl_certificate_path): void
+		{
+			if ($_ssl_certificate_path !== null && !is_file($_ssl_certificate_path)) 
 			{
-				$_string = substr($connection->quote($_string), 1, -1);
+				throw new Exception("Database ssl_certificate ({$_ssl_certificate_path}) does not exist");
+			}
+		}
+
+		private function getPDOOptions(?string $_ssl_certificate_path): array
+		{
+			$options = [
+				PDO::ATTR_PERSISTENT => false,
+				PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+			];
+
+			if ($_ssl_certificate_path !== null) {
+				$options[PDO::MYSQL_ATTR_SSL_CA] = $_ssl_certificate_path;
 			}
 
-			return $_string;
+			return $options;
+		}
+
+		private function createPDOInstance(string $_host, string $_username, string | int $_password, array $options): PDO
+		{
+			$driver = "mysql:host={$_host}; charset=utf8mb4";
+
+			try 
+			{
+				$pdo = new PDO($driver, $_username, $_password, $options);
+				$pdo->setAttribute(PDO::ATTR_STATEMENT_CLASS, [ PDOStatement::class ]);
+			} 
+			catch (PDOException $e) 
+			{
+				$this->debug($e);
+			} 
+			catch (Exception $e) 
+			{
+				throw new PDOException($e->getMessage());
+			}
+
+			return $pdo;
+		}
+
+		private function storeConnection(PDO $pdo): int
+		{
+			$key = count($this->connections);
+			$this->connections[$key] = $pdo;
+			return $key;
+		}
+
+		private function selectDBOrFail(string $_db_name, int $key, string $_host, string $_username): void
+		{
+			if (!$this->select_db($_db_name, $key)) 
+			{
+				throw new Exception("Could not select database {$_db_name} ({$_host}, {$_username})");
+			}
+		}
+
+		private function processSpecialValues(mixed $data): mixed
+		{
+			if (is_string($data)) 
+			{
+				$lowerData = strtolower($data);
+
+				if (str_starts_with($lowerData, "now(")) 
+				{
+					return "NOW()";
+				} 
+				elseif (str_starts_with($lowerData, "uuid(")) 
+				{
+					preg_match('#\((.*?)\)#', $data, $match);
+					return "UUID_TO_BIN('" . ($lowerData === "uuid()" ? Uuid::generate() : $match[1]) . "')";
+				}
+				elseif (str_starts_with($lowerData, "point(")) 
+				{
+					return $data; // No processing needed for POINT()
+				}
+			}
+
+			return $data; // Return the value unchanged if it doesn't match any special cases
+		}
+
+		// Simple sanitization to prevent injection via table/column names
+		private function sanitizeIdentifier(string $identifier): string
+		{
+			// Allow letters, numbers, underscores, and dots
+			if (preg_match('/^[a-zA-Z0-9_]+$/', $identifier) !== 1) 
+			{
+				throw new Exception("Invalid identifier: $identifier");
+			}
+
+			return $identifier;
 		}
 	}
 
@@ -394,7 +406,7 @@
 	{
 		public function as(string $_obj, string $_method = null): array
 		{
-			$rows = $this->fetchAll(PDO::FETCH_ASSOC|PDO::FETCH_UNIQUE);
+			$rows = $this->fetchAll(PDO::FETCH_ASSOC | PDO::FETCH_UNIQUE);
 
 			if(empty($rows))
 			{
@@ -422,7 +434,7 @@
 		public function asColumn()
 		{
 			return $this->fetchColumn();
-		}		
+		}
 	}
 
 	class PDOException extends Exception
