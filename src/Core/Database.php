@@ -393,9 +393,9 @@
 		private function sanitizeIdentifier(string $identifier): string
 		{
 			// Allow letters, numbers, underscores, and dots
-			if (preg_match('/^[a-zA-Z0-9_]+$/', $identifier) !== 1) 
+			if (preg_match('/^[a-zA-Z0-9_.`]+$/', $identifier) !== 1) 
 			{
-				throw new Exception("Invalid identifier: $identifier");
+				throw new Exception("Invalid identifier: " . $identifier);
 			}
 
 			return $identifier;
