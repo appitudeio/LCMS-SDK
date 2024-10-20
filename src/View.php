@@ -31,6 +31,11 @@
 			return (isset($this->data[$name]) || DI::has($name));
 		}
 
+		protected function all(): array
+		{
+			return $this->data;
+		}
+
 		/**
 		 * Get a piece of data from the view.
 		 *

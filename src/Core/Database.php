@@ -241,7 +241,19 @@
 
 				$data = $this->processSpecialValues($data); // Process special values
 
-				if ($forUpdate && $data === null) 
+				if ($data instanceof SqlExpression)
+				{
+					if ($forUpdate)
+					{
+						$placeholders[] = "`$column` = " . $data->getExpression();
+					}
+					else
+					{
+						$placeholders[] = $data->getExpression();
+					}
+					// Do not add to $values
+				}
+				elseif ($forUpdate && $data === null) 
 				{
 					$placeholders[] = "`$column` = NULL";
 				} 
@@ -373,16 +385,18 @@
 
 				if (str_starts_with($lowerData, "now(")) 
 				{
-					return "NOW()";
+					return new SqlExpression("NOW()");
 				} 
 				elseif (str_starts_with($lowerData, "uuid(")) 
 				{
 					preg_match('#\((.*?)\)#', $data, $match);
-					return "UUID_TO_BIN('" . ($lowerData === "uuid()" ? Uuid::generate() : $match[1]) . "')";
+					$uuid = ($match[1] ?? '') === '' ? Uuid::generate() : $match[1];
+
+					return new SqlExpression("UUID_TO_BIN('" . $uuid . "')");
 				}
 				elseif (str_starts_with($lowerData, "point(")) 
 				{
-					return $data; // No processing needed for POINT()
+					return new SqlExpression($data); // No processing needed for POINT()
 				}
 			}
 
@@ -440,5 +454,20 @@
 	class PDOException extends Exception
 	{
 		
+	}
+
+	class SqlExpression
+	{
+		private string $expression;
+
+		public function __construct(string $expression)
+		{
+			$this->expression = $expression;
+		}
+
+		public function getExpression(): string
+		{
+			return $this->expression;
+		}
 	}
 ?>
