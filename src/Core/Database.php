@@ -458,11 +458,10 @@
 		 */
 		public function fetch(int $mode = PDO::FETCH_ASSOC, ...$args): mixed
 		{
-			// Fetch the next row from the result set
 			$row = parent::fetch($mode, ...$args);
 			if ($row === false || $row === null) 
 			{
-				return $row; // No more rows
+				return $row;
 			}
 
 			/** 
