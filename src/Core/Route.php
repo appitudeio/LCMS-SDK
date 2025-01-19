@@ -266,7 +266,7 @@
 	        $_pattern = preg_replace('/\//', '\\/', $_pattern);
 
 	        // Convert variables e.g. {controller} (Allows %+. for urlencoded strings)
-	        $_pattern = preg_replace('/\{([%a-z_]+)\}/', '(?P<\1>[%a-z0-9-.]+)', $_pattern);
+	        $_pattern = preg_replace('/\{([%a-z_]+)\}/i', '(?P<$1>[a-z0-9_.-]+)', $_pattern);
 
 	        // Convert variables with custom regular expressions e.g. {id:\d+}
 	      	//  $_pattern = preg_replace('/\{([a-z]+):([^\}]+)\}/', '(?P<\1>\2)', $_pattern);
@@ -496,25 +496,33 @@
 			/**
 			 *	If found pattern to replace from $_arguments
 			 */
-			if(preg_match_all("/{\K[^}]*(?=})/m", $url, $matches) && !empty($matches[0]))
+			if(preg_match_all("/\{([^}:]+)(?::((?:[^{}]+|\{\d+\})*))?\}/", $url, $matches, PREG_SET_ORDER) && !empty($matches[0]))
 			{
 				if(empty($_arguments))
 				{
 					throw new Exception("RouteAlias (".$_to_alias.") requires arguments (".implode(", ", $matches[0]).")");
 				}
-
-				foreach($matches[0] AS $pattern)
+				
+				foreach($matches AS $match)
 				{
-					$match = preg_split('/[^[:alnum:]\_]+/', $pattern)[0];
+					$name = preg_split('/[^[:alnum:]\_]+/', $match[1])[0];
+					$pattern = $match[2] ?? null;
 
-					if(!isset($_arguments[$match]))
+					if(!isset($_arguments[$name]))
 					{
-						throw new Exception("RouteAlias (".$_to_alias.") requires argument (".$match.")");
+						throw new Exception("RouteAlias (".$_to_alias.") requires argument (".$name.")");
 					}
 
-					$url = str_replace("{".$pattern."}", $_arguments[$match], $url);
+					if(str_contains($url, ":"))
+					{
+						$url = str_replace("{" . $name . ":" . $pattern . "}", $_arguments[$name], $url);
+					}
+					else
+					{
+						$url = str_replace("{".$name."}", $_arguments[$name], $url);
+					}
 
-					unset($_arguments[$match]);
+					unset($_arguments[$name]);
 				}
 			}
 

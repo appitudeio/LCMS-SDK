@@ -167,7 +167,7 @@
 			// Is this an SVG image?
 			$mime = $local_file->getMimeType();
 
-			if(strpos($mime, "svg") !== false)
+			if(strpos($mime, "svg") !== false && !str_ends_with("+xml", $mime))
 			{
 				$mime .= "+xml";
 			}
