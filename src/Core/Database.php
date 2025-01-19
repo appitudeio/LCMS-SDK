@@ -380,28 +380,30 @@
 
 		private function processSpecialValues(mixed $data): mixed
 		{
-			if (is_string($data)) 
+			if(!is_string($data))
 			{
-				$lowerData = strtolower($data);
+				return $data; // Return the value unchanged if it doesn't match any special cases
+			}
+			
+			$lower_data = strtolower($data);
 
-				if (str_starts_with($lowerData, "now(")) 
-				{
-					return new SqlExpression("NOW()");
-				} 
-				elseif (str_starts_with($lowerData, "uuid(")) 
-				{
-					preg_match('#\((.*?)\)#', $data, $match);
-					$uuid = ($match[1] ?? '') === '' ? Uuid::generate() : $match[1];
+			if(str_starts_with($lower_data, "now(")) 
+			{
+				return new SqlExpression("NOW()");
+			} 
+			elseif(str_starts_with($lower_data, "uuid(")) 
+			{
+				preg_match('#\((.*?)\)#', $data, $match);
+				$uuid = ($match[1] ?? '') === '' ? Uuid::generate() : $match[1];
 
-					return new SqlExpression("UUID_TO_BIN('" . $uuid . "')");
-				}
-				elseif (str_starts_with($lowerData, "point(")) 
-				{
-					return new SqlExpression($data); // No processing needed for POINT()
-				}
+				return new SqlExpression("UUID_TO_BIN('" . $uuid . "')");
+			}
+			elseif(str_starts_with($lower_data, "point(")) 
+			{
+				return new SqlExpression($data); // No processing needed for POINT()
 			}
 
-			return $data; // Return the value unchanged if it doesn't match any special cases
+			return $data; 
 		}
 
 		// Simple sanitization to prevent injection via table/column names
