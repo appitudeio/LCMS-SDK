@@ -13,6 +13,7 @@
 	 *			- DB::query("SELECT...")->as(Model::class); returns array with Models
 	 *		2024-05-10: Added support for Enums
 	 *		2024-08-31: Refactored with help from AI..
+	 *		2025-01-19: Added support for auto-JSON-parsed columns
 	 */
 	namespace LCMS\Core;
 
