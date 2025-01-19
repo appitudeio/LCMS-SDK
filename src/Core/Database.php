@@ -418,6 +418,8 @@
 
 	class PDOStatement extends \PDOStatement
 	{
+		private ?array $column_meta_cache = null;
+
 		public function as(string $_obj, string $_method = null): array
 		{
 			$rows = $this->fetchAll(PDO::FETCH_ASSOC | PDO::FETCH_UNIQUE);
@@ -448,6 +450,144 @@
 		public function asColumn()
 		{
 			return $this->fetchColumn();
+		}
+
+		/**
+		 * Override fetch() so *any* row-by-row fetching decodes JSON.
+		 */
+		public function fetch(int $mode = PDO::FETCH_ASSOC, ...$args): mixed
+		{
+			// Fetch the next row from the result set
+			$row = parent::fetch($mode, ...$args);
+			if ($row === false || $row === null) 
+			{
+				return $row; // No more rows
+			}
+
+			/** 
+			 * 	Only decode if it's an associative array (FETCH_ASSOC)
+			 * 	If the mode is something else (like FETCH_OBJ), you need
+			 *	a slightly different approach
+			 */
+			if ($mode === \PDO::FETCH_ASSOC || $mode === (\PDO::FETCH_ASSOC|\PDO::FETCH_UNIQUE)) 
+			{
+				$this->initColumnMetaCache();
+				$this->decodeJsonColumns($row);
+			}
+
+			return $row;
+		}
+
+		/**
+		 *  Override fetchAll() so *batch fetching* also decodes JSON.
+		 */
+		public function fetchAll($mode = \PDO::FETCH_ASSOC, ...$args): array
+		{
+			$rows = parent::fetchAll($mode, ...$args);
+			if (empty($rows)) 
+			{
+				return $rows;
+			}
+			
+			// If returning associative arrays, decode them
+			if ($mode === \PDO::FETCH_ASSOC || $mode === (\PDO::FETCH_ASSOC|\PDO::FETCH_UNIQUE)) 
+			{
+				$this->initColumnMetaCache();
+
+				foreach ($rows AS &$row) 
+				{
+					$this->decodeJsonColumns($row);
+				}
+			}
+
+			return $rows;
+		}
+
+		/**
+		 * 	Given an associative array row, JSON-decode any columns
+		 * 	marked as JSON in the metadata cache.
+		 */
+		private function decodeJsonColumns(array &$row): void
+		{
+			if(empty($this->column_meta_cache)) 
+			{
+				return;
+			}
+
+			// For each column that we know is JSON, decode it
+			foreach($this->column_meta_cache AS $colName => $meta) 
+			{
+				// Confirm that this column actually exists in the row
+				if(empty($row[$colName]) || !array_key_exists($colName, $row)) 
+				{
+					continue;
+				}
+				elseif(!$this->isMaybeJsonColumn($meta)) 
+				{
+					continue;
+				}
+				elseif(!in_array($row[$colName][0], ['{', '[']))
+				{
+					continue;
+				}
+
+				// Since the native json_validate under the hood packages the JSON-decode function, we shouldnt do it twice
+				try
+				{
+					$row[$colName] = json_decode($row[$colName], true, 512, JSON_THROW_ON_ERROR);
+				}
+				catch(Exception $e) {}
+			}
+		}
+
+		/**
+		 * 	Initialize (if needed) the column metadata cache,
+		 * 	which will tell us which columns are JSON.
+		 */
+		private function initColumnMetaCache(): void
+		{
+			if($this->column_meta_cache !== null) 
+			{
+				return; // Already cached
+			}
+
+			$this->column_meta_cache = [];
+			$column_count = $this->columnCount();
+
+			// Loop through each column index
+			for($i = 0; $i < $column_count; $i++) 
+			{
+				$meta = $this->getColumnMeta($i);
+
+				// Key by column name, store the whole meta array
+				$this->column_meta_cache[$meta['name']] = $meta;
+			}
+		}
+
+		private function isMaybeJsonColumn(array $meta): bool
+		{
+			// Some drivers use 'mysql:decl_type', others 'native_type' => 'JSON'
+			$declType = $meta['mysql:decl_type'] ?? null;
+			$nativeType = $meta['native_type'] ?? null;
+
+			if($declType === 'JSON' || $nativeType === 'JSON') 
+			{
+				return true;
+			}
+			elseif(!empty($declType) || !empty($nativeType)) 
+			{
+				return false;
+			}
+			elseif($meta['pdo_type'] != PDO::PARAM_STR) 
+			{
+				return false;	
+			}
+			elseif(empty($meta['flags']) || !in_array("blob", $meta['flags'])) 
+			{
+				return false;
+			}
+
+			return true;
 		}
 	}
 
