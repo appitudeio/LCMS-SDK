@@ -184,22 +184,56 @@
 			unset($this->connections[$connection_key]);
 		}
 
+		/**
+		 * 	A smarter debugger for finding out where the erroring sql query were made in the code
+		 */
 		protected function debug($e): void
 		{
-			$trace = $e->getTrace()[1];
+			$full_trace = $e->getTrace();
+			$most_interesting_frame = null;
+
+			foreach ($full_trace AS $frame) 
+			{
+				if (!isset($frame['file']) || !isset($frame['class']) || in_array($frame['class'], [__CLASS__, 'PDOStatement'])) 
+				{
+					continue;
+				}
+
+				// The moment we find a frame that isn't in the database wrapper, that's what we want.
+				$most_interesting_frame = $frame;
+				break;
+			}
+
+			// Build a message
 			$errorDetails = sprintf(
-				"SQL-error: %s (SQL: %s) in %s at line %d, in function %s of class %s",
+				"SQL-error: %s (SQL: %s)",
 				$e->getMessage(),
-				$this->sql,
-				$trace['file'],
-				$trace['line'],
-				$trace['function'],
-				$trace['class']
+				$this->sql
 			);
 
-			// Log error to a file or any other logging system you use
-			// Example: error_log($errorDetails, 3, '/var/log/my_errors.log');
-			throw new PDOException($errorDetails);
+			// If we found a user-land frame, append its info
+			if ($most_interesting_frame) 
+			{
+				$file = $most_interesting_frame['file'];
+				$line = $most_interesting_frame['line'] ?? '';
+				$func = $most_interesting_frame['function'] ?? '';
+				$cls  = $most_interesting_frame['class']    ?? '';
+
+				$errorDetails .= sprintf(
+					"\nOccurred in %s at line %s, in function %s of class %s",
+					$file,
+					$line,
+					$func,
+					$cls
+				);
+			} 
+			else 
+			{
+				// We didn't find a frame outside the database code
+				$errorDetails .= "\n(No frame outside Database found.)";
+			}
+
+    		throw new PDOException($errorDetails, (int)$e->getCode(), $e);
 		}
 
 		/**
