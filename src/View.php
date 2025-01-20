@@ -83,6 +83,20 @@
 			{
 				self::getInstance()->data = array_merge(self::getInstance()->data, $key);
 			} 
+			elseif(is_array($value))
+			{
+				if(isset(self::getInstance()->data[$key]) && !is_array(self::getInstance()->data[$key]))
+				{
+					self::getInstance()->data[$key] = [ self::getInstance()->data[$key] ];
+				}
+				
+				self::getInstance()->data[$key] ??= [];
+				self::getInstance()->data[$key] = array_merge(self::getInstance()->data[$key], $value); // Keeps keys
+			}
+			/*elseif($value instanceof Closure)
+			{
+				self::getInstance()->data[$key] = $value; //();
+			}*/
 			else
 			{
 				self::getInstance()->data[$key] = $value;
