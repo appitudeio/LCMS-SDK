@@ -83,23 +83,6 @@
 			{
 				self::getInstance()->data = array_merge(self::getInstance()->data, $key);
 			} 
-			elseif(is_array($value))
-			{
-				if(isset(self::getInstance()->data[$key]) && !is_array(self::getInstance()->data[$key]))
-				{
-					self::getInstance()->data[$key] = array(self::getInstance()->data[$key]);
-				}
-				elseif(!isset(self::getInstance()->data[$key]))
-				{
-					self::getInstance()->data[$key] = array();
-				}
-
-				self::getInstance()->data[$key] += $value; // Keeps keys
-			}
-			elseif($value instanceof Closure)
-			{
-				self::getInstance()->data[$key] = $value; //();
-			}
 			else
 			{
 				self::getInstance()->data[$key] = $value;
@@ -117,7 +100,7 @@
 			
 			$file = getcwd() . "/../App/Views/" . $_view;  // relative to Root
 
-			if(!is_readable($file)) 
+			if(!is_readable($file))
 			{
 				throw new Exception($file . " not found");
 			}
@@ -126,10 +109,7 @@
 
 			if(is_array($_with))
 			{
-				foreach($_with AS $key => $value)
-				{
-					self::getInstance()->with($key, $value);
-				}
+				array_walk($_with, fn($value, $key) => self::with($key, $value));
 			}
 
 			return self::getInstance();
