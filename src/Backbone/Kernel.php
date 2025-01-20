@@ -369,23 +369,28 @@
     class MiddlewareStack
     {
         protected array $middlewares = array();
-        protected $middleware;
 
         function __construct(...$middlewares)
         {
             $this->middlewares = array_map(fn($mw) => is_string($mw) ? new $mw() : $mw, $middlewares);
         }
 
+        private function without($middleware)
+        {
+            return new self(
+                ...array_filter(
+                    $this->middlewares,
+                    fn($mw) => $middleware !== $mw
+                )
+            );
+        }
+
         public function handle(Request $request)
         {
-            $next = fn() => null;
+            $middleware = $this->middlewares[0] ?? false;
+            $middleware = (is_string($middleware)) ? new $middleware() : $middleware;
 
-            foreach (array_reverse($this->middlewares) AS $middleware) 
-            {
-                $next = fn(Request $req) => DI::call([$middleware, "process"], ['request' => $req, 'next' => $next]);
-            }
-
-            return $next($request);
+            return $middleware ? DI::call([$middleware::class, "process"], ['next' => $this->without($middleware)]) : null;
         }
 
         function __invoke(Request $request)

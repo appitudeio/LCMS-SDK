@@ -386,8 +386,6 @@
 				return array();
 			}
 
-			$loop['parameters'] = (!empty($loop['parameters'])) ? json_decode($loop['parameters'], true) : null;
-
 			return $loop;
 		}
 
@@ -713,9 +711,9 @@
 		private function buildNode($row): array
 		{
 			return array_merge($row, array(
-				'content'		=> (!empty($row['content'])) ? json_decode($row['content'], true) : null,
-				'parameters'	=> (!empty($row['parameters'])) ? json_decode($row['parameters'], true) : null,
-				'properties' 	=> (!empty($row['properties'])) ? json_decode($row['properties'], true) : null
+				'content'		=> $row['content'] ?? null,
+				'parameters'	=> $row['parameters'] ?? null,
+				'properties' 	=> $row['properties'] ?? null
 			));
 		}		
 	}
@@ -800,31 +798,6 @@
 
 		private function buildRoute($row): array
 		{
-			if(isset($row['parameters']) && !empty($row['parameters']) && !is_array($row['parameters']))
-			{
-				$row['parameters'] = json_decode($row['parameters'], true);
-			}
-
-			if(isset($row['settings']) && !empty($row['settings']) && !is_array($row['settings']))
-			{
-				$row['settings'] = json_decode($row['settings'], true);
-			}
-
-			if(isset($row['meta']) && !empty($row['meta']) && !is_array($row['meta']))
-			{
-				$row['meta'] = json_decode($row['meta'], true);
-			}
-
-			if(isset($row['snapshot']) && !empty($row['snapshot']) && !is_array($row['snapshot']))
-			{
-				$row['snapshot'] = json_decode($row['snapshot'], true);
-			}
-
-			if(isset($row['pattern']) && !empty($row['pattern']) && !is_array($row['pattern']))
-			{
-				$row['pattern'] = json_decode($row['pattern'], true);
-			}
-
 			$row['org_pattern'] = array_filter($row['pattern']);
 			$row['pattern'] = $row['pattern'][Locale::getLanguage()] ?? $row['pattern'][array_key_first($row['pattern'])];	
 
@@ -1106,7 +1079,7 @@
 						$system_items[$navigation][$nav_item_key] = array_merge($system_items[$navigation][$nav_item_key], $this->createNavItem($_storage, $navigation, $nav_item, $parent_id));
 					}
 
-					$route_settings = (!empty($system_items[$navigation][$nav_item_key]['route_settings'])) ? json_decode($system_items[$navigation][$nav_item_key]['route_settings'], true) : null;
+					$route_settings = $system_items[$navigation][$nav_item_key]['route_settings'] ?? null;
 					unset($system_items[$navigation][$nav_item_key]['route_settings']);
 
 					// Disabled route?
@@ -1184,19 +1157,9 @@
 
 		private function buildNavItem($row): array
 		{
-			if(isset($row['title']) && !empty($row['title']) && !is_array($row['title']))
+			if(isset($row['title']) && !empty($row['title']) && is_array($row['title']))
 			{
-				$row['title'] = json_decode($row['title'], true)[Locale::getLanguage()] ?? "";
-			}
-
-			if(isset($row['parameters']) && !empty($row['parameters']) && !is_array($row['parameters']))
-			{
-				$row['parameters'] = json_decode($row['parameters'], true);
-			}			
-
-			if(isset($row['snapshot']) && !empty($row['snapshot']) && !is_array($row['snapshot']))
-			{
-				$row['snapshot'] = json_decode($row['snapshot'], true);
+				$row['title'] = $row['title'][Locale::getLanguage()] ?? "";
 			}
 
 			if(empty($row['route_id']) && isset($row['snapshot'], $row['snapshot']['route']) && !empty($row['snapshot']['route']))
@@ -1204,7 +1167,7 @@
 				$row['route'] = $row['snapshot']['route'];
 			}
 
-			$hidden_at = (!empty($row['hidden_at'])) ? array_filter(json_decode($row['hidden_at'], true)) : null;
+			$hidden_at = (!empty($row['hidden_at'])) ? array_filter($row['hidden_at']) : null;
 			unset($row['hidden_at']);
 
 			if(!empty($hidden_at) && isset($hidden_at[Locale::getLanguage()]))
@@ -1248,7 +1211,7 @@
 
 			foreach($rows AS $row)
 			{
-				$this->items[$row['key']] = (empty($row['value'])) ? null : ((json_validate($row['value'])) ? json_decode($row['value'], true) : $row['value']);
+				$this->items[$row['key']] = $row['value'];
 			}
 
 			return $this;
