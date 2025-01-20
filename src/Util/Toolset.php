@@ -3,18 +3,6 @@
 
 	class Toolset
 	{
-		public static function isJson(string $_string): bool
-		{
-			try
-			{
-				return (bool) json_decode($_string, null, 512, JSON_THROW_ON_ERROR);
-			}
-			catch(\JsonException $e)
-			{
-				return false;
-			}
-		}
-
 		public static function picture(string $_url, array $_attributes = array(), string | int $_size = null): string
 		{
 			$parts = self::pictureArray($_url, $_attributes, $_size);

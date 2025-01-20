@@ -1248,7 +1248,7 @@
 
 			foreach($rows AS $row)
 			{
-				$this->items[$row['key']] = (empty($row['value'])) ? null : ((\LCMS\Util\Toolset::isJson($row['value'])) ? json_decode($row['value'], true) : $row['value']);
+				$this->items[$row['key']] = (empty($row['value'])) ? null : ((json_validate($row['value'])) ? json_decode($row['value'], true) : $row['value']);
 			}
 
 			return $this;
