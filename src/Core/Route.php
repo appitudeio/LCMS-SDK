@@ -5,11 +5,11 @@
 	namespace LCMS\Core;
 
 	use LCMS\DI;
+	use LCMS\View;
 	use LCMS\Core\Request;
 	use LCMS\Core\Response;
 	use LCMS\Core\Redirect;
 	use LCMS\Core\Locale;
-	use LCMS\Backbone\View;
 	use LCMS\Util\Singleton;
 	use \Exception;
 
@@ -506,9 +506,8 @@
 
 			// Get the pattern from alias
 			$route_key = $instance->relations[$alias] ?? $instance->db_relations[$alias];
-			$pattern = $instance->routes[$route_key]['pattern'] ?? null;
 
-			if (!$pattern) 
+			if (!$pattern = $instance->routes[$route_key]['pattern'] ?? null) 
 			{
 				throw new Exception("No pattern found for RouteAlias: " . $alias);
 			}
@@ -550,10 +549,13 @@
 			$locale = DI::get(Locale::class);
 			$localePrefix = strtolower(str_replace("_", "-", $locale->getLocale()));
 
-			// Prepend locale if applicable
+			// Only add the locale prefix if it exists
 			if ($localePrefix) 
 			{
-				$url = '/' . $localePrefix . ltrim($url, '/');
+				$localePrefix = '/' . trim($localePrefix, '/');
+
+				// Append the URL without forcing an extra trailing slash
+				$url = $localePrefix . ($url === '/' ? '' : '/' . ltrim($url, '/'));
 			}
 
 			return $url;
