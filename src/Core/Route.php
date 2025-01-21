@@ -513,35 +513,74 @@
 			}
 
 			// Replace placeholders in the pattern with arguments
-			$url = self::replaceArgumentsInPattern($pattern, $arguments);
+			$url = self::replaceArgumentsInPattern($pattern, $arguments, $alias);
 
 			// Prepend locale if applicable
 			$url = self::prependLocaleToUrl($url);
+			
+			// If any arguments remain, append them as a query string
+			$url = self::appendQueryParameters($url, $arguments);
 
 			// Return absolute or relative URL
 			return $absolute ? self::getAbsoluteUrl($url) : $url;
 		}
 
-		private static function replaceArgumentsInPattern(string $pattern, array $arguments): string
+		private static function appendQueryParameters(string $url, array $arguments): string
 		{
-			// Find placeholders in the pattern
-			preg_match_all("/{\K[^}]*(?=})/m", $pattern, $matches);
-
-			if (!empty($matches[1])) 
+			if($arguments = array_filter($arguments))
 			{
-				foreach ($matches[1] AS $placeholder) 
+				$separator = ($url === '/') ? '' : '/';
+				
+				if ($url !== '/') 
 				{
-					if (!array_key_exists($placeholder, $arguments)) 
+					$url = rtrim($url, '/');
+				}
+
+				$url .= ($url === '/' ? '' : '') . '?' . http_build_query($arguments);
+			}
+
+			return $url;
+		}
+
+		private static function replaceArgumentsInPattern(string $url, array &$arguments, string $alias): string
+		{
+			// Match placeholders in the form {name} or {name:regex}
+			// Explanation:
+			//   \{          => Match literal '{'
+			//   ([^}:]+)    => Capture 1: Placeholder name (no ':' or '}')
+			//   (?::((?:[^{}]+|\{\d+\})*))? => Optional capture 2 (regex after ':')
+			//   \}          => Match literal '}'
+			if(preg_match_all("/\{([^}:]+)(?::((?:[^{}]+|\{\d+\})*))?\}/", $url, $matches, PREG_SET_ORDER))
+			{
+				if(empty($arguments) && !empty($matches)) 
+				{
+					$placeholderList = implode(", ", array_map(fn($m) => $m[0], $matches));
+					throw new Exception("RouteAlias ($alias) requires arguments ($placeholderList)");
+				}
+				
+				foreach ($matches AS $match) 
+				{
+					// Full match is something like "{name}" or "{name:...}"
+					$full_placeholder = $match[0]; 
+
+					// The placeholder name (e.g., 'name', 'uuid')
+					$name = $match[1];          
+					
+					// Optional custom pattern (e.g., '\d+')
+					$pattern = $match[2] ?? null;
+
+					if (!array_key_exists($name, $arguments)) 
 					{
-						throw new Exception("Missing argument for placeholder: {" . $placeholder . "}");
+						throw new Exception("RouteAlias ($alias) requires argument ($name)");
 					}
 
-					// Replace the placeholder with the corresponding argument
-					$pattern = str_replace("{" . $placeholder . "}", $arguments[$placeholder], $pattern);
+					$url = str_replace($full_placeholder, $arguments[$name], $url);
+
+					unset($arguments[$name]);
 				}
 			}
 
-			return $pattern;
+			return $url;
 		}
 
 		private static function prependLocaleToUrl(string $url): string
