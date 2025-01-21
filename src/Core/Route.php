@@ -525,7 +525,7 @@
 		private static function replaceArgumentsInPattern(string $pattern, array $arguments): string
 		{
 			// Find placeholders in the pattern
-			preg_match_all('/\{([\w]+)(?::([^\}]+))?\}/', $pattern, $matches);
+			preg_match_all("/{\K[^}]*(?=})/m", $pattern, $matches);
 
 			if (!empty($matches[1])) 
 			{
