@@ -498,13 +498,13 @@
 		{
 			$instance = self::getInstance();
 
-			// Validate alias existence
+			// 1. Validate alias existence
 			if (!isset($instance->relations[$alias]) && !isset($instance->db_relations[$alias])) 
 			{
 				throw new Exception("No RouteAlias found for: " . $alias);
 			}
 
-			// Get the pattern from alias
+			// 2. Get route pattern
 			$route_key = $instance->relations[$alias] ?? $instance->db_relations[$alias];
 
 			if (!$pattern = $instance->routes[$route_key]['pattern'] ?? null) 
@@ -512,26 +512,24 @@
 				throw new Exception("No pattern found for RouteAlias: " . $alias);
 			}
 
-			// Replace placeholders in the pattern with arguments
+			// 3. Replace placeholders
 			$url = self::replaceArgumentsInPattern($pattern, $arguments, $alias);
 
-			// Prepend locale if applicable
-			$url = self::prependLocaleToUrl($url);
-			
-			// If any arguments remain, append them as a query string
+			// 4. Possibly preserve the user's current locale segment
+			$url = self::maybePreserveCurrentLocaleSegment($url);
+
+			// 5. Append leftover arguments as query parameters
 			$url = self::appendQueryParameters($url, $arguments);
 
-			// Return absolute or relative URL
+			// 6. Return absolute or relative
 			return $absolute ? self::getAbsoluteUrl($url) : $url;
 		}
 
 		private static function appendQueryParameters(string $url, array $arguments): string
 		{
-			if($arguments = array_filter($arguments))
+			if($arguments = array_filter($arguments)) 
 			{
-				$separator = ($url === '/') ? '' : '/';
-				
-				if ($url !== '/') 
+				if($url !== '/') 
 				{
 					$url = rtrim($url, '/');
 				}
@@ -566,16 +564,12 @@
 					// The placeholder name (e.g., 'name', 'uuid')
 					$name = $match[1];          
 					
-					// Optional custom pattern (e.g., '\d+')
-					$pattern = $match[2] ?? null;
-
 					if (!array_key_exists($name, $arguments)) 
 					{
 						throw new Exception("RouteAlias ($alias) requires argument ($name)");
 					}
 
 					$url = str_replace($full_placeholder, $arguments[$name], $url);
-
 					unset($arguments[$name]);
 				}
 			}
@@ -583,21 +577,43 @@
 			return $url;
 		}
 
-		private static function prependLocaleToUrl(string $url): string
+		/**
+		 * Maybe preserve the current locale segment if the user's URL starts with it.
+		 * Otherwise, just append the $url normally.
+		 */
+		private static function maybePreserveCurrentLocaleSegment(string $url): string
 		{
 			$locale = DI::get(Locale::class);
-			$localePrefix = strtolower(str_replace("_", "-", $locale->getLocale()));
+			$requestPath = DI::get(Request::class)->path(); // E.g., "sv-se/products"
+			$parts = explode('/', trim($requestPath, '/'));
+			$newParts = [];
 
-			// Only add the locale prefix if it exists
-			if ($localePrefix) 
+			// The old logic: "If the first segment is the locale, keep it..."
+			if (!empty($parts[0])) 
 			{
-				$localePrefix = '/' . trim($localePrefix, '/');
+				$lang = $locale->getLanguage(); // e.g., "sv"
+				$localeTest = strtolower(str_replace('_', '-', $locale->getLocale())); // e.g. "sv-se"
 
-				// Append the URL without forcing an extra trailing slash
-				$url = $localePrefix . ($url === '/' ? '' : '/' . ltrim($url, '/'));
+				if (
+					(strlen($parts[0]) === 2 && $parts[0] === $lang) ||
+					(strlen($parts[0]) === 5 && $parts[0] === $localeTest)
+				) 
+				{
+					// The first segment is indeed a recognized locale
+					$newParts[] = $parts[0];
+				}
 			}
 
-			return $url;
+			if ($url !== '/' && !empty($url)) 
+			{
+				// Append the new $url path
+				$newParts[] = trim($url, '/');
+			}
+
+			// Build the new path
+			$final = rtrim('/' . implode('/', $newParts), '/');
+
+			return $final === '' ? '/' : $final;
 		}
 
 		private static function getAbsoluteUrl(string $url): string
