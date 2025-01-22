@@ -30,9 +30,8 @@
             $this->parseLoops();
             $this->parseNodes();
 
-            if ($_unidentified_nodes_collector) 
+            if ($_unidentified_nodes_collector && $unidentifiedNodes = $this->collectUnidentifiedNodes())
             {
-                $unidentifiedNodes = $this->collectUnidentifiedNodes();
                 $_unidentified_nodes_collector($unidentifiedNodes);
             }
 
