@@ -113,8 +113,8 @@
             }
 
             // Get the base URI from the current HttpClient configuration.
-            $baseUri = $this->httpClient->getBaseUri();
-            $fullUri = rtrim($baseUri, '/') . '/' . ltrim($endpoint, '/');
+            $base_uri = $this->httpClient->getBaseUri();
+            $full_uri = rtrim($base_uri, '/') . '/' . ltrim($endpoint, '/');
             
             $headers = [
                 "Content-Type: application/json",
@@ -134,7 +134,7 @@
             }
             
             // Build the curl command.
-            $cmd = "curl -L -X ".$method." -H '".$headers_string."' -d ".$data." '".$fullUri."' > /dev/null 2>&1 &";
+            $cmd = "curl -L -X ".$method." -H '".$headers_string."' -d ".$data." '".$full_uri."' > /dev/null 2>&1 &";
             
             // Execute the command.
             exec($cmd, $output, $exit);
@@ -149,22 +149,18 @@
                 return $this->is_exec_enabled;
             }
 
-            // Check if exec() is available.
+            // If exec() doesn't exist, it can't be enabled.
             if (!function_exists('exec')) 
             {
                 $this->is_exec_enabled = false;
-                return $this->is_exec_enabled;
             }
-            
-            // Check if exec is disabled via php.ini
-            $disabled = array_map('trim', explode(',', ini_get('disable_functions')));
-            if (in_array('exec', $disabled, true)) 
+            else 
             {
-                $this->is_exec_enabled = false;
-                return $this->is_exec_enabled;
+                // Get the list of disabled functions and check if 'exec' is among them.
+                $disabled = array_map('trim', explode(',', ini_get('disable_functions')));
+                $this->is_exec_enabled = !in_array('exec', $disabled, true);
             }
 
-            $this->is_exec_enabled = true;
             return $this->is_exec_enabled;
         }
     }
