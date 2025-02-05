@@ -6,7 +6,7 @@
 
     class Inbox extends Client
     {
-        protected string $version = '/3.0';
+        protected string $version = "3.0";
 
         /**
          * Send an inbox message.
