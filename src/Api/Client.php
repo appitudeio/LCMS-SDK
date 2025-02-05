@@ -1,180 +1,112 @@
 <?php
-	/** 
-	 *
-	 */
-	namespace LCMS\Api;
+    namespace LCMS\Api;
 
-	use LCMS\Core\Request;
-	use LCMS\Core\Env;
-	use LCMS\Util\Singleton;
+    use GuzzleHttp\Client as GuzzleClient;
+    use GuzzleHttp\Exception\GuzzleException;
+    use Psr\Http\Message\ResponseInterface;
+    use Exception;
 
-    use GuzzleHttp\Client as Guzzle;
-    use GuzzleHttp\RequestOptions;
-    use GuzzleHttp\Psr7\Response;
-    use GuzzleHttp\Exception\ClientException;	
-	use \ReflectionClass;
-	use \Exception;
-
-	class Client
-	{
-		use Singleton;
-
-        const CLIENT_NAME = "LCMS-SDK";
-        const CLIENT_VERSION = "3.1";
-        const CLIENT_URL = "https://github.com/appitudeio/lcms-sdk";
+    abstract class Client
+    {
+        protected HttpClient $httpClient;
+        protected string $api_key;
         
-        protected $methods = array();
-        protected $urls = array(
-            'production' => "https://api.logicalcms.com",
-            'sandbox' => "https://api-sandbox.logicalcms.com"
-        );
-        protected $api_key;
-        protected $options = array();
-        protected $timings;
-
-        function __construct(string $_api_key = null, array $_options = array())
+        // Define both production and sandbox URIs.
+        protected array $base_uris = [
+            'production' => 'https://api.logicalcms.com',
+            'sandbox'    => 'https://api-sandbox.logicalcms.com',
+        ];
+        
+        public function __construct(string $api_key, string $mode = "sandbox", array $http_config = [])
         {
-            $this->api_key = $_api_key;
-            $this->options = array_replace_recursive($this->options, $_options, ['headers' => ['User-Agent' => $this->setUserAgent()]]);
-        }
-
-        protected function sendRequest(string $_mode = "sandbox", string $_endpoint = "", array $_request_data = array(), string $_method = "post"): ClientResponse | array
-        {
-            $query_data = array_replace_recursive(array(
-                'headers' => array(
-                    'Authorization' => $this->api_key
-                )
-            ), $this->options);
-
-            if(isset($query_data['batch']))
+            $this->api_key = $api_key;
+            
+            if (!isset($this->base_uris[$mode])) 
             {
-                $query_data[RequestOptions::JSON] = $query_data[RequestOptions::JSON] ?? array();
-                $query_data[RequestOptions::JSON]['users'] = $_request_data['user']; 
-             
-                unset($query_data['batch']);
-            }
-            elseif(isset($_request_data['user']))
-            {  
-                $query_data[RequestOptions::JSON] = $query_data[RequestOptions::JSON] ?? array();
-                $query_data[RequestOptions::JSON]['user'] = $_request_data['user'];
-            }
-
-            if(isset($_request_data['from']))
-            {  
-                $query_data[RequestOptions::JSON] = $query_data[RequestOptions::JSON] ?? array();
-                $query_data[RequestOptions::JSON]['from'] = $_request_data['from'];
+                throw new Exception("Invalid API mode: $mode");
             }
             
-            if(isset($_request_data['payload']))
+            // Optionally append a version or sub-path for this client.
+            $baseUri = $this->base_uris[$mode];
+
+            if (isset($this->version)) 
             {
-                $query_data[RequestOptions::JSON] = $query_data[RequestOptions::JSON] ?? array();
-                $query_data[RequestOptions::JSON]['payload'] = $_request_data['payload'];
+                $baseUri .= $this->version;
+            }
+            
+            $http_config['headers']['Authorization'] = $api_key;
+            $this->httpClient = new HttpClient($base_uri, $http_config);
+        }
+        
+        /**
+         * Send a request and decode the JSON response.
+         *
+         * @param string $method  HTTP method
+         * @param string $uri     API endpoint
+         * @param array  $options Guzzle options such as json, form_params, etc.
+         *
+         * @return array
+         *
+         * @throws Exception on error
+         */
+        protected function sendRequest(string $method, string $uri, array $options = []): array
+        {
+            try 
+            {
+                $response = $this->httpClient->request($method, $uri, $options);
+            } 
+            catch (GuzzleException $e) 
+            {
+                throw new Exception("HTTP Request failed: " . $e->getMessage(), $e->getCode(), $e);
             }
 
-			if(isset($_request_data['form_params']))
-			{
-				$query_data['form_params'] = $_request_data['form_params'];
-			}
+            $body = (string) $response->getBody();
+            $data = json_decode($body, true);
 
-            try
+            if (json_last_error() !== JSON_ERROR_NONE) 
             {
-                if(isset($query_data['silent']))
-                {
-                    // Send this message silently
-                    $cmd = "curl -L -X POST -H 'Content-Type: application/json' -H 'Authorization: ".$query_data['headers']['Authorization']."'";
-                    $cmd .= " -d '" . json_encode($query_data[RequestOptions::JSON] ?? "") . "' '".$this->urls[$_mode] . "/" . ltrim($_endpoint, "/") . "'";
-                    $cmd .= " > /dev/null 2>&1 &"; // Don't wait for response
-
-                    exec($cmd, $output, $exit);
-
-                    return array('success' => $exit == 0);
-                }
-                else
-                {
-                    $client = new Guzzle(); //['base_uri' => $this->urls[$_mode]]);
-                    $request = $client->$_method($this->urls[$_mode] . "/" . ltrim($_endpoint, "/"), $query_data);
-
-                    if(!$response_array = json_decode((string) $request->getBody(), true))
-                    {
-                        throw new Exception($request->getBody());
-                    }
-                    elseif(isset($response_array['error']))
-                    {
-                        throw new Exception($response_array['error']);
-                    }
-                    elseif(isset($response_array['errors']))
-                    {
-                        $error = (is_array($response_array['errors'][0]['message'])) ? $response_array['errors'][0]['message'][array_key_first($response_array['errors'][0]['message'])] : $response_array['errors'][0]['message'];
-                        throw new Exception($error);
-                    }
-                }
+                throw new Exception("Invalid JSON response: " . json_last_error_msg());
             }
-			catch(ClientException $e)
-			{
-				throw new Exception($e->getResponse()->getBody()->getContents());
-			}
-            catch(Exception $e)
+            elseif (isset($data['error']) || isset($data['errors'])) 
             {
-                throw new Exception($e->getMessage());
+                $errorMessage = $data['error'] ?? $data['errors'][0]['message'] ?? 'Unknown error';
+                throw new Exception("API Error: " . $errorMessage);
             }
-
-			if(isset($this->timings[0]))
-			{
-				return new ClientResponse($response_array + ['execution_time' => (microtime(true) - $this->timings[0])]);
-			}
-
-            return new ClientResponse($response_array);
+            
+            return $data;
         }
+    }
 
-        public function validate(string $_method, array $_arguments): array
-        {
-            return array("sandbox", $_arguments);
-        }
+    class HttpClient
+    {
+        private GuzzleClient $client;
 
-        public function setUserAgent(): string
+        public function __construct(string $base_uri, array $config = [])
         {
-            return self::CLIENT_NAME.'/'.self::CLIENT_VERSION.' (+'.self::CLIENT_URL.')';
-        }
+            $default_config = [
+                'base_uri' => $base_uri,
+                'headers'  => [
+                    'User-Agent' => $config['user_agent'] ?? 'LCMS-SDK/3.3 (+https://github.com/appitudeio/lcms-sdk)'
+                ]
+            ];
 
-        public function debug(): self
-        {
-            $this->options['debug'] = true;
-            return $this;
+            $this->client = new GuzzleClient(array_merge($default_config, $config));
         }
 
         /**
-         *  
+         * Send a request.
+         *
+         * @param string $method   HTTP method (GET, POST, etc.)
+         * @param string $uri      Relative URI (endpoint)
+         * @param array  $options  Guzzle options (json, form_params, etc.)
+         *
+         * @return ResponseInterface
+         *
+         * @throws GuzzleException
          */
-        public function silent(): self
+        public function request(string $method, string $uri, array $options = []): ResponseInterface
         {
-            $this->options['silent'] = true;
-            return $this;
-        }
-
-        public function batch(): self
-        {
-            $this->options['batch'] = true;
-            return $this;
-        }		
-	}
-
-    class ClientResponse
-    {
-        private array $response;
-
-        function __construct(array $_array)
-        {
-            $this->response = $_array;
-        }
-
-        function __toString()
-        {
-            return $this->response['data'][0][array_key_first($this->response['data'][0])];
-        }
-
-        public function asArray()
-        {
-            return $this->response;
+            return $this->client->request($method, ltrim($uri, '/'), $options);
         }
     }
 ?>

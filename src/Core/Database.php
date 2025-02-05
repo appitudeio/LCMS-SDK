@@ -465,8 +465,7 @@
 			{
 				return array();
 			}
-
-			if(!empty($_method))
+			elseif(!empty($_method))
 			{
 				return array_combine(array_keys($rows), array_map(fn($row, $id) => $_obj::$_method(['id' => $id] + $row), $rows, array_keys($rows)));
 			}
