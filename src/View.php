@@ -162,7 +162,7 @@
 	     *
 	     * @return void
 	     */
-	    public static function render(string $_view = null, mixed $_data = null): string
+	    public static function render(?string $_view = null, mixed $_data = null): string
 	    {
 	    	if(!empty($_view))
 	    	{
