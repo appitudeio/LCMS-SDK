@@ -13,7 +13,7 @@
   {
     public static function v3($namespace, $name)
     {
-      if(!self::is_valid($namespace))
+      if(!self::isValid($namespace))
       {
           return false;
       }
@@ -81,7 +81,7 @@
 
     public static function v5($namespace, $name)
     {
-      if(!self::is_valid($namespace))
+      if(!self::isValid($namespace))
       {
           return false;
       }

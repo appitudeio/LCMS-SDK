@@ -18,7 +18,6 @@
 	use LCMS\Core\Locale;
     use LCMS\Core\Env;
     use LCMS\Core\Database;
-    use LCMS\Util\Toolset;
     use LCMS\Util\Arr;
 
     use \Closure;
@@ -160,17 +159,8 @@
 
             $locale = DI::get(Locale::class);
             $request = DI::get(Request::class);
-            $env = DI::get(Env::class);
             $node = DI::get(Node::class);
             $route = DI::get(Route::class);
-            
-            /**
-             *  If LCMS-environment, set ImageFactory 
-             */
-            if($env->get("domain"))
-            {
-                $node->init($env->get("domain") . "/images/");
-            }
             
             /**
              *  

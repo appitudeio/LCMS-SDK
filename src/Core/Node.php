@@ -12,6 +12,8 @@
 
 	use LCMS\Core\Route;
 	use LCMS\Core\Locale;
+	use LCMS\Core\ServiceRegistry;
+	use LCMS\Asset\Provider;
 	use LCMS\Util\Singleton;
 	use LCMS\Util\Arr;
 	use LCMS\Util\Toolset;
@@ -21,25 +23,39 @@
 
 	enum NodeType: int
 	{
-		case TEXT 		= 1;
-		case HTML 		= 2;
-		case TEXTAREA 	= 3;
-		//case BOOL 	= 4;
-		case BOOLEAN 	= 4;
-		case ARRAY 		= 6;
-		case IMAGE 		= 10;
-		case BACKGROUND = 11;
-		case FILE 		= 15;
-		case ROUTE 		= 20;
-		case HYPERLINK 	= 25;
-		case LOOP 		= 30;
+		case TEXT 		= 1;  // Has content, minimal properties
+		case HTML 		= 2;  // Has content, may have properties
+		case TEXTAREA 	= 3;  // Has content, minimal properties
+		case BOOLEAN 	= 4;  // Has value, no content
+		case ARRAY 		= 6;  // Has value, no content
+		case IMAGE 		= 10; // Has properties (src, alt), no content
+		case BACKGROUND = 11; // Has properties (src), no content
+		case FILE 		= 15; // Has properties (path), no content
+		case ROUTE 		= 20; // Has properties (href), may have content
+		case HYPERLINK 	= 25; // Has properties (href), has content
+		case LOOP 		= 30; // Has content (template), has properties (data)
 	};
 	
 	class Node
 	{
-		use Singleton {
-			Singleton::__construct as private SingletonConstructor;
-		}
+		use Singleton;
+
+		/**
+		 * Nodes from i18n/database with their types
+		 * Format: ['header.title' => ['content' => 'Welcome', 'type' => NodeType::TEXT]]
+		 */
+		private array $nodes = [];
+
+		/**
+		 * Dynamic request properties
+		 */
+		private array $properties = [];
+
+		/**
+		 * Global application properties from Kernel
+		 */
+		private array $globalProperties = [];
+		private array $cache = [];
 
 		public const TYPE_TEXT 		= NodeType::TEXT;
 		public const TYPE_HTML 		= NodeType::HTML;
@@ -56,51 +72,7 @@
 
 		public array | null $namespace = null;
 		public array $type_properties;
-		private array $parameters;
-		private array $nodes = array();
-		private array $properties = array();
-		private array $private_properties = array(
-			'image_endpoint' => "https://static.logicalcms.com/"
-		);
 		private array $added_dynamically = array();
-
-		function __construct()
-		{
-			$this->SingletonConstructor();
-
-			$this->type_properties = array(
-				NodeType::IMAGE->value => array(
-					'alt' 	=> null,
-					'title'	=> null,
-					'width' => null,
-					'height' => null,
-					'src' => null
-				),
-				NodeType::ROUTE->value => array(
-					'route' => null,
-					'title' => null
-				),
-				NodeType::HYPERLINK->value => array(
-					'href' => null,
-					'title' => null
-				)
-			);
-		}
-
-		function __get(string $_key): mixed
-		{
-			return $this->private_properties[$_key] ?? null;
-		}
-
-		function __set(string $_key, mixed $_value): void
-		{
-			$this->private_properties[$_key] = $_value;
-		}
-
-		public static function init(string $_image_endpoint): void
-		{
-			self::getInstance()->private_properties['image_endpoint'] .= $_image_endpoint;
-		}
 
 		protected function setNamespace(array $_namespace): void
 		{
@@ -112,12 +84,12 @@
 		 */
 		protected function getAll(): array
 		{
-			return self::getInstance()->nodes;
+			return $this->nodes;
 		}
 
 		protected function getParameters(): array
 		{
-			return self::getInstance()->parameters ?? array();
+			return $this->parameters ?? array();
 		}
 
 		/**
@@ -141,7 +113,7 @@
 					$loop_items[] = array_filter(array(
 						'type' => $type,
 						'identifier' => $key, 
-						'properties' => ((is_array($value) && isset($value[1])) || isset(self::getInstance()->type_properties[$type])) ? array_replace_recursive(self::getInstance()->type_properties[$type] ?? array(), (is_array($value)) ? $value[1] ?? array() : array()) : null
+						'properties' => ((is_array($value) && isset($value[1])) || isset($this->type_properties[$type])) ? array_replace_recursive($this->type_properties[$type] ?? array(), (is_array($value)) ? $value[1] ?? array() : array()) : null
 					));
 
 					$loop_items_flat[] = $key;
@@ -191,12 +163,12 @@
 		protected function get(string $_identifier): bool | array | NodeObject
 		{
 			$is_local = true; // Check local namespace first with Global as fallback
-			$id = (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern'] ?? "global") . "." . $_identifier;
+			$id = ($this->namespace['alias'] ?? $this->namespace['pattern'] ?? "global") . "." . $_identifier;
 			
-			if(null === ($node = Arr::get(self::getInstance()->nodes, $id, null))
-				&& null === ($props = Arr::get(self::getInstance()->properties, $id, null)))
+			if(null === ($node = Arr::get($this->nodes, $id, null))
+				&& null === ($props = Arr::get($this->properties, $id, null)))
 			{
-				if(null === ($node = Arr::get(self::getInstance()->nodes, "global." . $_identifier, null)))
+				if(null === ($node = Arr::get($this->nodes, "global." . $_identifier, null)))
 				{
 					return false;
 				}
@@ -205,7 +177,7 @@
 			}
 
 			// Look for properties
-			$properties = (empty(self::getInstance()->properties)) ? null : (($is_local) ? $props ?? Arr::get(self::getInstance()->properties, $id) : Arr::get(self::getInstance()->properties, "global." . $_identifier));			
+			$properties = (empty($this->properties)) ? null : (($is_local) ? $props ?? Arr::get($this->properties, $id) : Arr::get($this->properties, "global." . $_identifier));			
 
 			// Loop or Array?
 			if(is_array($node) || ((!is_string($node) && !is_bool($node)) && is_array($properties)))
@@ -237,9 +209,9 @@
 		{
 			$identifier = $_identifier;
 		
-			if(self::getInstance()->namespace !== null)
+			if($this->namespace !== null)
 			{
-				$identifier = (self::getInstance()->namespace['alias'] ?? self::getInstance()->namespace['pattern']) . "." . $_identifier;
+				$identifier = ($this->namespace['alias'] ?? $this->namespace['pattern']) . "." . $_identifier;
 			}
 			elseif(!str_starts_with($_identifier, "meta."))
 			{
@@ -263,60 +235,167 @@
 
 				if(!empty($arr))
 				{
-					//self::getInstance()->nodes = array_replace_recursive(self::getInstance()->nodes, $arr);
+					//$this->nodes = array_replace_recursive($this->nodes, $arr);
 				}
 				
 				// Remove if any 'old' loop lays here
-				Arr::forget(self::getInstance()->properties, $identifier);
-				self::getInstance()->properties = array_replace_recursive(self::getInstance()->properties, $props);
+				Arr::forget($this->properties, $identifier);
+				$this->properties = array_replace_recursive($this->properties, $props);
 			}
 			elseif(!is_array($_value))
 			{
 				$props = array();
 				$ins = array_merge($_params ?? array(), array_filter(['type' => $type, 'global' => $global ?? null]));
-				Arr::unflatten(self::getInstance()->nodes, $identifier, $_value);
+				Arr::unflatten($this->nodes, $identifier, $_value);
 				Arr::unflatten($props, $identifier, $ins);
-				self::getInstance()->properties = array_replace_recursive(self::getInstance()->properties, $props);
+				$this->properties = array_replace_recursive($this->properties, $props);
 			}
 
 			// If not found merged before (Exclude 'meta')
 			if(!str_starts_with($_identifier, "meta."))
 			{
-				self::getInstance()->added_dynamically[] = $_identifier; // Let future Merger's know about this	
+				$this->added_dynamically[] = $_identifier; // Let future Merger's know about this	
 			}
 
-			return self::getInstance();
+			return $this;
 		}
 
 		// Alias to 'exists'
 		protected function has(string $_identifier): bool
 		{
-			return self::getInstance()->exists($_identifier);
+			return $this->exists($_identifier);
 		}
 
 		// Check Local namespace first, then as fallback Global"
 		protected function exists(string $_identifier): bool
 		{
-			$ns = self::getInstance()->namespace ?? array('alias' => "global");
+			$ns = $this->namespace ?? array('alias' => "global");
 			$id = ($ns['alias'] ?? $ns['pattern'] ?? "global") . "." . $_identifier;
 
-			if(self::getInstance()->namespace != null && (null === $node = Arr::get(self::getInstance()->nodes, $id)))
+			if($this->namespace != null && (null === $node = Arr::get($this->nodes, $id)))
 			{
 				return false;
 			}
-			elseif(Arr::has(self::getInstance()->nodes, $_identifier))
+			elseif(Arr::has($this->nodes, $_identifier))
 			{
 				return true;
 			}
-			elseif(self::getInstance()->namespace == null)
+			elseif($this->namespace == null)
 			{
 				return false;
 			}
 
-			return Arr::has(self::getInstance()->nodes, $id) 
-				|| ($ns['alias'] != "global" && Arr::has(self::getInstance()->nodes, "global.".$_identifier))
-					|| Arr::has(self::getInstance()->properties, $id);
+			return Arr::has($this->nodes, $id) 
+				|| ($ns['alias'] != "global" && Arr::has($this->nodes, "global.".$_identifier))
+					|| Arr::has($this->properties, $id);
 		}	
+
+		protected function getParameter(string $_key): array | null
+		{
+			return $this->parameters[$_key] ?? null;
+		}
+
+		protected function with(string | array $_key, mixed $_value = null): self
+		{
+			if(is_array($_key))
+			{
+				foreach($_key AS $k => $v)
+				{
+					$this->parameters[$k] = $v;
+				}
+			}
+			else
+			{
+				$this->parameters[$_key] = $_value;
+			}
+
+			return $this;
+		}
+
+		// The dynamically added Nodes could have been added after preparation
+		protected function getAdded(): array
+		{
+			if(empty($this->added_dynamically) && empty($this->nodes))
+			{
+				return array();
+			}
+
+			if(!empty($this->nodes) && $dotted_nodes = Arr::dot($this->nodes))
+			{
+				$ns = $this->namespace ?? array('alias' => "global");
+
+				foreach($this->added_dynamically AS $k => $identifier)
+				{
+					if(false === $node = Arr::get($this->nodes, $ns['alias'] . ".". $identifier))
+					{
+						if($ns['alias'] == "global" || false === $node = Arr::get($this->nodes, "global.". $identifier))
+						{
+							continue;
+						}
+					}
+					
+					unset($this->added_dynamically[$k]);
+				}
+			}
+
+			return $this->added_dynamically;
+		}
+
+		protected function createNodeObject(mixed $_identifier = null, array $_node = array()): NodeObject
+		{
+			if(!empty($this->parameters))
+			{
+				$_node['parameters'] = $this->parameters;
+			}
+
+			return new NodeObject($_identifier, $_node);
+		}
+
+		// Special case for collection/loop type nodes
+		protected function isCollection(): bool 
+		{
+			return is_array($this->nodes['content']);
+		}
+
+		protected function addNode(string $path, mixed $content, ?NodeType $type = null): self
+		{
+			// Format expected by TemplateEngine
+			$this->nodes[$path] = [
+				'content' => $content,
+				'type' => $type,
+				'path' => $path  // TemplateEngine needs this
+			];
+			unset($this->cache[$path]);
+			return $this;
+		}
+
+		// For Kernel->init() compatibility
+		/*protected function with(array $properties): self
+		{
+			$this->globalProperties = array_merge($this->globalProperties, $properties);
+			$this->cache = [];
+			return $this;
+		}*/
+
+		// For NodeMerge compatibility
+		protected function store(array $nodes): self
+		{
+			foreach ($nodes as $path => $node) {
+				$this->addNode($path, $node['content'] ?? null, $node['type'] ?? null);
+			}
+			return $this;
+		}
+
+		// For TemplateEngine compatibility
+		/*protected function get(string $path): mixed
+		{
+			return $this->nodes[$path]['content'] ?? null;
+		}*/
+
+		protected function getNode(string $path): ?array
+		{
+			return $this->nodes[$path] ?? null;
+		}
 
 		/**
 		 *	Probably from Database, via Api\Merge
@@ -360,65 +439,40 @@
 			return $this;
 		}
 
-		protected function getParameter(string $_key): array | null
+		public function __get(string $key): mixed
 		{
-			return $this->parameters[$_key] ?? null;
+			if (isset($this->cache[$key])) {
+				return $this->cache[$key];
+			}
+			elseif ($key === 'image_endpoint') {
+				return ServiceRegistry::get(Provider::class)?->getAssetDomain() ?? STATIC_PATH;
+			}
+
+			// Resolution order matches existing system
+			$value = $this->nodes[$key]['content'] 
+				?? $this->properties[$key] 
+				?? $this->globalProperties[$key] 
+				?? null;
+
+			$this->cache[$key] = $value;
+			return $value;
 		}
 
-		protected function with(string | array $_key, mixed $_value = null): self
+		protected function reset(): void
 		{
-			if(is_array($_key))
-			{
-				foreach($_key AS $k => $v)
-				{
-					self::getInstance()->parameters[$k] = $v;
-				}
-			}
-			else
-			{
-				self::getInstance()->parameters[$_key] = $_value;
-			}
-
-			return self::getInstance();
+			$this->nodes = [];
+			$this->properties = [];
+			$this->globalProperties = [];
+			$this->cache = [];
 		}
 
-		// The dynamically added Nodes could have been added after preparation
-		protected function getAdded(): array
+		protected function asArray(): array
 		{
-			if(empty(self::getInstance()->added_dynamically) && empty(self::getInstance()->nodes))
-			{
-				return array();
-			}
-
-			if(!empty(self::getInstance()->nodes) && $dotted_nodes = Arr::dot(self::getInstance()->nodes))
-			{
-				$ns = self::getInstance()->namespace ?? array('alias' => "global");
-
-				foreach(self::getInstance()->added_dynamically AS $k => $identifier)
-				{
-					if(false === $node = Arr::get(self::getInstance()->nodes, $ns['alias'] . ".". $identifier))
-					{
-						if($ns['alias'] == "global" || false === $node = Arr::get(self::getInstance()->nodes, "global.". $identifier))
-						{
-							continue;
-						}
-					}
-					
-					unset(self::getInstance()->added_dynamically[$k]);
-				}
-			}
-
-			return self::getInstance()->added_dynamically;
-		}
-
-		protected function createNodeObject(mixed $_identifier = null, array $_node = array()): NodeObject
-		{
-			if(!empty(self::getInstance()->parameters))
-			{
-				$_node['parameters'] = self::getInstance()->parameters;
-			}
-
-			return new NodeObject($_identifier, $_node);
+			return [
+				'nodes' => $this->nodes,
+				'properties' => $this->properties,
+				'global' => $this->globalProperties
+			];
 		}
 	}
 
@@ -544,7 +598,12 @@
 			else
 			{
 				$size = (!empty($_width) && !empty($_height)) ? $_width . "x" . $_height : ((!empty($_width)) ? $_width : null);
-				$image_url = Node::getInstance()->image_endpoint . $src;
+
+				if($asset_provider = ServiceRegistry::get(Provider::class))
+				{
+					$image_url = $asset_provider->get($src);
+				}
+
 				$image_url = (!empty($size)) ? Toolset::resize($image_url, $size) : $image_url;
 			}
 
@@ -576,8 +635,15 @@
 			{
 				return $this->image($_width, $_height);
 			}
-			
-			$image_url = Node::getInstance()->image_endpoint . $src;
+
+			if($asset_provider = ServiceRegistry::get(Provider::class))
+			{
+				$image_url = $asset_provider->get($src);
+			}
+			else
+			{
+				$image_url = $src;
+			}
 
 			$size = (!empty($_width) && !empty($_height)) ? $_width . "x" . $_height : ((!empty($_width)) ? $_width : null);
 
@@ -608,7 +674,12 @@
 			else
 			{
 				$size = (!empty($_width) && !empty($_height)) ? $_width . "x" . $_height : ((!empty($_width)) ? $_width : null);
-				$image_url = Node::getInstance()->image_endpoint . $src;
+				
+				if($asset_provider = ServiceRegistry::get(Provider::class))
+				{
+					$image_url = $asset_provider->get($src);
+				}				
+				
 				$image_url = (!empty($size)) ? Toolset::resize($image_url, $size) : $image_url;
 			}
 
