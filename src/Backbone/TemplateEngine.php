@@ -10,8 +10,7 @@
     use LCMS\Util\HtmlNode;
 
     use \Closure;
-	use \Exception;
-
+    
 	class TemplateEngine
 	{
         const ELEMENT_UNIDENTIFIED  = "unidentified";
@@ -20,113 +19,126 @@
         private $elements;
         private $document;
 
-		public function parse(string $_string, Closure $_unidentfied_nodes_collector = null): SimpleHtmlDom | string
+		public function parse(string $_string, ?Closure $_unidentified_nodes_collector = null): SimpleHtmlDom|string
 		{
             if(!$this->document = SimpleHtmlDom::string($_string))
             {
                 return $_string;
             }
 
-            $has_parsed_loops = false;
+            $this->parseMeta();
+            $this->parseLoops();
+            $this->parseNodes();
 
-            /**
-             *  Meta (SEO)
-             */
-            $meta = Node::get("meta") ?: array('title' => null, 'description' => null);
-
-            foreach($meta AS $tag => $data)
+            if ($_unidentified_nodes_collector 
+                    && $unidentifiedNodes = $this->collectUnidentifiedNodes())
             {
-                $element = ($tag == "title") ? $tag : "meta[name='".$tag."']";
+                $_unidentified_nodes_collector($unidentifiedNodes);
+            }
 
-                if($element = $this->document->find($element, 0) ?? $this->document->find("meta[property='".$tag."']"))
+            return $this->document;
+		}
+
+        private function parseMeta(): void
+        {
+            $meta = Node::get("meta") ?? ['title' => null, 'description' => null];
+
+            foreach ($meta AS $tag => $data) 
+            {
+                $element_selector = $tag === "title" ? $tag : "meta[name='$tag']";
+
+                if ($element = $this->document->find($element_selector, 0) ?? $this->document->find("meta[property='$tag']")) 
                 {
-                    if(is_array($element))
-                    {
-                        array_walk($element, fn($e) => (!empty($e->attr) && empty($e->attr['content'])) ? $this->parseElement($e) : null);
-                    }
-                    elseif(empty($element->attr) || empty($element->attr['content']))
-                    {
-                        $this->parseElement($element);
-                    }
+                    $this->processMetaElement($element);
                 }
             }
+        }
 
-            /**
-             *  Try to find Loops
-             */
-            foreach($this->document->find("loop[name]") AS $loop_element)
+        private function processMetaElement(HtmlNode|array $element): void
+        {
+            if (is_array($element)) 
             {
-                $this->handleLoop($loop_element);
-                $has_parsed_loops = true;
-            }
-
-            if($has_parsed_loops)
-            {
-                // If we've parsed loops, let's refresh the document
-                $this->document->load($this->document->outertext);
-            }
-
-            /**
-             *  Now parse what's left
-             */
-            foreach($this->document->find("node") AS $element)
+                array_walk($element, [$this, 'parseElement']);
+            } 
+            elseif (empty($element->attr['content'])) 
             {
                 $this->parseElement($element);
             }
+        }
+    
+        private function parseLoops(): void
+        {
+            $has_parsed_loops = false;
 
-            /**
-             *  Any unidentified elements found?
-             */
-            if(!isset($this->elements[self::ELEMENT_UNIDENTIFIED]) || empty($_unidentfied_nodes_collector))
+            foreach ($this->document->find("loop[name]") AS $loopElement) 
             {
-                return $this->document;
+                $this->handleLoop($loopElement);
+                $has_parsed_loops = true;
             }
 
-			$nodes = array();
+            if ($has_parsed_loops) 
+            {
+                // Refresh the document after loops are parsed
+                $this->document->load($this->document->outertext);
+            }
+        }
 
-            $buildElement = (fn($el, $key) => array_filter(array(
-                'type'         => $this->identifyNodeType($el)->value,
-                'properties'   => $this->getPropertiesFromNode($el),
-                'identifier'   => $key,
-                'content'      => $el->attr['src'] ?? (string) $el->innertext ?? "", // Fallback text from document
-                'global'       => (array_key_exists("global", $el->attr)) ? true : null
-            )));
+        private function parseNodes(): void
+        {
+            foreach ($this->document->find("node") AS $element) 
+            {
+                $this->parseElement($element);
+            }
+        }
 
-			foreach($this->elements[self::ELEMENT_UNIDENTIFIED] AS $key => $element)
-			{
-                if($element instanceof HtmlNode)
-                {
-                    $nodes[$key] = $buildElement($element, $key);
-                }
-                elseif(is_array($element))
-                {
-                    if(!isset($nodes[$key]))
-                    {
-                        $nodes[$key] = array();
-                    }
+        private function collectUnidentifiedNodes(): array
+        {
+            if (empty($this->elements[self::ELEMENT_UNIDENTIFIED])) 
+            {
+                return [];
+            }
 
-                    foreach($element AS $name => $e)
-                    {
-                        if($e instanceof HtmlNode)
-                        {
-                            $nodes[$key][] = $buildElement($e, $e->attr['name'] ?? $name);
-                        }
-                        else
-                        {
-                            $nodes[$key][] = $e;
-                        }
-                    }
-                }
-			}
+            $unidentified_nodes = [];
 
-            /**
-             *   The Collector will decide what to do with the nodes.
-             *      - Probably store them in ini-file or to DB
-             */
-            $_unidentfied_nodes_collector($nodes);
+            foreach ($this->elements[self::ELEMENT_UNIDENTIFIED] AS $key => $element) 
+            {
+                $unidentified_nodes[$key] = $this->buildUnidentifiedNode($element, $key);
+            }
 
-			return $this->document;
-		}
+            return $unidentified_nodes;
+        }
+
+        private function buildUnidentifiedNode($element, $key): array
+        {
+            if ($element instanceof HtmlNode) 
+            {
+                return $this->extractNodeProperties($element, $key);
+            }
+
+            if (is_array($element)) 
+            {
+                $node_group = array_map(fn ($e, $name) =>
+                    $e instanceof HtmlNode
+                    ? $this->extractNodeProperties($e, $e->attr['name'] ?? $name)
+                    : $e
+                , $element, array_keys($element));
+
+                return $node_group;
+            }
+
+            return [];
+        }
+
+        private function extractNodeProperties(HtmlNode $element, string $key): array
+        {
+            return array_filter([
+                'type'       => $this->identifyNodeType($element)->value,
+                'properties' => $this->getPropertiesFromNode($element),
+                'identifier' => $key,
+                'content'    => $element->attr['src'] ?? (string) $element->innertext ?? "",
+                'global'     => isset($element->attr['global']),
+            ]);
+        }
 
         /**
          *  Handles \LCMS\Util\SimpleHtmlDom subclass HtmlNode
@@ -195,7 +207,7 @@
          *  
          *  @return HtmlNode with modified content
          */
-        private function parseElement(object $_element, string | null $_parent = null, mixed $_key = null): void
+        private function parseElement(HtmlNode $_element, ?string $_parent = null, mixed $_key = null): void
         {
             $is_meta = (in_array($_element->tag, ["meta", "title"]) || (isset($_element->attr['name']) && str_starts_with($_element->attr['name'], "meta."))) ? true : false;
 

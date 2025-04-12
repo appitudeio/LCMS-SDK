@@ -6,17 +6,17 @@
 	 * @author Florian Eckerstorfer <florian@eckerstorfer.org>
 	 * @author Fabien Potencier <fabien@symfony.com>
 	*/
-	namespace LCMS\Core;
+	namespace LCMS\Asset;
 
-	use \Exception;
+	class FileException extends \Exception {}
 
 	class File extends \SplFileInfo
 	{
-	    private $test;
-	    private $originalName;
-	    private $mimeType = 'application/octet-stream';
-	    private $error;
-	    private $size = 0;
+	    private bool $test;
+	    private string $originalName;
+	    private string $mimeType = 'application/octet-stream';
+	    private ?int $error;
+	    private int $size = 0;
 
 	    /**
 	     * Accepts the information of the uploaded file as provided by the PHP global $_FILES.
@@ -34,29 +34,36 @@
 	     *
 	     * @param string  $path         The full temporary path to the file
 	     * @param string  $originalName The original file name
-	     * @param string  $mimeType     The type of the file as provided by PHP
-	     * @param integer $size         The file size
 	     * @param integer $error        The error constant of the upload (one of PHP's UPLOAD_ERR_XXX constants)
 	     * @param Boolean $test         Whether the test mode is active
 	     *
-	     * @throws FileException         If file_uploads is disabled
-	     * @throws FileNotFoundException If the file does not exist
+	     * @throws FileException         If file_uploads is disabled or file not found
 	     *
 	     * @api
 	     */
-	    public function __construct($path, $original_name, $error = null, $test = false)
+	    public function __construct(string $path, string $originalName, ?int $error = null, bool $test = false)
 	    {
-	        $this->originalName = $this->getName($original_name);
-	        $this->error = $error ?: UPLOAD_ERR_OK;
-	        $this->test = (Boolean) $test;
+	        $this->originalName = $this->getName($originalName);
+	        $this->error = $error ?? UPLOAD_ERR_OK;
+	        $this->test = $test;
 
-	        if($this->error == UPLOAD_ERR_OK)
-	        {
-				$finfo = new \finfo(FILEINFO_MIME_TYPE);
-				$this->mimeType = $finfo->file($path);
-				$this->size = filesize($path);
+	        if ($this->error === UPLOAD_ERR_OK) {
+	            if (!is_file($path)) 
+				{
+	                throw new FileException(sprintf('File "%s" not found', $path));
+	            }
 
-				parent::__construct($path);
+	            try 
+				{
+	                $finfo = new \finfo(FILEINFO_MIME_TYPE);
+	                $this->mimeType = $finfo->file($path);
+	                $this->size = filesize($path);
+	                parent::__construct($path);
+	            } 
+				catch (\Exception $e) 
+				{
+	                throw new FileException('Failed to initialize file: ' . $e->getMessage());
+	            }
 	        }
 	    }
 
@@ -68,7 +75,7 @@
 	     *
 	     * @return string The original name
 	     */
-	    public function getClientOriginalName()
+	    public function getClientOriginalName(): string
 	    {
 	        return $this->originalName;
 	    }
@@ -81,7 +88,7 @@
 	     *
 	     * @return string The extension
 	     */
-	    public function getClientOriginalExtension()
+	    public function getClientOriginalExtension(): string
 	    {
 	        return pathinfo($this->originalName, \PATHINFO_EXTENSION);
 	    }
@@ -99,12 +106,12 @@
 	     *
 	     * @see getMimeType()
 	     */
-	    public function getClientMimeType()
+	    public function getClientMimeType(): string
 	    {
 	        return $this->mimeType;
 	    }
 
-		public function getMimeType()
+		public function getMimeType(): string
 		{
 			return $this->mimeType;
 		}		
@@ -126,7 +133,7 @@
 	     * @see guessExtension()
 	     * @see getClientMimeType()
 	     */
-	    public function guessClientExtension()
+	    public function guessClientExtension(): ?string
 	    {
 	        if (!class_exists(MimeTypes::class)) {
 	            throw new \LogicException('You cannot guess the extension as the Mime component is not installed. Try running "composer require symfony/mime".');
@@ -143,7 +150,7 @@
 	     *
 	     * @return int The upload error
 	     */
-	    public function getError()
+	    public function getError(): int
 	    {
 	        return $this->error;
 	    }
@@ -153,7 +160,7 @@
 	     *
 	     * @return bool True if the file has been uploaded with HTTP and no error occurred
 	     */
-	    public function isValid()
+	    public function isValid(): bool
 	    {
 	        $isOk = \UPLOAD_ERR_OK === $this->error;
 
@@ -167,7 +174,7 @@
 	     *
 	     * @throws FileException if, for any reason, the file could not have been moved
 	     */
-	    public function move(string $directory, string $name = null)
+	    public function move(string $directory, string $name = null): bool
 	    {
 	        if ($this->isValid())
 	        {
@@ -207,7 +214,7 @@
 	                throw new ExtensionFileException($this->getErrorMessage());
 	        }
 
-	        throw new FileException($this->getErrorMessage());
+	        throw new \FileException($this->getErrorMessage());
 	    }
 
 	    /**
@@ -215,7 +222,7 @@
 	     *
 	     * @return int The maximum size of an uploaded file in bytes
 	     */
-	    public static function getMaxFilesize()
+	    public static function getMaxFilesize(): int
 	    {
 	        $sizePostMax = self::parseFilesize(ini_get('post_max_size'));
 	        $sizeUploadMax = self::parseFilesize(ini_get('upload_max_filesize'));
@@ -261,7 +268,7 @@
 	     *
 	     * @return string The error message regarding the specified error code
 	     */
-	    public function getErrorMessage()
+	    public function getErrorMessage(): string
 	    {
 	        static $errors = [
 	            \UPLOAD_ERR_INI_SIZE => 'The file "%s" exceeds your upload_max_filesize ini directive (limit is %d KiB).',
@@ -285,13 +292,32 @@
 	     *
 	     * @return string
 	     */
-	    protected function getName(string $name)
+	    protected function getName(string $name): string
 	    {
 	        $originalName = str_replace('\\', '/', $name);
 	        $pos = strrpos($originalName, '/');
 	        $originalName = false === $pos ? $originalName : substr($originalName, $pos + 1);
 
 	        return $originalName;
+	    }
+
+	    /**
+	     * Get the file contents when the object is cast to string
+	     */
+	    public function __toString(): string
+	    {
+	        if (!$this->isValid()) 
+			{
+	            throw new FileException('Cannot get content of invalid file');
+	        }
+
+	        $content = file_get_contents($this->getPathname());
+	        if ($content === false) 
+			{
+	            throw new FileException('Failed to read file contents');
+	        }
+
+	        return $content;
 	    }
 	}
 ?>

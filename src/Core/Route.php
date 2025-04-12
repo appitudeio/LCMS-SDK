@@ -5,11 +5,11 @@
 	namespace LCMS\Core;
 
 	use LCMS\DI;
+	use LCMS\View;
 	use LCMS\Core\Request;
 	use LCMS\Core\Response;
 	use LCMS\Core\Redirect;
 	use LCMS\Core\Locale;
-	use LCMS\Backbone\View;
 	use LCMS\Util\Singleton;
 	use \Exception;
 
@@ -266,7 +266,7 @@
 	        $_pattern = preg_replace('/\//', '\\/', $_pattern);
 
 	        // Convert variables e.g. {controller} (Allows %+. for urlencoded strings)
-	        $_pattern = preg_replace('/\{([%a-z_]+)\}/', '(?P<\1>[%a-z0-9-.]+)', $_pattern);
+	        $_pattern = preg_replace('/\{([%a-z_]+)\}/i', '(?P<$1>[a-z0-9_.-]+)', $_pattern);
 
 	        // Convert variables with custom regular expressions e.g. {id:\d+}
 	      	//  $_pattern = preg_replace('/\{([a-z]+):([^\}]+)\}/', '(?P<\1>\2)', $_pattern);
@@ -341,39 +341,66 @@
 		 */
 		public function dispatch(Request $request, Locale $locale): array
 		{
-			/**
-			 * 	Remove Localization from URL
-			 */
-			$url = $request->path();
-			
-			if($locale->getLanguage() && $lowercase_url = strtolower($url))
-			{
-				$locale_test = strtolower(str_replace("_", "-", $locale->getLocale()));
+			$url = $this->prepareUrl($request, $locale);
 
-				if(in_array($lowercase_url, [$locale_test, $locale->getLanguage()]))
-				{
-					$url = "";
-				}
-				elseif(str_starts_with($lowercase_url, $locale_test . "/"))
-				{
-					$url = substr($url, 6);
-				}
-				elseif(str_starts_with($lowercase_url, $locale->getLanguage()))
-				{
-					$url = substr($url, 3);
-				}
+			if (false === $route = $this->match($url, $request->getMethod(), $request->ajax())) 
+			{
+				throw new Exception('No route matched for URL: ' . $url, 404);
 			}
 
-			$url = ($url == "") ? "/" : $url; // If no url, set as / to identify root
-
-			if(!$route_array = $this->match($url, $request->getMethod(), $request->ajax()))
-			{
-				throw new Exception('No route matched', 404);
-			}
-
-			$this->current = (array) $route_array;
+			$this->current = $route;
 
 			return $this->current;
+		}
+
+		private function prepareUrl(Request $request, Locale $locale): string
+		{
+			$url = $request->path();
+
+			// Remove localization from URL
+			if ($locale->getLanguage()) 
+			{
+				$url = $this->stripLocaleFromUrl($url, $locale);
+			}
+
+			return $url ?: '/'; // Root fallback
+		}
+
+		private function stripLocaleFromUrl(string $url, Locale $locale): string
+		{
+			$lowercase_url = strtolower($url);
+			$locale_test = strtolower(str_replace("_", "-", $locale->getLocale()));
+
+			if (in_array($lowercase_url, [$locale_test, $locale->getLanguage()])) 
+			{
+				return '';
+			}
+			elseif (str_starts_with($lowercase_url, $locale_test . "/")) 
+			{
+				return substr($url, strlen($locale_test) + 1);
+			}
+			elseif (str_starts_with($lowercase_url, $locale->getLanguage())) 
+			{
+				return substr($url, strlen($locale->getLanguage()) + 1);
+			}
+
+			return $url;
+		}
+
+		private function processRouteMiddleware(array $route): mixed
+		{
+			$controller = $route['controller'];
+			$action = $route['action'] ?? null;
+
+			$middleware = DI::call([$controller, "middleware"], [$action, $route['parameters'] ?? []]);
+
+			// Return early if middleware results in a special response
+			if ($middleware instanceof Response || $middleware instanceof Redirect || $middleware instanceof View) 
+			{
+				return $middleware;
+			}
+
+			return null;
 		}
 
 		/**
@@ -413,12 +440,6 @@
 				{
 					$routes = $routes_w_requirements + array_filter($routes, fn($r) => !isset($r['required_parameters']));
 				}
-
-				// Prioritize routes with pattern-fallback {} to be last
-				/*if($routes_w_fallbacks = array_filter($routes, fn($r) => !empty($r['pattern']) && $r['pattern'][0] == "{"))
-				{
-					$routes = array_filter($routes, fn($r) => empty($r['pattern']) || $r['pattern'][0] != "{") + $routes_w_fallbacks;
-				}*/
 
 				foreach(array_filter($routes, fn($r) => !empty($r['pattern'])) AS $route_key => $route)
 				{
@@ -473,82 +494,133 @@
 		/**
 		 *
 		 */
-		public static function url(string $_to_alias, array $_arguments = null, bool $_absolute = true): string | false
+		public static function url(string $alias, array $arguments = [], bool $absolute = true): string
 		{
-			// Search Database-routes
-			if(is_numeric($_to_alias) && !isset(self::getInstance()->db_relations[$_to_alias]) && !isset(self::getInstance()->relations[$_to_alias]))
+			$instance = self::getInstance();
+
+			// 1. Validate alias existence
+			if (!isset($instance->relations[$alias]) && !isset($instance->db_relations[$alias])) 
 			{
-				throw new Exception("No RouteAliasId found (" . $_to_alias . ")");
-			}
-			elseif(!is_numeric($_to_alias) && !isset(self::getInstance()->relations[$_to_alias]))
-			{
-				throw new Exception("No RouteAlias found (" . $_to_alias . ")");
+				throw new Exception("No RouteAlias found for: " . $alias);
 			}
 
-			// Fallback, Route probably deleted from LCMS
-			if(!$url = (is_numeric($_to_alias) && isset(
-				self::getInstance()->db_relations[$_to_alias], self::getInstance()->routes[self::getInstance()->db_relations[$_to_alias]]
-			)) ? self::getInstance()->routes[self::getInstance()->db_relations[$_to_alias]]['pattern'] : self::getInstance()->routes[self::getInstance()->relations[$_to_alias]]['pattern'] ?? false)
+			// 2. Get route pattern
+			$route_key = $instance->relations[$alias] ?? $instance->db_relations[$alias];
+
+			if (!$pattern = $instance->routes[$route_key]['pattern'] ?? null) 
 			{
-				return false;
+				throw new Exception("No pattern found for RouteAlias: " . $alias);
 			}
 
-			/**
-			 *	If found pattern to replace from $_arguments
-			 */
-			if(preg_match_all("/{\K[^}]*(?=})/m", $url, $matches) && !empty($matches[0]))
+			// 3. Replace placeholders
+			$url = self::replaceArgumentsInPattern($pattern, $arguments, $alias);
+
+			// 4. Possibly preserve the user's current locale segment
+			$url = self::maybePreserveCurrentLocaleSegment($url);
+
+			// 5. Append leftover arguments as query parameters
+			$url = self::appendQueryParameters($url, $arguments);
+
+			// 6. Return absolute or relative
+			return $absolute ? self::getAbsoluteUrl($url) : $url;
+		}
+
+		private static function appendQueryParameters(string $url, array $arguments): string
+		{
+			if($arguments = array_filter($arguments)) 
 			{
-				if(empty($_arguments))
+				if($url !== '/') 
 				{
-					throw new Exception("RouteAlias (".$_to_alias.") requires arguments (".implode(", ", $matches[0]).")");
+					$url = rtrim($url, '/');
 				}
 
-				foreach($matches[0] AS $pattern)
-				{
-					$match = preg_split('/[^[:alnum:]\_]+/', $pattern)[0];
+				$url .= ($url === '/' ? '' : '') . '?' . http_build_query($arguments);
+			}
 
-					if(!isset($_arguments[$match]))
+			return $url;
+		}
+
+		private static function replaceArgumentsInPattern(string $url, array &$arguments, string $alias): string
+		{
+			// Match placeholders in the form {name} or {name:regex}
+			// Explanation:
+			//   \{          => Match literal '{'
+			//   ([^}:]+)    => Capture 1: Placeholder name (no ':' or '}')
+			//   (?::((?:[^{}]+|\{\d+\})*))? => Optional capture 2 (regex after ':')
+			//   \}          => Match literal '}'
+			if(preg_match_all("/\{([^}:]+)(?::((?:[^{}]+|\{\d+\})*))?\}/", $url, $matches, PREG_SET_ORDER))
+			{
+				if(empty($arguments) && !empty($matches)) 
+				{
+					$placeholderList = implode(", ", array_map(fn($m) => $m[0], $matches));
+					throw new Exception("RouteAlias ($alias) requires arguments ($placeholderList)");
+				}
+				
+				foreach ($matches AS $match) 
+				{
+					// Full match is something like "{name}" or "{name:...}"
+					$full_placeholder = $match[0]; 
+
+					// The placeholder name (e.g., 'name', 'uuid')
+					$name = $match[1];          
+					
+					if (!array_key_exists($name, $arguments)) 
 					{
-						throw new Exception("RouteAlias (".$_to_alias.") requires argument (".$match.")");
+						throw new Exception("RouteAlias ($alias) requires argument ($name)");
 					}
 
-					$url = str_replace("{".$pattern."}", $_arguments[$match], $url);
-
-					unset($_arguments[$match]);
+					$url = str_replace($full_placeholder, $arguments[$name], $url);
+					unset($arguments[$name]);
 				}
 			}
 
-			/**
-			 * 	Should we prepend language? (If available in current URL)
-			 */
-			$url_parts = explode("/", DI::get(Request::class)->path());
-			$new_url = array();
+			return $url;
+		}
 
-			if(!empty($url_parts[0]) 
-				&& ((strlen($url_parts[0]) == 2 && $url_parts[0] == Locale::getLanguage()) 
-					|| strlen($url_parts[0]) == 5 && $url_parts[0] == strtolower(str_replace("_", "-", Locale::getLocale()))))
-			{
-				$new_url[] = $url_parts[0];
-			}
-			
-			if(!empty($url) && $url != "/")
-			{
-				$new_url[] = trim(strtolower($url));
-			}
-			
-			$url = rtrim("/" . implode("/", $new_url), "/");
+		/**
+		 * Maybe preserve the current locale segment if the user's URL starts with it.
+		 * Otherwise, just append the $url normally.
+		 */
+		private static function maybePreserveCurrentLocaleSegment(string $url): string
+		{
+			$locale = DI::get(Locale::class);
+			$requestPath = DI::get(Request::class)->path(); // E.g., "sv-se/products"
+			$parts = explode('/', trim($requestPath, '/'));
+			$newParts = [];
 
-			if(!empty($_arguments) && $_arguments = array_filter($_arguments))
+			// The old logic: "If the first segment is the locale, keep it..."
+			if (!empty($parts[0])) 
 			{
-				$url .= "?" . http_build_query($_arguments);
+				$lang = $locale->getLanguage(); // e.g., "sv"
+				$localeTest = strtolower(str_replace('_', '-', $locale->getLocale())); // e.g. "sv-se"
+
+				if (
+					(strlen($parts[0]) === 2 && $parts[0] === $lang) ||
+					(strlen($parts[0]) === 5 && $parts[0] === $localeTest)
+				) 
+				{
+					// The first segment is indeed a recognized locale
+					$newParts[] = $parts[0];
+				}
 			}
 
-			if(!$_absolute)
+			if ($url !== '/' && !empty($url)) 
 			{
-				return $url;
+				// Append the new $url path
+				$newParts[] = trim($url, '/');
 			}
 
-			return self::getInstance()->request->root() . "/" . ltrim($url, "/");
+			// Build the new path
+			$final = rtrim('/' . implode('/', $newParts), '/');
+
+			return $final === '' ? '/' : $final;
+		}
+
+		private static function getAbsoluteUrl(string $url): string
+		{
+			$request = DI::get(Request::class);
+
+			return rtrim($request->root(), '/') . '/' . ltrim($url, '/');
 		}
 
 		/**

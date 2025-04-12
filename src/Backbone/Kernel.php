@@ -18,7 +18,6 @@
 	use LCMS\Core\Locale;
     use LCMS\Core\Env;
     use LCMS\Core\Database;
-    use LCMS\Util\Toolset;
     use LCMS\Util\Arr;
 
     use \Closure;
@@ -104,21 +103,6 @@
                             DI::set($mergeObj, $obj);
                         }
                     }
-
-                    /**
-                     *  If Env is Local, let's figure out language (Maybe from URL or default).
-                     *  xxx decaprecated since Middleware implementation (2024-01-31)
-                     */
-                   /* if($RootObj instanceof Locale && $new_language = $RootObj->extract(DI::get(Request::class)))
-                    {
-                        if($RootObj->isDefault()) // if url = /{defualt_language}/ -> remove
-                        {
-                            return $this->trigger("redirect", Redirect::to(str_replace("/" . $new_language, "", DI::get(Request::class)->getRequestUri())));
-                        }
-
-                        DI::get(Request::class)->appendUrl($new_language);
-                        DI::get(Env::class)->set("web_path", DI::get(Env::class)->get("web_path") . $new_language . "/");            
-                    }*/
                 }
                 else
                 {
@@ -175,17 +159,8 @@
 
             $locale = DI::get(Locale::class);
             $request = DI::get(Request::class);
-            $env = DI::get(Env::class);
             $node = DI::get(Node::class);
             $route = DI::get(Route::class);
-            
-            /**
-             *  If LCMS-environment, set ImageFactory 
-             */
-            if($env->get("domain"))
-            {
-                $node->init($env->get("domain") . "/images/");
-            }
             
             /**
              *  
@@ -298,37 +273,7 @@
             /** 
              *  Find out if we should block this page with 'noindex' or 'nofollow'
              */
-            if($env->get("is_dev", false))
-            {
-                DI::call([Page::class, "meta"], [['robots' => array('noindex', 'nofollow')]]);
-                $request->headers->set("X-Robots-Tag", "noindex, nofollow");
-            }
-            elseif($robots_node = $node->get("robots"))
-            {
-                $robots = array();
-
-                if($env->get("web_path") && (list($row, $noindex_content) = Toolset::getStringBetween($robots_node->text(), "Noindex: ", "\\n")) 
-                    && ($noindex_content = str_replace($env->get("web_path"), "", $noindex_content))
-                    && (in_array(DI::get(Page::class)->pattern, $noindex_content) || count(array_filter(explode("/", DI::get(Page::class)->pattern), fn($part) => in_array($part . "/", $noindex_content)))
-                ))
-                {
-                    $robots[] = "noindex";
-                }
-
-                if($env->get("web_path") && (list($row, $disallow_content) = Toolset::getStringBetween($robots_node->text(), "Disallow: ", "\\n")) 
-                    && ($disallow_content = str_replace($env->get("web_path"), "", $disallow_content))
-                    && (in_array(DI::get(Page::class)->pattern, $disallow_content) || count(array_filter(explode("/", DI::get(Page::class)->pattern), fn($part) => in_array($part . "/", $disallow_content)))
-                ))
-                {
-                    $robots[] = "nofollow";
-                }
-
-                if(!empty($robots))
-                {
-                    DI::get(Page::class)->meta(['robots' => $robots]);
-                    $request->headers->set("X-Robots-Tag", implode(", ", $robots));
-                }
-            }
+            $this->setRobotsHeaders();
 
             if($robots_header = $request->headers->get("X-Robots-Tag", false))
             {
@@ -367,17 +312,57 @@
 
             return DI::call([$this, "trigger"], ["page"]);
         }
+
+        private function setRobotsHeaders(): void
+        {
+            $env = DI::get(Env::class);
+            $request = DI::get(Request::class);
+
+            if($env->get("is_dev", false)) 
+            {
+                DI::call([Page::class, "meta"], [['robots' => ['noindex', 'nofollow']]]);
+                $request->headers->set("X-Robots-Tag", "noindex, nofollow");
+
+                return;
+            }
+            elseif(!$robots_node = DI::get(Node::class)->get("robots")) 
+            {
+                return;
+            }
+            elseif($robots = $this->extractRobotsDirectives($robots_node->text())) 
+            {
+                DI::get(Page::class)->meta(['robots' => $robots]);
+                $request->headers->set("X-Robots-Tag", implode(", ", $robots));
+            }
+        }
+
+        private function extractRobotsDirectives(string $robotsText): array
+        {
+            $robots = [];
+
+            // Extract Noindex directives
+            if (preg_match_all('/Noindex:\s*(.*?)\s*$/m', $robotsText, $matches)) 
+            {
+                $robots['noindex'] = array_map('trim', $matches[1]);
+            }
+
+            // Extract Disallow directives
+            if (preg_match_all('/Disallow:\s*(.*?)\s*$/m', $robotsText, $matches)) 
+            {
+                $robots['nofollow'] = array_map('trim', $matches[1]);
+            }
+
+            return array_merge(...array_values($robots));
+        }
     }
 
     class MiddlewareStack
     {
         protected array $middlewares = array();
-        protected $middleware;
 
         function __construct(...$middlewares)
         {
-            array_walk($middlewares, fn(&$mw) => $mw = (is_string($mw)) ? new $mw() : $mw);
-            $this->middlewares = $middlewares;
+            $this->middlewares = array_map(fn($mw) => is_string($mw) ? new $mw() : $mw, $middlewares);
         }
 
         private function without($middleware)

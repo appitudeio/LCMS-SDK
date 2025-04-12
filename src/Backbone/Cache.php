@@ -55,7 +55,7 @@
 
 		}
 
-		protected static function storeToFile($_html) : String
+		protected static function storeToFile($_html) : string
 		{
 			if(!self::$file_storage)
 			{

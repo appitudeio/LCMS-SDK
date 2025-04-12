@@ -31,6 +31,11 @@
 			return (isset($this->data[$name]) || DI::has($name));
 		}
 
+		protected function all(): array
+		{
+			return $this->data;
+		}
+
 		/**
 		 * Get a piece of data from the view.
 		 *
@@ -82,18 +87,11 @@
 			{
 				if(isset(self::getInstance()->data[$key]) && !is_array(self::getInstance()->data[$key]))
 				{
-					self::getInstance()->data[$key] = array(self::getInstance()->data[$key]);
+					self::getInstance()->data[$key] = [ self::getInstance()->data[$key] ];
 				}
-				elseif(!isset(self::getInstance()->data[$key]))
-				{
-					self::getInstance()->data[$key] = array();
-				}
-
-				self::getInstance()->data[$key] += $value; // Keeps keys
-			}
-			elseif($value instanceof Closure)
-			{
-				self::getInstance()->data[$key] = $value; //();
+				
+				self::getInstance()->data[$key] ??= [];
+				self::getInstance()->data[$key] = array_merge(self::getInstance()->data[$key], $value); // Keeps keys
 			}
 			else
 			{
@@ -112,7 +110,7 @@
 			
 			$file = getcwd() . "/../App/Views/" . $_view;  // relative to Root
 
-			if(!is_readable($file)) 
+			if(!is_readable($file))
 			{
 				throw new Exception($file . " not found");
 			}
@@ -121,10 +119,7 @@
 
 			if(is_array($_with))
 			{
-				foreach($_with AS $key => $value)
-				{
-					self::getInstance()->with($key, $value);
-				}
+				array_walk($_with, fn($value, $key) => self::with($key, $value));
 			}
 
 			return self::getInstance();
@@ -167,7 +162,7 @@
 	     *
 	     * @return void
 	     */
-	    public static function render(string $_view = null, mixed $_data = null): string
+	    public static function render(?string $_view = null, mixed $_data = null): string
 	    {
 	    	if(!empty($_view))
 	    	{
