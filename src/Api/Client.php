@@ -24,6 +24,7 @@
         public function __construct(string $api_key, string $mode = "sandbox", array $http_config = [])
         {
             $this->api_key = $api_key;
+            $this->mode = $mode;
             
             $http_config['headers']['Authorization'] = $api_key;
             $this->httpClient = new HttpClient(null, $http_config);
