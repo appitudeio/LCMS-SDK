@@ -13,6 +13,7 @@
         protected array $options = []; // Options such as debug or silent mode.
         protected bool $is_exec_enabled;
         protected ?string $version;
+        protected string $mode;
         
         // Define both production and sandbox URIs.
         protected array $base_uris = [
@@ -29,16 +30,8 @@
                 throw new Exception("Invalid API mode: $mode");
             }
             
-            // Optionally append a version or sub-path for this client.
-            $base_uri = $this->base_uris[$mode] . '/';
-
-            if (!empty($this->version))
-            {
-                $base_uri .= trim($this->version, '/') . '/';
-            }
-            
             $http_config['headers']['Authorization'] = $api_key;
-            $this->httpClient = new HttpClient($base_uri, $http_config);
+            $this->httpClient = new HttpClient(null, $http_config);
         }
 
         /**
@@ -62,8 +55,10 @@
          *
          * @throws Exception
          */
-        protected function sendRequest(string $method, string $uri, array $options = []): array
+        protected function sendRequest(string $method, string $endpoint, array $options = []): array
         {
+            $uri = $this->getBaseUri() . $endpoint;
+
             if (isset($this->options['silent']) && $this->options['silent'] === true && $this->isExecEnabled()) 
             {
                 return $this->sendSilentRequest($method, $uri, $options);
@@ -105,17 +100,13 @@
          *
          * @throws Exception
          */
-        protected function sendSilentRequest(string $method, string $endpoint, array $options = []): array
+        protected function sendSilentRequest(string $method, string $uri, array $options = []): array
         {
             if(!$this->isExecEnabled()) 
             {
                 throw new Exception("exec() is disabled on this server.");
             }
 
-            // Get the base URI from the current HttpClient configuration.
-            $base_uri = $this->httpClient->getBaseUri();
-            $full_uri = rtrim($base_uri, '/') . '/' . ltrim($endpoint, '/');
-            
             $headers = [
                 "Content-Type: application/json",
                 "Authorization: ".$this->api_key
@@ -134,7 +125,7 @@
             }
             
             // Build the curl command.
-            $cmd = "curl -L -X ".$method." -H '".$headers_string."' -d ".$data." '".$full_uri."' > /dev/null 2>&1 &";
+            $cmd = "curl -L -X ".$method." -H '".$headers_string."' -d ".$data." '".$uri."' > /dev/null 2>&1 &";
             
             // Execute the command.
             exec($cmd, $output, $exit);
@@ -163,20 +154,32 @@
 
             return $this->is_exec_enabled;
         }
+
+        private function getBaseUri(): string
+        {
+            $base_uri = $this->base_uris[$this->mode] . '/';
+
+            if (!empty($this->version))
+            {
+                $base_uri .= trim($this->version, '/') . '/';
+            }
+
+            return $base_uri;
+        }
     }
 
     class HttpClient
     {
         private GuzzleClient $client;
 
-        public function __construct(string $base_uri, array $config = [])
+        public function __construct(?string $base_uri, array $config = [])
         {
-            $default_config = [
+            $default_config = array_filter([
                 'base_uri' => $base_uri,
                 'headers'  => [
                     'User-Agent' => $config['user_agent'] ?? 'LCMS-SDK/3.3 (+https://github.com/appitudeio/lcms-sdk)'
                 ]
-            ];
+            ]);
 
             $this->client = new GuzzleClient(array_merge($default_config, $config));
         }
