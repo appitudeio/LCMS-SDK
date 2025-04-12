@@ -25,11 +25,6 @@
         {
             $this->api_key = $api_key;
             
-            if (!isset($this->base_uris[$mode])) 
-            {
-                throw new Exception("Invalid API mode: $mode");
-            }
-            
             $http_config['headers']['Authorization'] = $api_key;
             $this->httpClient = new HttpClient(null, $http_config);
         }
@@ -157,6 +152,11 @@
 
         private function getBaseUri(): string
         {
+            if (!isset($this->base_uris[$this->mode])) 
+            {
+                throw new Exception("Invalid API mode: $this->mode");
+            }
+
             $base_uri = $this->base_uris[$this->mode] . '/';
 
             if (!empty($this->version))
