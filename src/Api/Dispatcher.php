@@ -23,7 +23,7 @@
                 throw new Exception("Dispatcher api_key must start with test_ or live_");
             }
             
-            $mode = (strpos($this->api_key, 'live_') === 0) ? "production" : "sandbox";
+            $this->mode = (strpos($this->api_key, 'live_') === 0) ? "production" : "sandbox";
             $event = trim($arguments[0] ?? ''); // Assume first argument is the event name:
 
             if (empty($event) || !preg_match('/^[A-Za-z0-9_]+$/', $event)) 
