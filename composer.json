@@ -19,14 +19,14 @@
     ],
     "require": {
         "php": ">=8.0",
-        "guzzlehttp/guzzle": "^7.3",
-        "php-di/php-di": "^6.4"
+        "guzzlehttp/guzzle": "^7.9",
+        "php-di/php-di": "^7.0.10"
     },
     "minimum-stability": "dev",
     "prefer-stable": true,
     "autoload": {
         "psr-4": {
-            "LCMS\\" : "src/"       
+            "LCMS\\" : "src/"
         }
     }
 }
