@@ -21,7 +21,7 @@
 			return $this;
 		}
 
-		protected function route($_route_alias, $_arguments = null): self
+		protected function route(string $_route_alias, array $_arguments = []): self
 		{
 			$this->to = Route::url($_route_alias, $_arguments);
 

@@ -56,6 +56,7 @@
 		 */
 		private array $globalProperties = [];
 		private array $cache = [];
+		private array $parameters = [];
 
 		public const TYPE_TEXT 		= NodeType::TEXT;
 		public const TYPE_HTML 		= NodeType::HTML;
@@ -400,7 +401,7 @@
 		/**
 		 *	Probably from Database, via Api\Merge
 		 */
-		protected function merge(array $_nodes = array(), array $_properties = null, array $_unmergers = null): self
+		protected function merge(array $_nodes = array(), ?array $_properties = null, ?array $_unmergers = null): self
 		{
 			if(!empty($_unmergers) && !empty($this->nodes))
 			{
@@ -451,6 +452,7 @@
 			// Resolution order matches existing system
 			$value = $this->nodes[$key]['content'] 
 				?? $this->properties[$key] 
+				?? $this->parameters[$key]
 				?? $this->globalProperties[$key] 
 				?? null;
 
@@ -464,6 +466,7 @@
 			$this->properties = [];
 			$this->globalProperties = [];
 			$this->cache = [];
+			$this->parameters = [];
 		}
 
 		protected function asArray(): array
@@ -487,7 +490,7 @@
 		private int 	$index = 0; // for the iterator
 		private mixed 	$items = false;
 
-		function __construct(string $_identifier = null, array | string $_node, array $_properties = null)
+		function __construct(?string $_identifier, array | string $_node, ?array $_properties = null)
 		{
 			$this->identifier = $_identifier;
 
@@ -581,7 +584,7 @@
 		/**
 		 * 	
 		 */
-		public function image(int $_width = null, int $_height = null): self
+		public function image(?int $_width = null, ?int $_height = null): self
 		{
 			$this->return_as = [__FUNCTION__];
 
@@ -622,7 +625,7 @@
 		/**
 		 *	
 		 */
-		public function picture(int $_width = null, int $_height = null): self
+		public function picture(?int $_width = null, ?int $_height = null): self
 		{
 			$this->return_as = [__FUNCTION__];
 
@@ -657,7 +660,7 @@
 		/**
 		 * 	
 		 */
-		public function background(int $_width = null, int $_height = null): self
+		public function background(?int $_width = null, ?int $_height = null): self
 		{
 			$this->return_as = [__FUNCTION__];
 

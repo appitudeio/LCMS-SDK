@@ -38,8 +38,8 @@
 			string $_host, 
 			string $_username, 
 			mixed $_password, 
-			string $_db_name = null, 
-			string $_ssl_certificate_path = null
+			?string $_db_name = null, 
+			?string $_ssl_certificate_path = null
 		): PDO 
 		{
 			$this->validateSSLPath($_ssl_certificate_path);
@@ -62,7 +62,7 @@
 		 *	Smart insertQuery which allows an associative array with columns and values.
 		 *		Also, ofcourse, with Binds and prepared statements
 		 */
-		protected function insert(string $_table, array $_fields, int $_connection_key = null): PDOStatement
+		protected function insert(string $_table, array $_fields, ?int $_connection_key = null): PDOStatement
 		{
 			$_table = $this->sanitizeIdentifier($_table);
 			$columns_values = $this->prepareColumnsAndValues($_fields);
@@ -84,7 +84,7 @@
 		 *			Specify a Where-statement through an array, like:
 		 *				array('id' => $product_id);
 		 */
-		protected function update(string $_table, array $_fields, array $_where, int $_connection_key = null): PDOStatement
+		protected function update(string $_table, array $_fields, array $_where, ?int $_connection_key = null): PDOStatement
 		{
 			$_table = $this->sanitizeIdentifier($_table);
 
@@ -110,7 +110,7 @@
 		}
 
 		/* Actually run a query */
-		protected function query(string $_sql, array | null $_args = null, int $_connection_key = null): PDOStatement
+		protected function query(string $_sql, array | null $_args = null, ?int $_connection_key = null): PDOStatement
 		{
 			$this->sql = $_sql;
 
@@ -149,14 +149,14 @@
 			return $statement->rowCount();
 		}
 		
-		protected function last_insert_id(int $_connection_key = null): int
+		protected function last_insert_id(?int $_connection_key = null): int
 		{
 			$connection = $this->getConnection($_connection_key);
 			
 			return $connection->lastInsertId();
 		}
 
-		protected function select_db(string $_db_name, int $_connection_key = null)
+		protected function select_db(string $_db_name, ?int $_connection_key = null)
 		{
 			return $this->query("USE " . $_db_name); //, $_connection_key);
 		}
@@ -239,7 +239,7 @@
 		/**
 		 *	Find out which connection we should use. Could be from a Key
 		 */
-		protected function getConnection(int $_connection_key = null): PDO
+		protected function getConnection(?int $_connection_key = null): PDO
 		{
 			if(empty($this->connections))
 			{
@@ -322,7 +322,7 @@
 			}, array_keys($_where), $_where);
 		}
 
-		private function prepareStatement(string $sql, array $args = [], int $connection_key = null): PDOStatement
+		private function prepareStatement(string $sql, array $args = [], ?int $connection_key = null): PDOStatement
 		{
 			$connection = $this->getConnection($connection_key);
 
@@ -342,7 +342,7 @@
 			return $statement;
 		}
 
-		protected function escape(string $_string, int $_connection_key = null): string | array
+		protected function escape(string $_string, ?int $_connection_key = null): string | array
 		{
 			$connection = $this->getConnection($_connection_key);
 
@@ -457,7 +457,7 @@
 	{
 		private ?array $column_meta_cache = null;
 
-		public function as(string $_obj, string $_method = null): array
+		public function as(string $_obj, ?string $_method = null): array
 		{
 			$rows = $this->fetchAll(PDO::FETCH_ASSOC | PDO::FETCH_UNIQUE);
 

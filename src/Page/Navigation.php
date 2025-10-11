@@ -26,7 +26,7 @@
 			$this->params = array('identifier' => $_identifier);
 		}
 
-		public function add(string $_title = null, string $_route = null, array $_params = null): self
+		public function add(?string $_title = null, ?string $_route = null, ?array $_params = null): self
 		{
 			$this->items[] = array(
 				'key'	=> $this->getCurrentKey() + 1,
@@ -76,7 +76,7 @@
 			$this->active_keys[] = $_key;
 		}
 
-		public function remove(int $_key = null): void
+		public function remove(?int $_key = null): void
 		{
 			$_key = (!empty($_key)) ? $_key : $this->index; 
 			unset($this->items[$_key]);
@@ -183,7 +183,7 @@
 			return $parents;
 		}
 
-		public function children(int $_key = null): array
+		public function children(?int $_key = null): array
 		{
 			$_key = (empty($_key)) ? $this->item($this->index)['key'] : $_key;
 
