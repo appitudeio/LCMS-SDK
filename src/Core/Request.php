@@ -115,7 +115,7 @@
 		 * @param array                $server     The SERVER parameters
 		 * @param string|resource|null $content    The raw body data
 		 */
-		function __construct(array $query = null, array $request = null, array $attributes = null, array $cookies = null, array $files = null, array $server = null, $content = null)
+		function __construct(?array $query = null, ?array $request = null, ?array $attributes = null, ?array $cookies = null, ?array $files = null, ?array $server = null, $content = null)
 		{
 			$query 		= $query ?? $_GET;
 			$request 	= $request ?? $_REQUEST;
@@ -1135,7 +1135,7 @@
 		 * @param array $proxies          A list of trusted proxies, the string 'REMOTE_ADDR' will be replaced with $_SERVER['REMOTE_ADDR']
 		 * @param int   $trustedHeaderSet A bit field of Request::HEADER_*, to set which headers to trust from your proxies
 		 */
-		protected function setTrustedProxies(array $proxies, int $trustedHeaderSet = null): void
+		protected function setTrustedProxies(array $proxies, ?int $trustedHeaderSet = null): void
 		{
 			$this->trustedProxies = array_reduce($proxies, function ($proxies, $proxy) 
 			{
@@ -1194,7 +1194,7 @@
 		 * getPort(), isSecure(), getHost(), getClientIps(), getBaseUrl() etc. Thus, we try to cache the results for
 		 * best performance.
 		 */		
-		private function getTrustedValues(int $type, string $ip = null): array
+		private function getTrustedValues(int $type, ?string $ip = null): array
 		{
 			$cacheKey = $type."\0".(($this->trustedHeaderSet & $type) ? $this->headers->get(self::TRUSTED_HEADERS[$type]) : '');
 			$cacheKey .= "\0".$ip."\0".$this->headers->get(self::TRUSTED_HEADERS[self::HEADER_FORWARDED]);
@@ -1410,7 +1410,7 @@
 		 *
 		 * @return static
 		 */
-		protected function duplicate(array $query = null, array $request = null, array $attributes = null, array $cookies = null, array $files = null, array $server = null): self
+		protected function duplicate(?array $query = null, ?array $request = null, ?array $attributes = null, ?array $cookies = null, ?array $files = null, ?array $server = null): self
 		{
 			$dup = clone $this;
 
@@ -1489,7 +1489,7 @@
 			$this->parameters = $parameters;
 		}
 
-		public function all(string $key = null): array
+		public function all(?string $key = null): array
 		{
 			if (null === $key) 
 			{
@@ -1994,7 +1994,7 @@
 		 *
 		 * @param self::SAMESITE_*|''|null $sameSite
 		 */
-		public static function create(string $name, string $value = null, int|string|DateTimeInterface $expire = 0, ?string $path = '/', string $domain = null, bool $secure = null, bool $httpOnly = true, bool $raw = false, ?string $sameSite = self::SAMESITE_LAX, bool $partitioned = false): self
+		public static function create(string $name, ?string $value = null, int|string|DateTimeInterface $expire = 0, ?string $path = '/', ?string $domain = null, ?bool $secure = null, bool $httpOnly = true, bool $raw = false, ?string $sameSite = self::SAMESITE_LAX, bool $partitioned = false): self
 		{
 			return new self($name, $value, $expire, $path, $domain, $secure, $httpOnly, $raw, $sameSite, $partitioned);
 		}
@@ -2012,7 +2012,7 @@
 		 *
 		 * @throws \InvalidArgumentException
 		 */
-		public function __construct(string $name, string $value = null, int|string|DateTimeInterface $expire = 0, ?string $path = '/', string $domain = null, bool $secure = null, bool $httpOnly = true, bool $raw = false, ?string $sameSite = self::SAMESITE_LAX, bool $partitioned = false)
+		public function __construct(string $name, ?string $value = null, int|string|DateTimeInterface $expire = 0, ?string $path = '/', ?string $domain = null, ?bool $secure = null, bool $httpOnly = true, bool $raw = false, ?string $sameSite = self::SAMESITE_LAX, bool $partitioned = false)
 		{
 			// from PHP source code
 			if ($raw && false !== strpbrk($name, self::RESERVED_CHARS_LIST)) 
@@ -2502,7 +2502,7 @@
 		 *
 		 * @return ($key is null ? array<string, list<string|null>> : list<string|null>)
 		 */
-		public function all(string $key = null): array
+		public function all(?string $key = null): array
 		{
 			if (null !== $key) 
 			{
@@ -2537,7 +2537,7 @@
 		/**
 		 * Returns the first header by name or the default one.
 		 */
-		public function get(string $key, string $default = null): ?string
+		public function get(string $key, ?string $default = null): ?string
 		{
 			$headers = $this->all($key);
 
