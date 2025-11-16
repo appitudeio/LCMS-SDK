@@ -1,0 +1,119 @@
+name: Auto Tag and Publish
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'composer.json'
+  workflow_dispatch:
+
+jobs:
+  auto-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from composer.json
+        id: version
+        run: |
+          VERSION=$(cat composer.json | jq -r '.version')
+          if [ -z "$VERSION" ] || [ "$VERSION" == "null" ]; then
+            echo "::error::No version field found in composer.json"
+            exit 1
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION"
+
+      - name: Check if tag already exists
+        id: check_tag
+        run: |
+          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Tag v${{ steps.version.outputs.version }} already exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Tag v${{ steps.version.outputs.version }} does not exist yet"
+          fi
+
+      - name: Get latest tag for release notes
+        id: latest_tag
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LATEST_TAG" ]; then
+            echo "range=HEAD" >> $GITHUB_OUTPUT
+            echo "No previous tags found, using all commits"
+          else
+            echo "range=$LATEST_TAG..HEAD" >> $GITHUB_OUTPUT
+            echo "Latest tag: $LATEST_TAG"
+          fi
+
+      - name: Generate release notes
+        id: release_notes
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          echo "Generating release notes for range: ${{ steps.latest_tag.outputs.range }}"
+
+          # Get commits in range
+          COMMITS=$(git log ${{ steps.latest_tag.outputs.range }} --pretty=format:"- %s (%h)" --no-merges)
+
+          # Check if there are any commits
+          if [ -z "$COMMITS" ]; then
+            COMMITS="- Version bump to ${{ steps.version.outputs.version }}"
+          fi
+
+          # Create release notes
+          cat << EOF > release_notes.md
+          ## LCMS SDK ${{ steps.version.outputs.version }}
+
+          ### Changes
+
+          $COMMITS
+
+          ---
+          *Auto-generated release notes*
+          EOF
+
+          cat release_notes.md
+
+      - name: Create Git tag
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.version }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Create GitHub Release
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          release_name: LCMS SDK ${{ steps.version.outputs.version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'alpha') }}
+
+      - name: Notify Packagist
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"repository":{"url":"https://github.com/appitudeio/LCMS-SDK.git"}}' \
+            "https://packagist.org/api/update-package?username=oakleaf&apiToken=${{ secrets.PACKAGIST_TOKEN }}"
+          echo "Packagist notified of new release"
+
+      - name: Tag already exists
+        if: steps.check_tag.outputs.exists == 'true'
+        run: |
+          echo "::warning::Tag ${{ steps.version.outputs.tag }} already exists. Skipping tag creation and publishing."
+          echo "If you intended to create a new release, increment the version in composer.json"

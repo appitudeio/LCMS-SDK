@@ -1,0 +1,26 @@
+{
+    "name": "appitudeio/lcms-sdk",
+    "description": "LCMS SDK",
+    "version": "3.4.0",
+    "type": "library",
+    "license": "Appitude.io",
+    "authors": [
+        {
+            "name": "Mathias Eklöf",
+            "email": "mathias@appitude.io",
+            "homepage": "https://appitude.io",
+            "role": "Inventor"
+        }
+    ],
+    "require": {
+        "php": ">=8.1",
+        "guzzlehttp/guzzle": "^7.9",
+        "php-di/php-di": "^7.1.1",
+        "appitudeio/lcms-storage": "^0.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "LCMS\\" : "src/"
+        }
+    }
+}

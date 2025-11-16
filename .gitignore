@@ -1,0 +1,14 @@
+# Mac OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.sublime-*
+
+# Composer
+vendor/
+composer.lock
+
+# Logs
+*.log
