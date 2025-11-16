@@ -3,7 +3,7 @@
     "description": "LCMS SDK",
     "version": "3.4.0",
     "type": "library",
-    "license": "Appitude.io",
+    "license": "proprietary",
     "authors": [
         {
             "name": "Mathias Eklöf",
