@@ -379,7 +379,7 @@
 			{
 				return substr($url, strlen($locale_test) + 1);
 			}
-			elseif (str_starts_with($lowercase_url, $locale->getLanguage())) 
+			elseif (str_starts_with($lowercase_url, $locale->getLanguage() . "/"))
 			{
 				return substr($url, strlen($locale->getLanguage()) + 1);
 			}
