@@ -129,6 +129,27 @@
                         '[0-9a-f]{4}\-?[0-9a-f]{12}\}?$/i', $uuid) === 1;
     }
 
+    /**
+     * Convert binary UUID (16 bytes) to string format
+     */
+    public static function fromBinary(string $binary): ?string
+    {
+      if (strlen($binary) !== 16)
+      {
+        return null;
+      }
+
+      $hex = bin2hex($binary);
+
+      return sprintf('%s-%s-%s-%s-%s',
+        substr($hex, 0, 8),
+        substr($hex, 8, 4),
+        substr($hex, 12, 4),
+        substr($hex, 16, 4),
+        substr($hex, 20, 12)
+      );
+    }
+
     public static function generate()
     {
       return self::v4();

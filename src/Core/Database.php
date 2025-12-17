@@ -328,6 +328,9 @@
 
 			$statement = $connection->prepare($sql);
 
+			// Convert UUID string params to binary for WHERE clause comparison
+			$args = $this->convertUuidParams($args);
+
 			array_walk($args, fn(&$v) => $v = is_array($v) ? json_encode($v) : ($v instanceof \UnitEnum ? $v->value : $v));
 
 			try 
@@ -444,12 +447,30 @@
 		private function sanitizeIdentifier(string $identifier): string
 		{
 			// Allow letters, numbers, underscores, and dots
-			if (preg_match('/^[a-zA-Z0-9_.`]+$/', $identifier) !== 1) 
+			if (preg_match('/^[a-zA-Z0-9_.`]+$/', $identifier) !== 1)
 			{
 				throw new Exception("Invalid identifier: " . $identifier);
 			}
 
 			return $identifier;
+		}
+
+		/**
+		 * Convert UUID string params to binary for WHERE clause comparison.
+		 * This enables WHERE uuid = ? with string UUID params.
+		 */
+		private function convertUuidParams(array $params): array
+		{
+			foreach ($params as $key => $value)
+			{
+				if (is_string($value) && Uuid::isValid($value))
+				{
+					// Convert UUID string to binary for BINARY(16) column comparison
+					$params[$key] = hex2bin(str_replace('-', '', $value));
+				}
+			}
+
+			return $params;
 		}
 	}
 
@@ -544,10 +565,13 @@
 		 */
 		private function decodeJsonColumns(array &$row): void
 		{
-			if(empty($this->column_meta_cache)) 
+			if(empty($this->column_meta_cache))
 			{
 				return;
 			}
+
+			// Also convert BINARY(16) UUID columns to string format
+			$this->convertUuidColumns($row);
 
 			// For each column that we know is JSON, decode it
 			foreach($this->column_meta_cache AS $colName => $meta) 
@@ -605,24 +629,55 @@
 			$declType = $meta['mysql:decl_type'] ?? null;
 			$nativeType = $meta['native_type'] ?? null;
 
-			if($declType === 'JSON' || $nativeType === 'JSON') 
+			if($declType === 'JSON' || $nativeType === 'JSON')
 			{
 				return true;
 			}
-			elseif(!empty($declType) || !empty($nativeType)) 
+			elseif(!empty($declType) || !empty($nativeType))
 			{
 				return false;
 			}
-			elseif($meta['pdo_type'] != PDO::PARAM_STR) 
+			elseif($meta['pdo_type'] != PDO::PARAM_STR)
 			{
-				return false;	
+				return false;
 			}
-			elseif(empty($meta['flags']) || !in_array("blob", $meta['flags'])) 
+			elseif(empty($meta['flags']) || !in_array("blob", $meta['flags']))
 			{
 				return false;
 			}
 
 			return true;
+		}
+
+		/**
+		 * Convert BINARY(16) UUID columns to formatted UUID strings.
+		 * Called alongside decodeJsonColumns() in fetch()/fetchAll().
+		 */
+		private function convertUuidColumns(array &$row): void
+		{
+			if (empty($this->column_meta_cache))
+			{
+				return;
+			}
+
+			foreach ($this->column_meta_cache as $colName => $meta)
+			{
+				if (!array_key_exists($colName, $row) || $row[$colName] === null)
+				{
+					continue;
+				}
+
+				// Detect BINARY(16) columns - these are UUIDs
+				// PDO may return native_type='BLOB' or 'STRING' depending on driver version
+				$nativeType = $meta['native_type'] ?? '';
+				if (in_array($nativeType, ['BLOB', 'STRING'])
+					&& ($meta['len'] ?? 0) === 16
+					&& is_string($row[$colName])
+					&& strlen($row[$colName]) === 16)
+				{
+					$row[$colName] = Uuid::fromBinary($row[$colName]);
+				}
+			}
 		}
 	}
 
