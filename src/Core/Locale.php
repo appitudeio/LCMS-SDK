@@ -197,6 +197,15 @@
 		}
 
 		/**
+		 * Get all available languages
+		 * @return array [['code' => 'en', 'name' => 'English', 'native' => 'English'], ...]
+		 */
+		public static function getLanguages(): array
+		{
+			return LanguageType::all();
+		}
+
+		/**
 		 * 	@return [[ Name, Timezone, UTC Offset ]]
 		 */
 		public static function getTimezones(): array
@@ -620,6 +629,11 @@
 		public function getLanguage(): string
 		{
 			return $this->getData(LANGUAGE_CODE) ?? "en";
+		}
+
+		public function getLanguageType(): LanguageType|false
+		{
+			return LanguageType::find($this->getLanguage());
 		}
 
 		public function getLocale(string $_divider = "_"): string
@@ -1154,6 +1168,125 @@
 				'MZ' => self::MOZAMBIQUE,
 				default => false
 			};
+		}
+	}
+
+	/**
+	 * LanguageType - ISO 639-1 language codes with PHP Intl integration
+	 *
+	 * Uses PHP's Locale::getDisplayLanguage() for names - no manual mapping needed.
+	 * Language codes derived from CountryType.
+	 */
+	enum LanguageType: string
+	{
+		case AMHARIC = 'am';
+		case ARABIC = 'ar';
+		case AZERBAIJANI = 'az';
+		case BELARUSIAN = 'be';
+		case BULGARIAN = 'bg';
+		case BENGALI = 'bn';
+		case BOSNIAN = 'bs';
+		case CATALAN = 'ca';
+		case CZECH = 'cs';
+		case DANISH = 'da';
+		case GERMAN = 'de';
+		case DIVEHI = 'dv';
+		case DZONGKHA = 'dz';
+		case GREEK = 'el';
+		case ENGLISH = 'en';
+		case SPANISH = 'es';
+		case ESTONIAN = 'et';
+		case PERSIAN = 'fa';
+		case FINNISH = 'fi';
+		case FAROESE = 'fo';
+		case FRENCH = 'fr';
+		case HEBREW = 'he';
+		case CROATIAN = 'hr';
+		case HUNGARIAN = 'hu';
+		case ARMENIAN = 'hy';
+		case INDONESIAN = 'id';
+		case ICELANDIC = 'is';
+		case ITALIAN = 'it';
+		case JAPANESE = 'ja';
+		case GEORGIAN = 'ka';
+		case KAZAKH = 'kk';
+		case GREENLANDIC = 'kl';
+		case KHMER = 'km';
+		case KOREAN = 'ko';
+		case KYRGYZ = 'ky';
+		case LAO = 'lo';
+		case LITHUANIAN = 'lt';
+		case LATVIAN = 'lv';
+		case MACEDONIAN = 'mk';
+		case MONGOLIAN = 'mn';
+		case MALAY = 'ms';
+		case MALTESE = 'mt';
+		case BURMESE = 'my';
+		case NAURUAN = 'na';
+		case NEPALI = 'ne';
+		case NIUEAN = 'niu';
+		case DUTCH = 'nl';
+		case NORWEGIAN = 'no';
+		case PUNJABI = 'pa';
+		case POLISH = 'pl';
+		case PASHTO = 'ps';
+		case PORTUGUESE = 'pt';
+		case ROMANIAN = 'ro';
+		case RUSSIAN = 'ru';
+		case SINHALA = 'si';
+		case SLOVAK = 'sk';
+		case SLOVENIAN = 'sl';
+		case SOMALI = 'so';
+		case ALBANIAN = 'sq';
+		case SERBIAN = 'sr';
+		case SWEDISH = 'sv';
+		case TETUM = 'tet';
+		case TAJIK = 'tg';
+		case THAI = 'th';
+		case TIGRINYA = 'ti';
+		case TURKMEN = 'tk';
+		case TONGAN = 'to';
+		case TURKISH = 'tr';
+		case TUVALUAN = 'tv';
+		case UKRAINIAN = 'uk';
+		case URDU = 'ur';
+		case UZBEK = 'uz';
+		case VIETNAMESE = 'vi';
+		case CHINESE = 'zh';
+
+		public function getCode(): string
+		{
+			return $this->value;
+		}
+
+		public function getName(string $inLocale = 'en'): string
+		{
+			if (!extension_loaded('intl')) {
+				throw new \Exception('LanguageType requires the PHP intl extension');
+			}
+			return \Locale::getDisplayLanguage($this->value, $inLocale);
+		}
+
+		public function getNativeName(): string
+		{
+			if (!extension_loaded('intl')) {
+				throw new \Exception('LanguageType requires the PHP intl extension');
+			}
+			return ucfirst(\Locale::getDisplayLanguage($this->value, $this->value));
+		}
+
+		public static function find(string $code): self|false
+		{
+			return self::tryFrom(strtolower($code)) ?: false;
+		}
+
+		public static function all(): array
+		{
+			return array_map(fn($case) => [
+				'code' => $case->value,
+				'name' => $case->getName(),
+				'native' => $case->getNativeName()
+			], self::cases());
 		}
 	}
 ?>
