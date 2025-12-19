@@ -1254,9 +1254,92 @@
 		case VIETNAMESE = 'vi';
 		case CHINESE = 'zh';
 
+		// Maps language codes to their primary country code (for flag icons)
+		private const COUNTRY_MAP = [
+			'am' => 'et',  // Amharic → Ethiopia
+			'ar' => 'ae',  // Arabic → UAE
+			'az' => 'az',  // Azerbaijani → Azerbaijan
+			'be' => 'by',  // Belarusian → Belarus
+			'bg' => 'bg',  // Bulgarian → Bulgaria
+			'bn' => 'bd',  // Bengali → Bangladesh
+			'bs' => 'ba',  // Bosnian → Bosnia
+			'ca' => 'es',  // Catalan → Spain
+			'cs' => 'cz',  // Czech → Czechia
+			'da' => 'dk',  // Danish → Denmark
+			'de' => 'de',  // German → Germany
+			'dv' => 'mv',  // Divehi → Maldives
+			'dz' => 'bt',  // Dzongkha → Bhutan
+			'el' => 'gr',  // Greek → Greece
+			'en' => 'gb',  // English → UK
+			'es' => 'es',  // Spanish → Spain
+			'et' => 'ee',  // Estonian → Estonia
+			'fa' => 'ir',  // Persian → Iran
+			'fi' => 'fi',  // Finnish → Finland
+			'fo' => 'fo',  // Faroese → Faroe Islands
+			'fr' => 'fr',  // French → France
+			'he' => 'il',  // Hebrew → Israel
+			'hr' => 'hr',  // Croatian → Croatia
+			'hu' => 'hu',  // Hungarian → Hungary
+			'hy' => 'am',  // Armenian → Armenia
+			'id' => 'id',  // Indonesian → Indonesia
+			'is' => 'is',  // Icelandic → Iceland
+			'it' => 'it',  // Italian → Italy
+			'ja' => 'jp',  // Japanese → Japan
+			'ka' => 'ge',  // Georgian → Georgia
+			'kk' => 'kz',  // Kazakh → Kazakhstan
+			'kl' => 'gl',  // Greenlandic → Greenland
+			'km' => 'kh',  // Khmer → Cambodia
+			'ko' => 'kr',  // Korean → South Korea
+			'ky' => 'kg',  // Kyrgyz → Kyrgyzstan
+			'lo' => 'la',  // Lao → Laos
+			'lt' => 'lt',  // Lithuanian → Lithuania
+			'lv' => 'lv',  // Latvian → Latvia
+			'mk' => 'mk',  // Macedonian → North Macedonia
+			'mn' => 'mn',  // Mongolian → Mongolia
+			'ms' => 'my',  // Malay → Malaysia
+			'mt' => 'mt',  // Maltese → Malta
+			'my' => 'mm',  // Burmese → Myanmar
+			'na' => 'nr',  // Nauruan → Nauru
+			'ne' => 'np',  // Nepali → Nepal
+			'niu' => 'nu', // Niuean → Niue
+			'nl' => 'nl',  // Dutch → Netherlands
+			'no' => 'no',  // Norwegian → Norway
+			'pa' => 'in',  // Punjabi → India
+			'pl' => 'pl',  // Polish → Poland
+			'ps' => 'af',  // Pashto → Afghanistan
+			'pt' => 'pt',  // Portuguese → Portugal
+			'ro' => 'ro',  // Romanian → Romania
+			'ru' => 'ru',  // Russian → Russia
+			'si' => 'lk',  // Sinhala → Sri Lanka
+			'sk' => 'sk',  // Slovak → Slovakia
+			'sl' => 'si',  // Slovenian → Slovenia
+			'so' => 'so',  // Somali → Somalia
+			'sq' => 'al',  // Albanian → Albania
+			'sr' => 'rs',  // Serbian → Serbia
+			'sv' => 'se',  // Swedish → Sweden
+			'tet' => 'tl', // Tetum → Timor-Leste
+			'tg' => 'tj',  // Tajik → Tajikistan
+			'th' => 'th',  // Thai → Thailand
+			'ti' => 'er',  // Tigrinya → Eritrea
+			'tk' => 'tm',  // Turkmen → Turkmenistan
+			'to' => 'to',  // Tongan → Tonga
+			'tr' => 'tr',  // Turkish → Turkey
+			'tv' => 'tv',  // Tuvaluan → Tuvalu
+			'uk' => 'ua',  // Ukrainian → Ukraine
+			'ur' => 'pk',  // Urdu → Pakistan
+			'uz' => 'uz',  // Uzbek → Uzbekistan
+			'vi' => 'vn',  // Vietnamese → Vietnam
+			'zh' => 'cn',  // Chinese → China
+		];
+
 		public function getCode(): string
 		{
 			return $this->value;
+		}
+
+		public function getCountryCode(): string
+		{
+			return self::COUNTRY_MAP[$this->value] ?? $this->value;
 		}
 
 		public function getName(string $inLocale = 'en'): string
