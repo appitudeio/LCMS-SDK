@@ -269,8 +269,8 @@
 	        $_pattern = preg_replace('/\{([%a-z_]+)\}/i', '(?P<$1>[a-z0-9_.-]+)', $_pattern);
 
 	        // Convert variables with custom regular expressions e.g. {id:\d+}
-	      	//  $_pattern = preg_replace('/\{([a-z]+):([^\}]+)\}/', '(?P<\1>\2)', $_pattern);
-	        $_pattern = preg_replace('/\{([a-z_]+):([^\']+)\}/', '(?P<\1>\2)', $_pattern);
+	        // Pattern handles regex quantifiers like {8} inside custom patterns
+	        $_pattern = preg_replace('/\{([a-z_]+):((?:[^{}]+|\{\d+\})*)\}/', '(?P<\1>\2)', $_pattern);
 
 	        // Add start and end delimiters, and case insensitive flag
 	      	return '/^' . $_pattern . '$/i';
