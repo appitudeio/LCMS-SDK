@@ -69,29 +69,25 @@
 		];
 
 		/**
-		 * Download an image from a URL and return a File object
+		 * Download a file from a URL and return a File object
+		 *
+		 * No MIME validation - use image()/file()/etc. when uploading if validation needed.
 		 */
 		protected function download(string $url, ?string $filename = null): File
 		{
-			$mime = $this->getMimeFromUrl($url);
-			
-			if (!in_array($mime, $this->allowedTypes['image'])) 
-			{
-				throw new Exception("MIME type '{$mime}' is not allowed (URL: {$url})");
-			}
-
 			// Generate filename if not provided
-			if (!$filename) 
+			if (!$filename)
 			{
+				$mime = $this->getMimeFromUrl($url);
 				$extension = $this->getExtensionFromMime($mime);
 				$filename = time() . "_" . substr(md5(rand()), 0, 10) . "." . $extension;
 			}
 
 			$tmpPath = rtrim(sys_get_temp_dir(), '/') . '/' . $filename;
-			
-			if (!copy($url, $tmpPath)) 
+
+			if (!copy($url, $tmpPath))
 			{
-				throw new \Exception("Could not download image to temporary path");
+				throw new Exception("Could not download file from URL");
 			}
 
 			return new File($tmpPath, $filename);
@@ -118,16 +114,64 @@
 			{
 				throw new Exception("The Uploader has no Provider initialized");
 			}
-			elseif (!$file->isValid()) 
+			elseif (!$file->isValid())
 			{
 				throw new Exception($file->getErrorMessage());
 			}
-			elseif ($file->getSize() > $this->config['max_file_size']) 
+			elseif ($file->getSize() > $this->config['max_file_size'])
 			{
 				throw new Exception(
-					"File size exceeds maximum allowed size of " . 
+					"File size exceeds maximum allowed size of " .
 					($this->config['max_file_size'] / 1024 / 1024) . "MB"
 				);
+			}
+		}
+
+		/**
+		 * Magic method to handle type-based uploads (image, file, font, etc.)
+		 *
+		 * Dynamically creates upload methods based on $allowedTypes keys.
+		 * Called via Singleton's __callStatic routing.
+		 *
+		 * Usage:
+		 *   Uploader::image($file, "path")                    // Uses default image types
+		 *   Uploader::image($file, "path", ['image/jpeg'])    // Custom allowed types
+		 *   Uploader::file($file, "path")                     // Uses default file types
+		 */
+		public function __call(string $name, array $arguments): mixed
+		{
+			// Check if this is a type-based upload (image, file, font, etc.)
+			if (isset($this->allowedTypes[$name]))
+			{
+				$file = $arguments[0] ?? throw new Exception("File argument required for {$name}()");
+				$path = $arguments[1] ?? throw new Exception("Path argument required for {$name}()");
+				$customTypes = $arguments[2] ?? null;
+
+				$allowed = $customTypes ?? $this->allowedTypes[$name];
+				$this->validateMimeType($file, $allowed);
+
+				return $this->upload($file, $path);
+			}
+
+			// Fall back to existing protected methods (upload, download, validate)
+			if (method_exists($this, $name))
+			{
+				return $this->$name(...$arguments);
+			}
+
+			throw new Exception("Undefined class method: {$name}");
+		}
+
+		/**
+		 * Validate file MIME type against allowed types
+		 */
+		protected function validateMimeType(File $file, array $allowedTypes): void
+		{
+			$mime = $file->getMimeType();
+			if (!in_array($mime, $allowedTypes))
+			{
+				$typeNames = array_map(fn($t) => explode('/', $t)[1] ?? $t, $allowedTypes);
+				throw new Exception("Invalid file type '{$mime}'. Allowed: " . implode(', ', $typeNames));
 			}
 		}
 
