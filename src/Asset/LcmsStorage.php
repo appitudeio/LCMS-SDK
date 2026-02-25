@@ -8,6 +8,7 @@
 
     class LcmsStorage extends Provider
     {
+        private string $cdnBase = 'https://static.logicalcms.com/';
         private ?Storage $client = null;
 
         protected function upload(File $file, string $path = "/"): string
@@ -56,6 +57,16 @@
             {
                 throw new Exception('Failed to list directory: ' . $e->getMessage());
             }
+        }
+
+        public function get(string $asset): string
+        {
+            return rtrim($this->cdnBase . $this->config['domain'], '/') . '/' . ltrim($asset, '/');
+        }
+
+        protected function getAssetDomain(): string
+        {
+            return rtrim($this->cdnBase . $this->config['domain'], '/');
         }
 
         protected function validateConfig(array $config): void
