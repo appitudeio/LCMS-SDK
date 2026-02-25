@@ -8,16 +8,20 @@
     class Inbox
     {
         private string $api_key;
+        private string $domain;
         private GuzzleClient $client;
-        private string $base_uri = 'https://apirest.logicalcms.com/3.0'; //apirest == directly to LCMS-server
+        private string $base_uri = 'https://api2.logicalcms.com';
 
-        public function __construct(string $api_key)
+        public function __construct(string $api_key, string $domain)
         {
             $this->api_key = $api_key;
+            $this->domain = $domain;
 
             $this->client = new GuzzleClient([
                 'headers' => [
-                    'Authorization' => $api_key,
+                    'Authorization' => 'Bearer ' . $api_key,
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
                     'User-Agent' => 'LCMS-SDK/3.4 (+https://github.com/appitudeio/lcms-sdk)'
                 ]
             ]);
@@ -38,8 +42,7 @@
         public function send(string $subject, string $message, $sender, array $receivers = []): array
         {
             $options = [
-                'form_params' => [
-                    'api_key'   => $this->api_key,
+                'json' => [
                     'subject'   => $subject,
                     'message'   => $message,
                     'sender'    => $sender,
@@ -47,7 +50,7 @@
                 ]
             ];
 
-            return $this->sendRequest('POST', 'inbox', $options);
+            return $this->sendRequest('POST', $this->domain . '/inbox', $options);
         }
 
         /**
@@ -75,7 +78,7 @@
             }
 
             $body = (string) $response->getBody();
-            
+
             if(!json_validate($body))
             {
                 throw new Exception("Invalid JSON response: " . $body);
