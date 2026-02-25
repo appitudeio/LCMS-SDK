@@ -75,7 +75,7 @@
 			$parsed_url = parse_url($_url);
 			$parts = explode("/", $_url);
 
-			if($parts[1] == "")
+			if(isset($parts[1]) && $parts[1] == "")
 			{
 				unset($parts[0], $parts[1]); // http(s)
 			}
