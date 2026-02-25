@@ -184,13 +184,7 @@
 		protected function getRequestBody(): string
 		{
 			if ($this->request->getMethod() === 'POST') {
-				// Get all form parameters
-				$params = $this->request->all();
-
-				// Sort by key to ensure consistent ordering
-
-				// Build query string
-				return http_build_query($params);
+				return file_get_contents('php://input');
 			}
 
 			return '';
