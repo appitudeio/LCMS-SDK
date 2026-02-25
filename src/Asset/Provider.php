@@ -86,6 +86,14 @@
         }
 
         /**
+         * Resolve an asset key to its public URL
+         *
+         * @param string $asset Asset key/path
+         * @return string Full public URL
+         */
+        abstract public function get(string $asset): string;
+
+        /**
          * Validate provider configuration
          */
         abstract protected function validateConfig(array $config): void;
