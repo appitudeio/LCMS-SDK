@@ -184,7 +184,7 @@
 		protected function getRequestBody(): string
 		{
 			if ($this->request->getMethod() === 'POST') {
-				return file_get_contents('php://input');
+				return $this->request->getContent();
 			}
 
 			return '';
