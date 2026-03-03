@@ -4,13 +4,13 @@
 	 */
 	namespace LCMS\Core;
 
-	use LCMS\Util\Singleton;
-
-	use \Exception;
+	use LCMS\Util\Singleton;	
 
 	class Env
 	{
-		use Singleton;
+		use Singleton {
+			Singleton::__construct as private SingletonConstructor;
+		}
 
 		const TYPE_INPUT		= 1;
 		const TYPE_BOOL 		= 2;
@@ -18,55 +18,55 @@
 
 		private $parameters = array();
 
-		public static function get(string $_key, mixed $_default_value = null): mixed
+		protected function get(string $_key, mixed $_default_value = null): mixed
 		{
 			$_key = strtolower($_key);
 			
-			if(!isset(self::getInstance()->parameters[$_key]))
+			if(!isset($this->parameters[$_key]))
 			{
 				return $_default_value;
 			}
 
-			if(is_string(self::getInstance()->parameters[$_key]))
+			if(is_string($this->parameters[$_key]))
 			{
-				return self::getInstance()->parameters[$_key];
+				return $this->parameters[$_key];
 			}
-			elseif(is_array(self::getInstance()->parameters[$_key]))
+			elseif(is_array($this->parameters[$_key]))
 			{
 				/**
 				 * 	Return first item if string, array or bool
 				 */
-				if(isset(self::getInstance()->parameters[$_key][0]) && in_array(gettype(self::getInstance()->parameters[$_key][0]), ["string", "boolean", "array"]))
+				if(isset($this->parameters[$_key][0]) && in_array(gettype($this->parameters[$_key][0]), ["string", "boolean", "array"]))
 				{
-					return self::getInstance()->parameters[$_key][0];
+					return $this->parameters[$_key][0];
 				}
 			}
 
-			return self::getInstance()->parameters[$_key];
+			return $this->parameters[$_key];
 		}
 
-		public static function set(string $_key, mixed $_value): void
+		protected function set(string $_key, mixed $_value): void
 		{
-			self::getInstance()->parameters[strtolower($_key)] = $_value;
+			$this->parameters[strtolower($_key)] = $_value;
 		}
 
-		public static function merge(array $_params): self
+		protected function merge(array $_params): self
 		{
 			foreach($_params AS $k => $v)
 			{
-				self::getInstance()->set($k, $v);
+				$this->set($k, $v);
 			}
 			
-			return self::getInstance();
+			return $this;
 		}
 
 		/**
 		 *	Never return DB nor protected assets
 		 *	- nor objects
 		 */
-		public static function getAll(): array
+		protected function getAll(): array
 		{
-			$return = array_filter(self::getInstance()->parameters, fn($e) => !is_array($e) || is_array($e) && array_is_list($e) && (!isset($e[1]) || $e[1] != 999));
+			$return = array_filter($this->parameters, fn($e) => !is_array($e) || is_array($e) && array_is_list($e) && (!isset($e[1]) || $e[1] != 999));
 
 			// If key == db, db_web, web_db
 			foreach($return AS $key => $value)

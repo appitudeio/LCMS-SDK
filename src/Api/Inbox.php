@@ -7,16 +7,11 @@
 
     class Inbox
     {
-        private string $api_key;
-        private string $domain;
         private GuzzleClient $client;
         private string $base_uri = 'https://api2.logicalcms.com';
 
-        public function __construct(string $api_key, string $domain)
+        public function __construct(private string $api_key, private string $domain)
         {
-            $this->api_key = $api_key;
-            $this->domain = $domain;
-
             $this->client = new GuzzleClient([
                 'headers' => [
                     'Authorization' => 'Bearer ' . $api_key,
