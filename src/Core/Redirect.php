@@ -14,7 +14,7 @@
 		}
 
 		private string $to;
-		private int $code;
+		private int|null $code = null;
 
 		protected function to(string $_url): self
 		{
