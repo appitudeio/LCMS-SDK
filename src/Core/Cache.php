@@ -12,7 +12,9 @@ use LCMS\Util\Singleton;
  */
 class Cache
 {
-    use Singleton;
+    use Singleton {
+        Singleton::__construct as private SingletonConstructor;
+    }
 
     private $adapter = null;
 
@@ -89,3 +91,4 @@ class Cache
         return $html;
     }
 }
+?>

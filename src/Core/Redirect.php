@@ -9,12 +9,14 @@
 
 	class Redirect
 	{
-		use Singleton;
+		use Singleton {
+			Singleton::__construct as private SingletonConstructor;
+		}
 
-		private $to;
-		private $code;
+		private string $to;
+		private int $code;
 
-		protected function to(string $_url = null): self
+		protected function to(string $_url): self
 		{
 			$this->to = (isset(parse_url($_url)['scheme'])) ? $_url : "/" . ltrim($_url, "/");
 

@@ -22,6 +22,7 @@
 	 */
 	namespace LCMS\Api;
 
+	use LCMS\DI;
 	use LCMS\Controller as BaseController;
 	use LCMS\Core\Route;
 	use LCMS\Core\Response;
@@ -29,11 +30,15 @@
 	use LCMS\Core\Request;
 	use LCMS\Core\Env;
 	use LCMS\Core\Node;
-	use LCMS\Core\Navigations;
 	use LCMS\Core\Locale;
 	use LCMS\Core\View;
+	use LCMS\Page\Navigations;
+
 	use Exception;
 	use Closure;
+	use ReflectionClass;
+	use ReflectionUnionType;
+	use ReflectionMethod;
 
 	abstract class Controller extends BaseController
 	{
@@ -49,7 +54,7 @@
 		 * @throws Exception If LCMS API secret is not configured
 		 */
 		public function __construct(
-			private Request $request
+			protected Request $request
 		)
 		{
 			// Get API secret from environment
@@ -103,8 +108,8 @@
 		protected function isProtectedMethod(string $endpoint): bool
 		{
 			// Get all public methods using reflection
-			$reflection = new \ReflectionClass($this);
-			$methods = $reflection->getMethods(\ReflectionMethod::IS_PUBLIC);
+			$reflection = new ReflectionClass($this);
+			$methods = $reflection->getMethods(ReflectionMethod::IS_PUBLIC);
 
 			// Filter to only methods starting with "Get" and map to lowercase
 			$protectedMethods = array_map(
@@ -241,7 +246,7 @@
 		 */
 		public function GetRoutes(): Response
 		{
-			return Response::json(Route::getInstance()->asTree());
+			return Response::json(Route::asTree());
 		}
 
 		/**
@@ -253,19 +258,21 @@
 		 */
 		public function GetNavigations(): Response
 		{
-			return Response::json(Navigations::getInstance()->asTree());
+			$navigations = DI::get(Navigations::class);
+			return Response::json($navigations->asTree());
 		}
 
 		/**
 		 * Get environment configuration
 		 *
 		 * Returns all environment variables for the application.
+		 * Filters out objects and arrays with objects.
 		 *
 		 * @return Response JSON response with environment data
 		 */
 		public function GetEnv(): Response
 		{
-			return Response::json(Env::getAll());
+			return Response::json(array_filter(Env::getAll(), fn($e) => !is_object($e) || (is_array($e) && array_is_list($e) && !is_object($e[0]))));
 		}
 
 		/**
@@ -318,14 +325,8 @@
 			foreach($controllers AS $identifier => $controller)
 			{
 				// Determine the namespace - child class will have correct namespace
-				$class = (new \ReflectionClass($this))->getNamespaceName() . "\\" . $identifier;
-
-				try {
-					$c = new \ReflectionClass($class);
-				} catch (\ReflectionException $e) {
-					// Skip if class doesn't exist
-					continue;
-				}
+				$class = (new ReflectionClass($this))->getNamespaceName() . "\\" . $identifier;
+				$c = new ReflectionClass($class);
 
 				$controllers[$identifier] = array(
 					'controller'	=> $identifier,
@@ -341,7 +342,7 @@
 				}
 
 				// Find all public methods that return View
-				foreach($c->getMethods(\ReflectionMethod::IS_PUBLIC) AS $method)
+				foreach($c->getMethods(ReflectionMethod::IS_PUBLIC) AS $method)
 				{
 					if(empty($method->getReturnType()))
 					{
@@ -350,7 +351,7 @@
 
 					$returnType = $method->getReturnType();
 
-					if($returnType instanceof \ReflectionUnionType)
+					if($returnType instanceof ReflectionUnionType)
 					{
 						$parts = array_unique(array_merge(...array_map(fn($type) => explode("\\", $type->getName()), $returnType->getTypes())));
 					}
@@ -428,7 +429,7 @@
 		 *
 		 * @return View|string Robots.txt content
 		 */
-		public function Robots(): View | string
+		public function Robots(): string
 		{
 			if(!$robots = Node::get("robots"))
 			{
@@ -472,7 +473,7 @@
 		 * @param string $_to Route name or URL
 		 * @return Redirect Redirect response
 		 */
-		public function Redirect($_to): Redirect
+		public function Redirect(string $_to): Redirect
 		{
 			return Redirect::to(Route::url($_to));
 		}
@@ -485,17 +486,17 @@
 		 * @param array|null $unallows URLs to exclude
 		 * @return array Sitemap entries
 		 */
-		protected function recursiveSitemapRouteParser($routes, $return = array(), ?array $unallows = null): array
+		protected function recursiveSitemapRouteParser(array $routes, array $return = array(), ?array $unallows = null): array
 		{
 			foreach(array_filter($routes, fn($r) => isset($r['org_pattern'])) AS $route)
 			{
 				// As last check, make sure the controller returns a View
-				if(!$returnType = (new \ReflectionClass($route['controller']))->getMethod($route['action'])->getReturnType())
+				if(!$returnType = (new ReflectionClass($route['controller']))->getMethod($route['action'])->getReturnType())
 				{
 					continue;
 				}
 
-				if($returnType instanceof \ReflectionUnionType)
+				if($returnType instanceof ReflectionUnionType)
 				{
 					$parts = array_unique(array_merge(...array_map(fn($type) => explode("\\", $type->getName()), $returnType->getTypes())));
 				}
@@ -579,7 +580,7 @@
 		 * @param Closure|null $item_callback Optional callback to transform items
 		 * @return string XML sitemap
 		 */
-		protected function generateSitemap($items, ?Closure $item_callback = null): string
+		protected function generateSitemap(array $items, ?Closure $item_callback = null): string
 		{
 			$sitemap = "";
 

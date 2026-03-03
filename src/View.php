@@ -14,7 +14,9 @@
 
 	class View implements Iterator
 	{
-		use Singleton;
+		use Singleton {
+			Singleton::__construct as private SingletonConstructor;
+		}
 
 		private array 	$data = array();
 		private string 	$view_file;
@@ -77,31 +79,31 @@
 		 * @param  mixed  $value
 		 * @return $this
 		 */
-		public static function with(array | string $key, mixed $value = null): self
+		protected function with(array | string $key, mixed $value = null): self
 		{
 			if(is_array($key))
 			{
-				self::getInstance()->data = array_merge(self::getInstance()->data, $key);
+				$this->data = array_merge($this->data, $key);
 			} 
 			elseif(is_array($value))
 			{
-				if(isset(self::getInstance()->data[$key]) && !is_array(self::getInstance()->data[$key]))
+				if(isset($this->data[$key]) && !is_array($this->data[$key]))
 				{
-					self::getInstance()->data[$key] = [ self::getInstance()->data[$key] ];
+					$this->data[$key] = [ $this->data[$key] ];
 				}
 				
-				self::getInstance()->data[$key] ??= [];
-				self::getInstance()->data[$key] = array_merge(self::getInstance()->data[$key], $value); // Keeps keys
+				$this->data[$key] ??= [];
+				$this->data[$key] = array_merge($this->data[$key], $value); // Keeps keys
 			}
 			else
 			{
-				self::getInstance()->data[$key] = $value;
+				$this->data[$key] = $value;
 			}
 
-			return self::getInstance();
+			return $this;
 		}
 
-		public static function make(string $_view, mixed $_with = null): self
+		protected function make(string $_view, mixed $_with = null): self
 		{
 			if(!$ext = pathinfo($_view, PATHINFO_EXTENSION))
 			{
@@ -115,14 +117,14 @@
 				throw new Exception($file . " not found");
 			}
 
-			self::getInstance()->view_file = $file;
+			$this->view_file = $file;
 
 			if(is_array($_with))
 			{
 				array_walk($_with, fn($value, $key) => self::with($key, $value));
 			}
 
-			return self::getInstance();
+			return $this;
 		}
 
 		protected function getPage(): Page
@@ -162,14 +164,14 @@
 	     *
 	     * @return void
 	     */
-	    public static function render(?string $_view = null, mixed $_data = null): string
+	    protected function render(?string $_view = null, mixed $_data = null): string
 	    {
 	    	if(!empty($_view))
 	    	{
-	    		self::getInstance()->make($_view, $_data);
+	    		$this->make($_view, $_data);
 	    	}
 			
-	    	return self::getInstance()->renderContent($_data);
+	    	return $this->renderContent($_data);
 	    }
 
 		/**

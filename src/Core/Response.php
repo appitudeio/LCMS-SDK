@@ -4,27 +4,33 @@
 	 */
 	namespace LCMS\Core;
 
+	use LCMS\Util\Singleton;
+
 	class Response
 	{
-		private static array $data;
+		use Singleton {
+			Singleton::__construct as private SingletonConstructor;
+		}
 
-		public static function json(array $_array): self
+		private array $data = [];
+
+		protected function json(array $_array): self
 		{
-			self::$data = $_array;
+			$this->data = $_array;
 
-			return new static();
+			return $this;
 		}
 
 		public function dispatch(): never
 		{
 			header('content-type: application/json; charset=utf-8');
-			echo json_encode(self::$data, JSON_PRETTY_PRINT);	
+			echo json_encode($this->data, JSON_PRETTY_PRINT);	
 			exit();
 		}
 
-		public function __toString(): string
+		protected function __toString(): string
 		{
-			return json_encode(self::$data);
+			return json_encode($this->data);
 		}
 	}
 ?>

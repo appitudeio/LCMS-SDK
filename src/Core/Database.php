@@ -25,7 +25,9 @@
 
 	class Database
 	{
-		use Singleton;
+		use Singleton {
+			Singleton::__construct as private SingletonConstructor;
+		}
 
 		private $connections = array();
 		private $sql;
