@@ -38,7 +38,9 @@
 	
 	class Node
 	{
-		use Singleton;
+		use Singleton {
+			Singleton::__construct as private SingletonConstructor;
+		}
 
 		/**
 		 * Nodes from i18n/database with their types

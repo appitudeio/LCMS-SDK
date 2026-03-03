@@ -39,13 +39,13 @@
 			$this->request = $_request;
 		}
 
-		public static function add(null | string $_url_pattern, mixed $_caller): string
+		protected function add(null | string $_url_pattern, mixed $_caller): string
 		{
 			/**
 			 *	Determine what to do when this Route is in use
 			 */
 			$route = array(
-				'key'		=> count(self::getInstance()->routes),
+				'key'		=> count($this->routes),
 				'pattern' 	=> $_url_pattern
 			);
 
@@ -65,31 +65,31 @@
 			{
 				$caller_parts = explode("@", $_caller);
 
-				$route['controller'] 	= self::getInstance()->getNamespace() . "Controllers\\" . $caller_parts[0];
+				$route['controller'] 	= $this->getNamespace() . "Controllers\\" . $caller_parts[0];
 				$route['action'] 		= $caller_parts[1] ?? "Index";
 			}
 
 			/**
 			 *	Inherit parent settings
 			 */
-			if(self::getInstance()->parent)
+			if($this->parent)
 			{
-				$route['parent'] = self::getInstance()->parent['key'];
+				$route['parent'] = $this->parent['key'];
 
-				if(!isset(self::getInstance()->routes[self::getInstance()->parent['key']]['children']))
+				if(!isset($this->routes[$this->parent['key']]['children']))
 				{
-					self::getInstance()->routes[self::getInstance()->parent['key']]['children'] = array();
+					$this->routes[$this->parent['key']]['children'] = array();
 				}
 
-				self::getInstance()->routes[self::getInstance()->parent['key']]['children'][] = $route['key'];
+				$this->routes[$this->parent['key']]['children'][] = $route['key'];
 
 				if(empty($_url_pattern))
 				{
-					$route['pattern'] = self::getInstance()->parent['pattern'];
+					$route['pattern'] = $this->parent['pattern'];
 				}
 				else
 				{
-					$route['pattern'] = ltrim(self::getInstance()->parent['pattern'] . "/" . $route['pattern'], "/");
+					$route['pattern'] = ltrim($this->parent['pattern'] . "/" . $route['pattern'], "/");
 				}
 			}
 			elseif(empty($route['pattern']))
@@ -98,7 +98,7 @@
 			}
 
 			// Add to queue
-			self::getInstance()->routes[] = $route;
+			$this->routes[] = $route;
 
 			return $route['key'];
 		}
@@ -131,17 +131,17 @@
 			return $_parent_key;
 		}
 
-		public static function bindControllerRoutes()
+		protected function bindControllerRoutes()
 		{
-			if(self::getInstance()->has_mapped)
+			if($this->has_mapped)
 			{
 				return;
 			}
 
-			array_walk_recursive(self::getInstance()->map, fn($key) => self::getInstance()->addControllerRoutes(self::getInstance()->routes[$key]['key']));
+			array_walk_recursive($this->map, fn($key) => $this->addControllerRoutes($this->routes[$key]['key']));
 
-			self::getInstance()->has_mapped = true;
-		}		
+			$this->has_mapped = true;
+		}
 
 		private function getCurrent(): array
 		{
@@ -166,47 +166,47 @@
 		/**
 		 *
 		 */
-		public static function alias(string $_alias): self
+		protected function alias(string $_alias): self
 		{
-			self::getInstance()->routes[self::getInstance()->current['key']]['alias'] = $_alias;
+			$this->routes[$this->current['key']]['alias'] = $_alias;
 
-			self::getInstance()->relations[$_alias] = self::getInstance()->current['key'];
+			$this->relations[$_alias] = $this->current['key'];
 
-			return self::getInstance();
+			return $this;
 		}
 
-		public static function get(string | null $_url_pattern, string | array $_caller): self
+		protected function get(string | null $_url_pattern, string | array $_caller): self
 		{
-			return self::getInstance()->map($_url_pattern, $_caller, Request::METHOD_GET);
+			return $this->map($_url_pattern, $_caller, Request::METHOD_GET);
 		}
 
-		public static function post(string | null $_url_pattern, string | array $_caller): self
+		protected function post(string | null $_url_pattern, string | array $_caller): self
 		{
-			return self::getInstance()->map($_url_pattern, $_caller, Request::METHOD_POST);
+			return $this->map($_url_pattern, $_caller, Request::METHOD_POST);
 		}
 
-		public static function ajax(string | null $_url_pattern, string | array $_caller): self
+		protected function ajax(string | null $_url_pattern, string | array $_caller): self
 		{
-			return self::getInstance()->map($_url_pattern, $_caller, Request::METHOD_AJAX);
+			return $this->map($_url_pattern, $_caller, Request::METHOD_AJAX);
 		}
 
-		public static function any(array $_methods, string $_url_pattern, string | array $_caller): self
+		protected function any(array $_methods, string $_url_pattern, string | array $_caller): self
 		{
-			$key = self::getInstance()->add($_url_pattern, $_caller);
+			$key = $this->add($_url_pattern, $_caller);
 
 			$_methods = (empty(!$_methods)) ? $_methods : array(Request::METHOD_GET, Request::METHOD_POST);
 
 			foreach($_methods AS $method)
 			{
-				if(!isset(self::getInstance()->map[$method]))
+				if(!isset($this->map[$method]))
 				{
-					self::getInstance()->map[$method] = array();
+					$this->map[$method] = array();
 				}
 
-				self::getInstance()->map[$method][] = $key;
+				$this->map[$method][] = $key;
 			}
 
-			return self::getInstance();
+			return $this;
 		}
 
 		private function map(string | null $_url_pattern, string | array $_caller, string $_method): self
@@ -494,9 +494,9 @@
 		/**
 		 *
 		 */
-		public static function url(string $alias, array $arguments = [], bool $absolute = true): string
+		protected function url(string $alias, array $arguments = [], bool $absolute = true): string
 		{
-			$instance = self::getInstance();
+			$instance = $this;
 
 			// 1. Validate alias existence
 			if (!isset($instance->relations[$alias]) && !isset($instance->db_relations[$alias])) 
@@ -525,7 +525,7 @@
 			return $absolute ? self::getAbsoluteUrl($url) : $url;
 		}
 
-		private static function appendQueryParameters(string $url, array $arguments): string
+		protected function appendQueryParameters(string $url, array $arguments): string
 		{
 			if($arguments = array_filter($arguments)) 
 			{
@@ -540,7 +540,7 @@
 			return $url;
 		}
 
-		private static function replaceArgumentsInPattern(string $url, array &$arguments, string $alias): string
+		protected function replaceArgumentsInPattern(string $url, array &$arguments, string $alias): string
 		{
 			// Match placeholders in the form {name} or {name:regex}
 			// Explanation:
@@ -581,7 +581,7 @@
 		 * Maybe preserve the current locale segment if the user's URL starts with it.
 		 * Otherwise, just append the $url normally.
 		 */
-		private static function maybePreserveCurrentLocaleSegment(string $url): string
+		protected function maybePreserveCurrentLocaleSegment(string $url): string
 		{
 			$locale = DI::get(Locale::class);
 			$requestPath = DI::get(Request::class)->path(); // E.g., "sv-se/products"
@@ -616,7 +616,7 @@
 			return $final === '' ? '/' : $final;
 		}
 
-		private static function getAbsoluteUrl(string $url): string
+		protected function getAbsoluteUrl(string $url): string
 		{
 			$request = DI::get(Request::class);
 
@@ -626,23 +626,23 @@
 		/**
 		 *	Try to rewerse engineer the Route from the URL
 		 */
-		public static function getRouteFromUrl(string $_url): mixed
+		protected function getRouteFromUrl(string $_url): mixed
 		{
-			return self::getInstance()->match(ltrim(parse_url($_url)['path'], "/"), "GET", false, false);
+			return $this->match(ltrim(parse_url($_url)['path'], "/"), "GET", false, false);
 		}
 
-		public static function asItem(string $_alias): array
+		protected function asItem(string $_alias): array
 		{
-			if(!isset(self::getInstance()->relations[$_alias]))
+			if(!isset($this->relations[$_alias]))
 			{
 				throw new Exception("No RouteAlias found: " . $_alias);
 			}
 
-			return self::getInstance()->routes[self::getInstance()->relations[$_alias]];
+			return $this->routes[$this->relations[$_alias]];
 		}
 
 		// Pair everything as a tree based on parent/children
-		public function asTree(bool $_strict = true)
+		protected function asTree(bool $_strict = true)
 		{
 			// Root
 			$root = array();

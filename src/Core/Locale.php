@@ -22,7 +22,9 @@
 
 	class Locale
 	{
-		use Singleton;
+		use Singleton {
+			Singleton::__construct as private SingletonConstructor;
+		}
 
 		private array $languages = [];
 		private array $config = [
