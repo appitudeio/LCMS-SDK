@@ -189,7 +189,7 @@
 		protected function getRequestBody(): string
 		{
 			if ($this->request->getMethod() === 'POST') {
-				return $this->request->getContent();
+				return http_build_query($_POST);
 			}
 
 			return '';
