@@ -59,7 +59,7 @@
 		public FileBag 		$files;
 		public ServerBag 	$server;
 		public HeaderBag 	$headers;
-		public mixed 		$content;
+		public mixed 		$content = null;
 
         private ?string 	$languages 	= null;
         private ?string 	$pathInfo 	= null;
@@ -151,6 +151,8 @@
 			{
 				$instance->request = new InputBag($request);
 			}
+
+			$instance->content = $content;
 
 			//$instance->cookies->setDomain($instance->getHost());
 			//$instance->cookies->setSecure($instance->isSecure());
