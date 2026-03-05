@@ -1,7 +1,7 @@
 {
     "name": "appitudeio/lcms-sdk",
     "description": "LCMS SDK",
-    "version": "3.7.9",
+    "version": "3.7.10",
     "type": "library",
     "license": "proprietary",
     "authors": [
