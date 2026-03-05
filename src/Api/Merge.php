@@ -755,15 +755,6 @@
 				{
 					unset($this->database_routes[$k]); // Remove this entry from LCMS
 
-					// Route has no pattern for current language — treat as disabled
-					if(empty($lcms_route['pattern']))
-					{
-						unset($lcms_route['pattern']);
-
-						$lang = Locale::getLanguage();
-						$lcms_route['settings'][$lang]['disabled'] = ['value' => true];
-					}
-
 					return array_merge($system_route, $lcms_route);
 				}
 			}
@@ -808,8 +799,15 @@
 		private function buildRoute($row): array
 		{
 			$row['org_pattern'] = array_filter($row['pattern']);
-			$lang_pattern = $row['pattern'][Locale::getLanguage()] ?? null;
-			$row['pattern'] = !empty($lang_pattern) ? $lang_pattern : null;
+			$lang = Locale::getLanguage();
+			$lang_pattern = $row['pattern'][$lang] ?? null;
+			$wildcard_pattern = $row['pattern']['*'] ?? null;
+			$row['pattern'] = $lang_pattern ?? $wildcard_pattern ?? ($row['pattern'][array_key_first($row['pattern'])] ?? null);
+
+			if(empty($lang_pattern) && empty($wildcard_pattern) && !empty($row['pattern']))
+			{
+				$row['settings'][$lang]['disabled'] = ['value' => true];
+			}
 
 			if(!empty($row['parent_id']))
 			{
