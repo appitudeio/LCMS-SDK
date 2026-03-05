@@ -732,7 +732,7 @@
 			$this->instance->bindControllerRoutes();
 
 			$this->system_routes = $this->instance->routes;
-			
+
 			if(!$routes = $db->query("SELECT * FROM ".$env->get("db")['database'].".`lcms_routes`")->asArray())
 			{
 				return $this;
@@ -800,11 +800,12 @@
 		{
 			$row['org_pattern'] = array_filter($row['pattern']);
 			$lang = Locale::getLanguage();
-			$lang_pattern = $row['pattern'][$lang] ?? null;
-			$wildcard_pattern = $row['pattern']['*'] ?? null;
-			$row['pattern'] = $lang_pattern ?? $wildcard_pattern ?? ($row['pattern'][array_key_first($row['pattern'])] ?? null);
+			$lang_pattern = $row['org_pattern'][$lang] ?? null;
+			$wildcard_pattern = $row['org_pattern']['*'] ?? null;
+			$fallback_pattern = !empty($row['org_pattern']) ? $row['org_pattern'][array_key_first($row['org_pattern'])] : null;
+			$row['pattern'] = $lang_pattern ?? $wildcard_pattern ?? $fallback_pattern;
 
-			if(empty($lang_pattern) && empty($wildcard_pattern) && !empty($row['pattern']))
+			if($row['pattern'] !== null && empty($lang_pattern) && empty($wildcard_pattern))
 			{
 				$row['settings'][$lang]['disabled'] = ['value' => true];
 			}
