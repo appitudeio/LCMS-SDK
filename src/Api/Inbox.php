@@ -8,7 +8,7 @@
     class Inbox
     {
         private GuzzleClient $client;
-        private string $base_uri = 'https://api2.logicalcms.com';
+        private string $base_uri = 'https://api.logicalcms.com';
 
         public function __construct(private string $api_key, private string $domain)
         {
