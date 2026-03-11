@@ -302,8 +302,9 @@
 
 			$controllers = array();
 
-			// Scan all PHP files in Controllers directory
-			foreach(glob(__DIR__ . "/../../App/Controllers/*.php") AS $controller)
+			// Scan all PHP files in Controllers directory (use child class location, not SDK location)
+			$controllerDir = dirname((new ReflectionClass($this))->getFileName());
+			foreach(glob($controllerDir . "/*.php") AS $controller)
 			{
 				$controller_name = explode(".", basename($controller))[0];
 
