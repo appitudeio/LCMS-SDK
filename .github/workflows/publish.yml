@@ -103,15 +103,6 @@ jobs:
           draft: false
           prerelease: ${{ contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'alpha') }}
 
-      - name: Notify Packagist
-        if: steps.check_tag.outputs.exists == 'false'
-        run: |
-          curl -X POST \
-            -H "Content-Type: application/json" \
-            -d '{"repository":{"url":"https://github.com/appitudeio/LCMS-SDK.git"}}' \
-            "https://packagist.org/api/update-package?username=oakleaf&apiToken=${{ secrets.PACKAGIST_TOKEN }}"
-          echo "Packagist notified of new release"
-
       - name: Tag already exists
         if: steps.check_tag.outputs.exists == 'true'
         run: |
