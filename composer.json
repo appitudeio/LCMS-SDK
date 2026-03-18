@@ -1,7 +1,7 @@
 {
     "name": "appitudeio/lcms-sdk",
     "description": "LCMS SDK",
-    "version": "3.7.12",
+    "version": "3.7.13",
     "type": "library",
     "license": "proprietary",
     "authors": [
@@ -16,7 +16,7 @@
         "php": ">=8.1",
         "guzzlehttp/guzzle": "^7.9",
         "php-di/php-di": "^7.1.1",
-        "appitudeio/lcms-storage": "^0.1"
+        "appitudeio/lcms-storage": "^0.2"
     },
     "autoload": {
         "psr-4": {
