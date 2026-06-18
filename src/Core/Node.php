@@ -188,7 +188,16 @@
 				return (is_array($node) && !array_is_list($node)) ? $node : new NodeObject($_identifier, $node ?: array(), (is_array($properties)) ? $properties : array());
 			}
 
-			$node = (is_string($node) || is_bool($node)) ? array('content' => $node) : $node;
+			// A dotted property access (e.g. "avatar.src") resolves to a scalar
+			// property value with no node content - return that value as the
+			// content instead of falling through to `null + array`.
+			if($node === null && !is_array($properties))
+			{
+				$node = $properties; // scalar (string|null) becomes the value
+				$properties = null;
+			}
+
+			$node = (is_string($node) || is_bool($node)) ? array('content' => $node) : ($node ?? array());
 			$node += array(
 				'properties' => $properties ?: null
 			);
