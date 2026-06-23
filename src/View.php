@@ -121,7 +121,12 @@
 
 			if(is_array($_with))
 			{
-				array_walk($_with, fn($value, $key) => self::with($key, $value));
+				// Bind passed data by overwriting each key, not append-merging it.
+				// with($key, $arrayValue) array_merges onto an already-set global of
+				// the same name (see with() below), which silently doubled any array
+				// a view re-passed into make() - e.g. collections, widgets, faqs that
+				// were already bound globally. with(array) overwrites key-by-key.
+				self::with($_with);
 			}
 
 			return $this;
