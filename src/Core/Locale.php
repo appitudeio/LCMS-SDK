@@ -1229,6 +1229,8 @@
 		case NIUEAN = 'niu';
 		case DUTCH = 'nl';
 		case NORWEGIAN = 'no';
+		case NORWEGIAN_BOKMAL = 'nb';
+		case NORWEGIAN_NYNORSK = 'nn';
 		case PUNJABI = 'pa';
 		case POLISH = 'pl';
 		case PASHTO = 'ps';
@@ -1306,6 +1308,8 @@
 			'niu' => 'nu', // Niuean → Niue
 			'nl' => 'nl',  // Dutch → Netherlands
 			'no' => 'no',  // Norwegian → Norway
+			'nb' => 'no',  // Norwegian Bokmål → Norway
+			'nn' => 'no',  // Norwegian Nynorsk → Norway
 			'pa' => 'in',  // Punjabi → India
 			'pl' => 'pl',  // Polish → Poland
 			'ps' => 'af',  // Pashto → Afghanistan
